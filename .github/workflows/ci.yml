@@ -4,24 +4,49 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
 
 permissions:
   contents: read
 
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   analyzer:
-    name: Analizador (pytest)
-    runs-on: ubuntu-latest
+    name: Analizador (pytest · ${{ matrix.os }} · Python ${{ matrix.python }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-latest, python: '3.11' }
+          - { os: ubuntu-latest, python: '3.12' }
+          - { os: ubuntu-latest, python: '3.13' }
+          - { os: macos-latest, python: '3.12' }
+          - { os: windows-latest, python: '3.12' }
+    env:
+      PYTHONUTF8: '1'
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-python@v6
         with:
-          python-version: '3.12'
+          python-version: ${{ matrix.python }}
           cache: pip
           cache-dependency-path: analyzer/pyproject.toml
-      - run: pip install -e 'analyzer[dev]'
-      - run: pytest -q
+      - name: Identidad de git para los tests
+        run: |
+          git config --global user.name "Cortex CI"
+          git config --global user.email "ci@users.noreply.github.com"
+          git config --global init.defaultBranch main
+      - run: pip install -e "analyzer[dev]"
+      - name: Pyflakes
         working-directory: analyzer
+        run: python -m pyflakes cortex_graph tests
+      - name: Pytest
+        working-directory: analyzer
+        run: python -m pytest -q
 
   web:
     name: Web (build)
@@ -41,3 +66,55 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - run: docker compose build
+
+  install:
+    name: Instalación con uvx desde git
+    runs-on: ubuntu-latest
+    env:
+      CORTEX_SPEC: git+https://github.com/${{ github.repository }}@${{ github.sha }}#subdirectory=analyzer
+      UV_PYTHON: '3.12'
+    steps:
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v10.2.0
+        with:
+          version: '0.12.17'
+          enable-cache: false
+      - name: Carpeta de datos temporal
+        run: echo "CORTEX_DATA=$RUNNER_TEMP/cortex-data" >> "$GITHUB_ENV"
+      - name: cortex --version
+        run: uvx --from "$CORTEX_SPEC" cortex --version
+      - name: cortex analyze sobre el propio repo
+        run: uvx --from "$CORTEX_SPEC" cortex analyze . --name cortex
+      - name: cortex overview
+        run: uvx --from "$CORTEX_SPEC" cortex overview cortex --json > /dev/null
+      - name: MCP por stdio (initialize + tools/list + project_overview)
+        run: |
+          uv run --no-project python - <<'EOF'
+          import json, os, subprocess
+          proc = subprocess.Popen(['uvx', '--from', os.environ['CORTEX_SPEC'], 'cortex', 'mcp'],
+                                  stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
+          def send(message):
+              proc.stdin.write(json.dumps(message) + '\n')
+              proc.stdin.flush()
+          def receive(wanted):
+              while True:
+                  line = proc.stdout.readline()
+                  if not line:
+                      raise SystemExit('el servidor MCP se cerró antes de responder')
+                  message = json.loads(line)
+                  if message.get('id') == wanted:
+                      return message
+          send({'jsonrpc': '2.0', 'id': 1, 'method': 'initialize', 'params': {
+              'protocolVersion': '2025-06-18', 'capabilities': {}, 'clientInfo': {'name': 'ci', 'version': '1'}}})
+          info = receive(1)['result']['serverInfo']
+          send({'jsonrpc': '2.0', 'method': 'notifications/initialized'})
+          send({'jsonrpc': '2.0', 'id': 2, 'method': 'tools/list'})
+          tools = sorted(t['name'] for t in receive(2)['result']['tools'])
+          send({'jsonrpc': '2.0', 'id': 3, 'method': 'tools/call', 'params': {'name': 'project_overview', 'arguments': {'project': 'cortex'}}})
+          overview = receive(3)['result']
+          proc.stdin.close()
+          proc.wait(timeout=30)
+          assert {'project_overview', 'search_code', 'impact_analysis'} <= set(tools), tools
+          assert not overview.get('isError'), overview
+          print(info, len(tools), 'herramientas:', ', '.join(tools))
+          EOF

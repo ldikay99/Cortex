@@ -14,7 +14,7 @@
   <img src="https://img.shields.io/badge/Python-3.11%2B-8cdcf5?style=flat-square&logo=python&logoColor=white" alt="Python 3.11+" />
   <img src="https://img.shields.io/badge/Three.js-r170-8cdcf5?style=flat-square&logo=threedotjs&logoColor=white" alt="Three.js" />
   <img src="https://img.shields.io/badge/lenguajes-26%2B-8cdcf5?style=flat-square" alt="26+ lenguajes" />
-  <img src="https://img.shields.io/badge/MCP-11%20herramientas-8cdcf5?style=flat-square" alt="MCP" />
+  <img src="https://img.shields.io/badge/MCP-18%20herramientas-8cdcf5?style=flat-square" alt="MCP" />
   <img src="https://img.shields.io/badge/Docker-compose-8cdcf5?style=flat-square&logo=docker&logoColor=white" alt="Docker" />
 </p>
 
@@ -61,31 +61,28 @@ Toda IA que entra a un repositorio llega sin memoria. Abre archivos, adivina, vu
 
 ## Para tu IA
 
-Córtex trae un **servidor MCP** con 11 herramientas. Regístralo una vez (este repo ya incluye [`.mcp.json`](.mcp.json)):
-
-```json
-{
-  "mcpServers": {
-    "cortex": {
-      "command": "docker",
-      "args": ["exec", "-i", "cortex-analyzer", "cortex", "mcp"]
-    }
-  }
-}
-```
-
-Y tu agente puede responder cosas como:
+Tu agente no abre archivos a ciegas: le pide a Córtex **el contexto justo para su tarea**, dentro de su presupuesto de tokens, y lee solo el código que importa.
 
 | Pregunta | Herramienta |
 | --- | --- |
+| «Voy a tocar el login: dame contexto» | `context_for` → paquete priorizado con firmas, docs y código en ≤ 8k tokens |
+| «Muéstrame `validate`» | `read_symbol` → el código exacto, con secretos redactados |
 | «¿Qué se rompe si cambio `mutateElement`?» | `impact_analysis` |
-| «¿Cómo llega la ruta `/login` hasta la tabla `users`?» | `find_path` |
-| «¿Qué cambió desde la v2?» | `changes` |
-| «¿Dónde vive la lógica de autenticación?» | `search_code` → `community_context` |
+| «Revisa mi diff antes del PR» | `review_changes` → símbolos tocados, impacto, tests que corren y riesgo 0–100 |
+| «¿Quién llama a `POST /orders`?» | `endpoints` → rutas HTTP y RPC con su handler y sus clientes, aunque estén en otro servicio u otro lenguaje |
+| «¿Quién usa `axios`?» | `dependencies` |
+| «¿Dónde se lee `DATABASE_URL`?» | `variables` |
+| «¿Hay ciclos, código muerto o puntos calientes?» | `architecture` |
 
-`list_projects` · `analyze_project` · `project_overview` · `search_code` · `node_context` · `file_context` · `community_context` · `find_path` · `impact_analysis` · `changes` · `get_report`
+18 herramientas MCP, más recursos (`cortex://<proyecto>/overview`) y prompts listos (`orient`, `plan_change`, `review`, `explain`). Lo mismo está en la **CLI** (`cortex … --json`) y en la **API HTTP** (`/api/query/*`).
 
-¿Sin MCP? Lo mismo está en la **CLI** (`cortex … --json`), en la **API HTTP** (`/api/query/overview|search|node|file|community|path|impact|changes`) y en disco: `datos/<proyecto>/grafo.md` es un reporte listo para pegar en el contexto de cualquier modelo.
+**Conéctalo a tu cliente** con un comando: Claude Code, Claude Desktop, Cursor, VS Code/Copilot, Windsurf/Devin, Zed, Codex, Gemini CLI, Continue o Cline.
+
+```bash
+cortex mcp-config cursor --mode uvx --install
+```
+
+**Y que el repo se explique solo**: `cortex context-files` escribe `AGENTS.md`, `CLAUDE.md`, `llms.txt`, reglas de Cursor y de Copilot a partir del grafo, sin tocar lo que ya escribiste.
 
 ## Empieza en 1 minuto
 
@@ -98,39 +95,41 @@ Abre **http://localhost:8090**, elige una carpeta, un `.zip` o una URL de GitHub
 
 > Para repos privados de GitHub: `GITHUB_TOKEN=ghp_… docker compose up -d`.
 
-**Desde la terminal**, sin navegador:
+**Sin Docker**, solo la CLI y el MCP (Python 3.11–3.13):
 
 ```bash
-docker exec cortex-analyzer cortex analyze https://github.com/excalidraw/excalidraw
-docker exec cortex-analyzer cortex impact mutateElement --project excalidraw
+uvx --from git+https://github.com/ldikay99/Cortex#subdirectory=analyzer cortex analyze ./mi-repo
+uvx --from git+https://github.com/ldikay99/Cortex#subdirectory=analyzer cortex mcp
 ```
-
-**Para tu agente**: con los contenedores arriba, el `.mcp.json` de este repo basta. En otro proyecto, copia ese bloque a su configuración MCP.
 
 <details>
-<summary>Solo la CLI y el MCP, sin Docker</summary>
+<summary>Más formas de usarlo</summary>
 
 ```bash
-python -m venv .venv && . .venv/bin/activate
-pip install -e analyzer
-cortex analyze ./mi-repo        # guarda en ./datos/mi-repo/
-cortex overview mi-repo
-cortex mcp                      # servidor MCP por stdio
+cortex analyze https://github.com/excalidraw/excalidraw
+cortex context "cómo se valida un request" --project gin
+cortex review --worktree                 # tus cambios sin commitear
+cortex watch .                           # reanaliza al guardar
+cortex hook install                      # reanaliza en cada commit
+cortex analyze . --scip index.scip       # modo preciso con un índice SCIP
 ```
 
-La web necesita el proxy de nginx hacia el analizador: para el universo 3D, usa `docker compose`.
+Imágenes publicadas: `ghcr.io/ldikay99/cortex-web` y `ghcr.io/ldikay99/cortex-analyzer`. Los datos viven en `CORTEX_DATA`, en `./datos` si existe, o en la carpeta de datos de tu sistema.
+
+Configura cada repo con `.cortex.toml` (`name`, `exclude`, `include_tests`, `git`) y `.cortexignore` (sintaxis de `.gitignore`).
 
 </details>
 
 ## Por dentro
 
-- **Más de 25 lenguajes leídos con su árbol de sintaxis real:** Python (y notebooks), TypeScript, JavaScript, Vue, Svelte, Go, Rust, Java, Kotlin, Scala, Groovy, C#, F#, PHP, Ruby, C, C++, Objective-C, Swift, Dart, Elixir, Haskell, OCaml, Julia, Lua, Perl, Zig, Solidity, Bash, PowerShell y Terraform.
-- **La infraestructura también es código:** servicios de compose, jobs de CI, targets de Make, tablas SQL con sus llaves foráneas, protobuf, GraphQL, Prisma, manifiestos de Kubernetes y proyectos .NET.
-- **Lo demás no se pierde:** Clojure, Erlang, Nim, R, shaders… entran con lectura heurística.
-- Monorepos, alias de tsconfig, workspaces, `go.mod`, crates de Cargo y paquetes de Java se resuelven solos.
-- Comunidades descubiertas solas, con nombre propio.
-- Versiones con diff por contenido y un mapa que no se reacomoda.
-- Todo vive en `datos/<proyecto>/`, legible sin abrir el navegador.
+- **Más de 25 lenguajes con su árbol de sintaxis real:** Python (y notebooks), TypeScript, JavaScript, Vue, Svelte, Go, Rust, Java, Kotlin, Scala, Groovy, C#, F#, PHP, Ruby, C, C++, Objective-C, Swift, Dart, Elixir, Haskell, OCaml, Julia, Lua, Perl, Zig, Solidity, Bash, PowerShell y Terraform. Cada símbolo trae firma, documentación, rango de líneas y visibilidad.
+- **Puentes entre servicios:** rutas HTTP de una veintena de frameworks unidas a sus clientes, gRPC de punta a punta, tablas SQL usadas desde el código, variables de entorno, colas y eventos.
+- **Dependencias externas** de npm, PyPI, Go, Cargo, Maven/Gradle, NuGet, Composer, RubyGems y más, con quién las usa.
+- **La infraestructura también es código:** compose, CI, Make, Kubernetes, Helm, Ansible, CloudFormation/SAM, Bicep, dbt, protobuf, GraphQL, Prisma, plantillas (Razor, Blade, ERB, Jinja, Twig) y legado (COBOL, PL/SQL, T-SQL, Fortran, VB, ABAP, Apex).
+- **Historia de git:** archivos calientes, quién cambia con quién y riesgo de cada cambio.
+- **Siempre al día:** un repo sin cambios se revisa en milisegundos y, en repos medianos, un cambio pequeño se reanaliza en menos de un segundo.
+- **Calidad medida** contra índices SCIP de compilador: en Python y Go, 98–100 % de precisión y 93–100 % de cobertura en llamadas y dependencias ([`bench/`](bench)).
+- Comunidades descubiertas solas, con nombre propio; versiones con diff por contenido y un mapa que no se reacomoda.
 
 ## Atajos
 

@@ -41,7 +41,13 @@ description: Develop Córtex itself (the 3D web in src/ and the Python analyzer 
 | `pipeline.py` | Fuente local o GitHub (clon superficial), análisis y guardado |
 | `query.py` | Índice y consultas: overview, search, node, file, community, path, impact, changes, report |
 | `server.py` | API HTTP: subida, clon, revisión, análisis, stream, export, `/api/query/*` |
-| `mcp_server.py` | Servidor MCP (FastMCP) con 11 herramientas |
+| `mcp_server.py` | Servidor MCP (FastMCP): 18 herramientas, recursos y prompts |
+| `search.py`, `context.py` | Búsqueda BM25 y paquetes de contexto con presupuesto; `read_symbol` con redacción de secretos |
+| `bridges.py`, `deps.py` | Puentes entre servicios (HTTP, gRPC, datos, entorno, eventos) y dependencias externas |
+| `gitinfo.py`, `review.py` | Historia de git (churn, co-cambio) y revisión de diffs con riesgo |
+| `config.py`, `watch.py` | `.cortex.toml`, `.cortexignore`, vigilancia y hooks de git |
+| `contextfiles.py`, `clients.py` | AGENTS.md/CLAUDE.md/llms.txt y configuración MCP para cada cliente |
+| `scip.py` | Modo preciso con índices SCIP (`bench/` mide la calidad contra ellos) |
 | `cli.py` | CLI `cortex` |
 | `errors.py` | `CortexError`, `NotFound`, `InvalidInput`, `Conflict` |
 

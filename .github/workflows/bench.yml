@@ -1,0 +1,38 @@
+name: Benchmark
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 6 * * 1'
+
+permissions:
+  contents: read
+
+jobs:
+  bench:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+      - run: pip install -e analyzer
+      - name: Indexadores SCIP
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p ~/scip-tools/bin && cd ~/scip-tools
+          npm install --ignore-scripts @sourcegraph/scip-python@0.6.6
+          gh release download v0.2.7 -R sourcegraph/scip-go -p 'scip-go-linux-amd64.tar.gz*'
+          sha256sum -c scip-go-linux-amd64.tar.gz.sha256 && tar xzf scip-go-linux-amd64.tar.gz -C bin
+      - run: python bench/run.py --tools ~/scip-tools --work ${{ runner.temp }}/bench
+      - uses: actions/upload-artifact@v7.0.1
+        with:
+          name: bench-results
+          path: bench/results

@@ -977,3 +977,605 @@ def test_editing_a_later_overload_changes_the_hash(tmp_path):
     edited = OVERLOADS.replace('return a + b;', 'return b + a;')
     second = keyed(analyze(str(write_repo(tmp_path / 'b', {'Calc.java': edited}))))
     assert first['f:Calc.java:Calc.add']['hash'] != second['f:Calc.java:Calc.add']['hash']
+
+
+META = {
+    'go': ({'go.mod': 'module example.com/shop\n', 'shop.go': """
+        // Package shop sells things.
+        //
+        // More text.
+        package shop
+
+        import (
+            "fmt"
+            gin "github.com/gin-gonic/gin"
+            "example.com/shop/util"
+        )
+
+        // Server serves.
+        // Second line.
+        type Server struct {
+            Name string
+        }
+
+        // Handle handles a request.
+        //go:noinline
+        func (s *Server) Handle(w int, r string) error {
+            return nil
+        }
+
+        func helper() {}
+    """, 'util/util.go': 'package util\n'}, {
+        'c:shop.go:Server': ('type Server struct', 'Server serves. Second line.', 'public', 16),
+        'f:shop.go:Server.Handle': ('func (s *Server) Handle(w int, r string) error', 'Handle handles a request.', 'public', 22),
+        'f:shop.go:helper': ('func helper()', None, 'private', 24),
+    }),
+    'rust': ({'Cargo.toml': '[package]\nname = "shop"\n', 'src/lib.rs': """
+        //! Crate docs here.
+
+        mod util;
+        use serde::Deserialize;
+        use crate::util::slug;
+
+        /// A user.
+        ///
+        /// Details.
+        #[derive(Debug)]
+        pub struct User {
+            name: String,
+        }
+
+        /** Block doc. */
+        pub(crate) enum Kind { A, B }
+
+        trait Greeter {
+            fn greet(&self) -> String;
+        }
+
+        impl User {
+            /// Makes one.
+            pub fn new(name: &str) -> Self {
+                User { name: name.into() }
+            }
+            fn hidden(&self) {}
+        }
+
+        impl Greeter for User {
+            fn greet(&self) -> String { String::new() }
+        }
+    """, 'src/util.rs': 'pub fn slug() {}\n'}, {
+        'c:src/lib.rs:User': ('pub struct User', 'A user.', 'public', 13),
+        'c:src/lib.rs:Kind': ('pub(crate) enum Kind', 'Block doc.', 'internal', 16),
+        'f:src/lib.rs:Greeter.greet': ('fn greet(&self) -> String', None, 'public', 19),
+        'f:src/lib.rs:User.new': ('pub fn new(name: &str) -> Self', 'Makes one.', 'public', 26),
+        'f:src/lib.rs:User.hidden': ('fn hidden(&self)', None, 'private', 27),
+    }),
+    'java': ({'src/com/shop/User.java': """
+        package com.shop;
+
+        import org.springframework.web.bind.annotation.GetMapping;
+        import org.junit.*;
+        import com.shop.model.Base;
+
+        /**
+         * A user entity.
+         *
+         * @author me
+         */
+        @Entity
+        public class User extends Base {
+            /** Greets {@link Base} users. @return hi */
+            @Override
+            public String greet(String name) throws Exception {
+                return "hi";
+            }
+            void pkg() {}
+            private int secret() { return 1; }
+            protected abstract void prot();
+        }
+
+        interface Repo {
+            /** Finds. */
+            User find(long id);
+        }
+    """, 'src/com/shop/model/Base.java': 'package com.shop.model;\npublic class Base {}\n'}, {
+        'c:src/com/shop/User.java:User': ('public class User extends Base', 'A user entity.', 'public', 22),
+        'f:src/com/shop/User.java:User.greet': ('public String greet(String name) throws Exception', 'Greets Base users.',
+                                                'public', 18),
+        'f:src/com/shop/User.java:User.pkg': ('void pkg()', None, 'internal', 19),
+        'f:src/com/shop/User.java:User.secret': ('private int secret()', None, 'private', 20),
+        'f:src/com/shop/User.java:User.prot': ('protected abstract void prot()', None, 'protected', 21),
+        'c:src/com/shop/User.java:Repo': ('interface Repo', None, 'internal', 27),
+        'f:src/com/shop/User.java:Repo.find': ('User find(long id)', 'Finds.', 'public', 26),
+    }),
+    'csharp': ({'Models/User.cs': """
+        using System.Linq;
+
+        namespace Shop.Models
+        {
+            /// <summary>
+            /// A user with <see cref="Base"/> parent.
+            /// </summary>
+            /// <remarks>Ignored.</remarks>
+            [Serializable]
+            public class User : Base
+            {
+                /// <summary>Greets.</summary>
+                public async Task<string> Greet(string name)
+                {
+                    return name;
+                }
+                void Hidden() {}
+                protected internal void Both() {}
+                internal int Count() => 1;
+            }
+            class Plain {}
+            interface IRepo { void Save(); }
+        }
+    """}, {
+        'c:Models/User.cs:User': ('public class User : Base', 'A user with Base parent.', 'public', 20),
+        'f:Models/User.cs:User.Greet': ('public async Task<string> Greet(string name)', 'Greets.', 'public', 16),
+        'f:Models/User.cs:User.Hidden': ('void Hidden()', None, 'private', 17),
+        'f:Models/User.cs:User.Both': ('protected internal void Both()', None, 'protected', 18),
+        'f:Models/User.cs:User.Count': ('internal int Count()', None, 'internal', 19),
+        'c:Models/User.cs:Plain': ('class Plain', None, 'internal', 21),
+        'f:Models/User.cs:IRepo.Save': ('void Save()', None, 'public', 22),
+    }),
+    'kotlin': ({'User.kt': """
+        package shop
+
+        /**
+         * A user.
+         */
+        @JvmInline
+        data class User(val name: String) : Base() {
+            /** Greets. */
+            override fun greet(x: Int): String {
+                return name
+            }
+            private fun hide() = 1
+            internal fun inner() {}
+        }
+
+        fun top(a: Int) = a
+    """}, {
+        'c:User.kt:User': ('data class User(val name: String) : Base()', 'A user.', 'public', 14),
+        'f:User.kt:User.greet': ('override fun greet(x: Int): String', 'Greets.', 'public', 11),
+        'f:User.kt:User.hide': ('private fun hide()', None, 'private', 12),
+        'f:User.kt:User.inner': ('internal fun inner()', None, 'internal', 13),
+        'f:User.kt:top': ('fun top(a: Int)', None, 'public', 16),
+    }),
+    'swift': ({'User.swift': """
+        import Foundation
+
+        /// A user.
+        /// More.
+        public class User: Base {
+            /// Greets.
+            @discardableResult
+            public func greet(name: String) -> String {
+                return name
+            }
+            private func hide() {}
+            func plain() {}
+            fileprivate func fp() {}
+        }
+
+        protocol Repo {
+            func save()
+        }
+    """}, {
+        'c:User.swift:User': ('public class User: Base', 'A user. More.', 'public', 14),
+        'f:User.swift:User.greet': ('public func greet(name: String) -> String', 'Greets.', 'public', 10),
+        'f:User.swift:User.hide': ('private func hide()', None, 'private', 11),
+        'f:User.swift:User.plain': ('func plain()', None, 'internal', 12),
+        'f:User.swift:User.fp': ('fileprivate func fp()', None, 'private', 13),
+        'f:User.swift:Repo.save': ('func save()', None, 'internal', 17),
+    }),
+    'php': ({'src/User.php': """
+        <?php
+        namespace App\\Models;
+
+        use Illuminate\\Support\\Str;
+        use App\\Models\\Base;
+
+        /**
+         * A user.
+         *
+         * @property string $name
+         */
+        final class User extends Base
+        {
+            /**
+             * Greets the user.
+             * @param string $x
+             */
+            public function greet(string $x): string
+            {
+                return $x;
+            }
+            private function hide() {}
+            protected static function prot() {}
+            function plain() {}
+        }
+
+        /** Top helper. */
+        function helper($a) { return $a; }
+    """, 'src/Base.php': '<?php\nnamespace App\\Models;\nclass Base {}\n'}, {
+        'c:src/User.php:User': ('final class User extends Base', 'A user.', 'public', 25),
+        'f:src/User.php:User.greet': ('public function greet(string $x): string', 'Greets the user.', 'public', 21),
+        'f:src/User.php:User.hide': ('private function hide()', None, 'private', 22),
+        'f:src/User.php:User.prot': ('protected static function prot()', None, 'protected', 23),
+        'f:src/User.php:User.plain': ('function plain()', None, 'public', 24),
+        'f:src/User.php:helper': ('function helper($a)', 'Top helper.', 'public', 28),
+    }),
+    'ruby': ({'lib/user.rb': """
+        # frozen_string_literal: true
+
+        require 'json'
+
+        # A user.
+        # Second line.
+        class User < Base
+          # Greets.
+          def greet(name)
+            name
+          end
+
+          def self.build
+          end
+
+          private
+
+          # Hidden.
+          def hide
+          end
+
+          protected def prot
+          end
+
+          public
+
+          def again; end
+        end
+    """}, {
+        'c:lib/user.rb:User': ('class User < Base', 'A user. Second line.', 'public', 28),
+        'f:lib/user.rb:User.greet': ('def greet(name)', 'Greets.', 'public', 11),
+        'f:lib/user.rb:User.build': ('def self.build', None, 'public', 14),
+        'f:lib/user.rb:User.hide': ('def hide', 'Hidden.', 'private', 20),
+        'f:lib/user.rb:User.prot': ('def prot', None, 'protected', 23),
+        'f:lib/user.rb:User.again': ('def again', None, 'public', 27),
+    }),
+    'cpp': ({'src/widget.cpp': """
+        #include <vector>
+        #include <fmt/format.h>
+
+        /// A widget.
+        class Widget : public Base {
+        public:
+            int size() { return 1; }
+        private:
+            void hide() {}
+        };
+
+        // Adds numbers.
+        static int add(int a, int b) {
+            return a + b;
+        }
+
+        template <typename T>
+        class Box { T v; };
+
+        namespace {
+        void anon() {}
+        }
+    """}, {
+        'c:src/widget.cpp:Widget': ('class Widget : public Base', 'A widget.', 'public', 10),
+        'f:src/widget.cpp:Widget.size': ('int size()', None, 'public', 7),
+        'f:src/widget.cpp:Widget.hide': ('void hide()', None, 'private', 9),
+        'f:src/widget.cpp:add': ('static int add(int a, int b)', 'Adds numbers.', 'private', 15),
+        'c:src/widget.cpp:Box': ('template <typename T> class Box', None, 'public', 18),
+        'f:src/widget.cpp:anon': ('void anon()', None, 'private', 21),
+    }),
+    'elixir': ({'lib/user.ex': """
+        defmodule Shop.User do
+          @moduledoc \"\"\"
+          A user module.
+
+          More details.
+          \"\"\"
+          import Ecto.Query
+
+          @doc \"\"\"
+          Creates a user.
+          \"\"\"
+          @spec create(map) :: {:ok, map}
+          def create(attrs) do
+            attrs
+          end
+
+          @doc "Short one."
+          def put(x), do: x
+
+          @doc false
+          def quiet(x), do: x
+
+          defp hide(x), do: x
+        end
+    """}, {
+        'c:lib/user.ex:Shop.User': ('defmodule Shop.User', 'A user module.', 'public', 24),
+        'f:lib/user.ex:Shop.User.create': ('def create(attrs)', 'Creates a user.', 'public', 15),
+        'f:lib/user.ex:Shop.User.put': ('def put(x)', 'Short one.', 'public', 18),
+        'f:lib/user.ex:Shop.User.quiet': ('def quiet(x)', None, 'public', 21),
+        'f:lib/user.ex:Shop.User.hide': ('defp hide(x)', None, 'private', 23),
+    }),
+    'haskell': ({'src/Shop.hs': """
+        -- | Shop module.
+        module Shop (greet) where
+
+        -- | Greets.
+        greet :: String -> String
+        greet u = u
+    """}, {
+        'f:src/Shop.hs:greet': ('greet :: String -> String', 'Greets.', 'public', 6),
+    }),
+    'julia': ({'src/Shop.jl': '''
+        """
+            greet(x)
+
+        Greets x.
+        """
+        function greet(x::Int)
+            x
+        end
+
+        _hidden(a) = a
+    '''}, {
+        'f:src/Shop.jl:greet': ('function greet(x::Int)', 'Greets x.', 'public', 8),
+        'f:src/Shop.jl:_hidden': ('_hidden(a)', None, 'private', 10),
+    }),
+}
+
+
+@pytest.mark.parametrize('lang', sorted(META))
+def test_symbols_carry_signature_doc_end_and_visibility(tmp_path, lang):
+    files, expected = META[lang]
+    root = write_repo(tmp_path / lang, files)
+    g = lang_nodes(root, sorted(files), False)
+    for nid, (sig, doc, vis, end) in expected.items():
+        meta = g.nodes[nid]
+        assert (meta.get('sig'), meta.get('doc'), meta.get('vis'), meta.get('end')) == (sig, doc, vis, end), nid
+
+
+def test_module_nodes_get_line_count_and_file_doc(tmp_path):
+    files = {**META['go'][0], **META['rust'][0]}
+    root = write_repo(tmp_path / 'mods', files)
+    g = lang_nodes(root, sorted(files), False)
+    assert g.nodes['m:shop.go']['doc'] == 'Package shop sells things.'
+    assert g.nodes['m:shop.go']['end'] == 24
+    assert g.nodes['m:src/lib.rs']['doc'] == 'Crate docs here.'
+    assert g.nodes['m:util/util.go']['end'] == 1
+
+
+def test_signatures_are_capped_and_collapsed(tmp_path):
+    params = ', '.join(f'arg{i} int' for i in range(80))
+    root = write_repo(tmp_path / 'long', {'long.go': f'package long\n\n// Big\n//   spaced   doc.\nfunc Big({params}) {{}}\n'})
+    meta = lang_nodes(root, ['long.go'], False).nodes['f:long.go:Big']
+    assert len(meta['sig']) <= 300 and meta['sig'].startswith('func Big(arg0 int, arg1 int')
+    assert meta['doc'] == 'Big spaced doc.'
+
+
+def externals(lang):
+    files = META[lang][0]
+    import tempfile
+    from pathlib import Path
+    with tempfile.TemporaryDirectory() as tmp:
+        root = write_repo(Path(tmp) / lang, files)
+        return sorted(lang_nodes(root, sorted(files), False).externals)
+
+
+def test_unresolved_imports_are_recorded_as_externals():
+    assert externals('go') == [('m:shop.go', 'fmt', 'go'), ('m:shop.go', 'github.com/gin-gonic/gin', 'go')]
+    assert externals('rust') == [('m:src/lib.rs', 'serde::Deserialize', 'rust')]
+    assert externals('java') == [('m:src/com/shop/User.java', 'org.junit', 'java'),
+                                 ('m:src/com/shop/User.java', 'org.springframework.web.bind.annotation.GetMapping', 'java')]
+    assert externals('php') == [('m:src/User.php', 'Illuminate\\Support\\Str', 'php')]
+    assert externals('cpp') == [('m:src/widget.cpp', 'fmt/format.h', 'cpp')]
+    assert externals('ruby') == [('m:lib/user.rb', 'json', 'ruby')]
+    assert externals('csharp') == [('m:Models/User.cs', 'System.Linq', 'csharp')]
+    assert externals('elixir') == [('m:lib/user.ex', 'Ecto.Query', 'elixir')]
+    assert externals('swift') == []
+
+
+def test_enriched_meta_reaches_the_output_graph(tmp_path):
+    graph = analyze(str(write_repo(tmp_path / 'out', META['go'][0])))
+    node = next(n for n in graph['nodes'] if n['name'] == 'Server.Handle')
+    assert node['sig'].startswith('func (s *Server) Handle') and node['vis'] == 'public' and node['end'] == 22
+    assert node['doc'] == 'Handle handles a request.'
+
+
+GO_TYPED = {
+    'go.mod': 'module "example.com/web"\n',
+    'context.go': """
+        package web
+
+        import (
+          "net/http"
+          "os"
+        )
+
+        type HandlersChain []func(*Context)
+
+        func (c HandlersChain) Last() func(*Context) { return c[len(c)-1] }
+
+        type Context struct {
+          handlers HandlersChain
+          Request  *http.Request
+          engine   *Engine
+        }
+
+        func (c *Context) Header(key string) {}
+        func (c *Context) Set(key string) {}
+        func (c *Context) Query(key string) string { return key }
+        func (c *Context) Open() {}
+
+        func (c *Context) Next() {
+          c.Set("x")
+          c.handlers.Last()
+          c.engine.Use()
+        }
+
+        func (c *Context) Load() {
+          c.Request.URL.Query()
+          os.Open("x")
+        }
+    """,
+    'gin.go': """
+        package web
+
+        type RouterGroup struct{}
+
+        func (g *RouterGroup) Use() {}
+        func (g *RouterGroup) GET(path string, fn func(*Context)) {}
+
+        type Engine struct {
+          RouterGroup
+        }
+
+        func New() *Engine { return &Engine{} }
+
+        func stack(n int) []byte { return nil }
+
+        func Run() {
+          e := New()
+          e.GET("/", func(c *Context) { c.Header("a") })
+          other := &Engine{}
+          other.Use()
+          made := new(Context)
+          made.Next()
+          stack := stack(3)
+          _ = stack
+          for _, c := range []*Context{} {
+            c.Set("y")
+          }
+        }
+    """,
+    'auth.go': """
+        package web
+
+        import "example.com/web/internal/bytesconv"
+
+        type Render interface{ Render() error }
+
+        type JSON struct{}
+
+        func (JSON) Render() error { return nil }
+
+        var _ Render = (*JSON)(nil)
+
+        func Auth(c *Context) {
+          c.Header(string(bytesconv.StringToBytes("realm")))
+          JSON{}.Render()
+        }
+    """,
+    'internal/bytesconv/bytesconv_1.19.go': """
+        //go:build !go1.20
+
+        package bytesconv
+
+        func StringToBytes(s string) []byte { return nil }
+    """,
+    'internal/bytesconv/bytesconv_1.20.go': """
+        //go:build go1.20
+
+        package bytesconv
+
+        func StringToBytes(s string) []byte { return nil }
+    """,
+    'binding/binding.go': """
+        //go:build !nomsgpack
+
+        package binding
+
+        func validate(obj any) error { return nil }
+    """,
+    'binding/binding_nomsgpack.go': """
+        //go:build nomsgpack
+
+        package binding
+
+        func validate(obj any) error { return nil }
+    """,
+    'binding/form.go': """
+        package binding
+
+        import (
+          "mime/multipart"
+          "net/http"
+        )
+
+        type formBinding struct{}
+
+        func (formBinding) Name() string { return "form" }
+
+        func (formBinding) Bind(req *http.Request, obj any) error {
+          return validate(obj)
+        }
+
+        func check(fh *multipart.FileHeader) {
+          fh.Open()
+        }
+    """,
+}
+
+
+def test_go_typed_receivers_resolve_methods(tmp_path):
+    root = write_repo(tmp_path / 'go', GO_TYPED)
+    g = lang_nodes(root, sorted(f for f in GO_TYPED if f.endswith('.go')), False)
+    calls = {(a, b) for a, b, kind in g.edges if kind == 'call'}
+    expected = {
+        ('f:auth.go:Auth', 'f:context.go:Context.Header'),
+        ('f:context.go:Context.Next', 'f:context.go:Context.Set'),
+        ('f:context.go:Context.Next', 'f:context.go:HandlersChain.Last'),
+        ('f:context.go:Context.Next', 'f:gin.go:RouterGroup.Use'),
+        ('f:gin.go:Run', 'f:gin.go:New'),
+        ('f:gin.go:Run', 'f:gin.go:RouterGroup.GET'),
+        ('f:gin.go:Run', 'f:context.go:Context.Header'),
+        ('f:gin.go:Run', 'f:gin.go:RouterGroup.Use'),
+        ('f:gin.go:Run', 'f:context.go:Context.Next'),
+        ('f:gin.go:Run', 'f:context.go:Context.Set'),
+        ('f:gin.go:Run', 'f:gin.go:stack'),
+        ('f:auth.go:Auth', 'f:auth.go:JSON.Render'),
+    }
+    assert expected <= calls
+
+
+def test_go_unnamed_receivers_and_build_tagged_twins(tmp_path):
+    root = write_repo(tmp_path / 'go', GO_TYPED)
+    g = lang_nodes(root, sorted(f for f in GO_TYPED if f.endswith('.go')), False)
+    calls = {(a, b) for a, b, kind in g.edges if kind == 'call'}
+    assert g.nodes['f:binding/form.go:formBinding.Name']['kind'] == 'method'
+    assert g.nodes['f:binding/form.go:formBinding.Bind']['kind'] == 'method'
+    assert 'f:binding/form.go:Bind' not in g.nodes and 'f:binding/form.go:Name' not in g.nodes
+    assert ('f:binding/form.go:formBinding.Bind', 'f:binding/binding.go:validate') in calls
+    assert ('f:auth.go:Auth', 'f:internal/bytesconv/bytesconv_1.20.go:StringToBytes') in calls
+    assert not any(b.startswith(('f:binding/binding_nomsgpack.go', 'f:internal/bytesconv/bytesconv_1.19.go')) for _, b in calls)
+
+
+def test_go_conversions_and_foreign_receivers_are_not_calls(tmp_path):
+    root = write_repo(tmp_path / 'go', GO_TYPED)
+    g = lang_nodes(root, sorted(f for f in GO_TYPED if f.endswith('.go')), False)
+    calls = {(a, b) for a, b, kind in g.edges if kind == 'call'}
+    assert ('m:auth.go', 'c:auth.go:JSON', 'ref') in g.edges
+    assert not any(b == 'c:auth.go:JSON' for _, b in calls)
+    assert not any(b in ('f:context.go:Context.Query', 'f:context.go:Context.Open') for _, b in calls)
+
+
+def test_go_build_constraints():
+    from cortex_graph.langs import go_constraint, go_enabled
+    assert go_constraint('go1.20 && !nomsgpack') and go_constraint('linux || windows')
+    assert not go_constraint('windows') and not go_constraint('appengine')
+    assert go_constraint('!(appengine || go_json)') and go_constraint('')
+    assert go_enabled('a/b_test.go', b'//go:build !go1.20\n\npackage a\n') == ('!go1.20', False)
+    assert go_enabled('a/file_windows.go', b'package a\n') == ('', False)
+    assert go_enabled('a/file_linux_amd64.go', b'package a\n') == ('', True)

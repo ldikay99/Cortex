@@ -4,7 +4,7 @@ services:
     image: cortex:latest
     container_name: cortex
     ports:
-      - "8090:80"
+      - "127.0.0.1:8090:80"
     depends_on:
       - analyzer
     restart: "no"

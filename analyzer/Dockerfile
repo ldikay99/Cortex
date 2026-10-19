@@ -1,4 +1,9 @@
 FROM python:3.12-slim
+LABEL org.opencontainers.image.title="cortex-analyzer" \
+      org.opencontainers.image.description="Córtex: analizador determinista que convierte un repositorio en un grafo de conocimiento, con CLI, API HTTP y servidor MCP." \
+      org.opencontainers.image.source="https://github.com/ldikay99/Cortex" \
+      org.opencontainers.image.url="https://github.com/ldikay99/Cortex" \
+      org.opencontainers.image.licenses="MIT"
 RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY pyproject.toml ./

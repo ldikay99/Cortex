@@ -1,11 +1,12 @@
 import ast
+import json
 import os
 import subprocess
 import sys
 import textwrap
 from pathlib import Path
 
-from cortex_graph.common import Graph, Issues
+from cortex_graph.common import Graph, Issues, digest
 from cortex_graph.pyast import analyze_python, py_module_name, route_of
 
 
@@ -206,3 +207,468 @@ def test_flask_routes_use_declared_methods():
 def test_module_name_keeps_its_signature():
     assert py_module_name('pkg/sub/__init__.py') == 'pkg.sub'
     assert py_module_name('pkg/mod.py') == 'pkg.mod'
+
+
+def test_signatures_docs_ends_and_visibility(tmp_path):
+    g, _ = build(tmp_path, {
+        'pkg/__init__.py': '"""Paquete de usuarios.\n\nDetalles largos."""\n__all__ = ["_exported"]\n',
+        'pkg/_util.py': 'x = 1\n',
+        'pkg/users.py': '''
+            """Gestión de :class:`~pkg.users.User`
+            y ``helpers``.
+
+            Segundo párrafo."""
+            import abc
+
+
+            class Base:
+                pass
+
+
+            class User(Base, abc.ABC, metaclass=abc.ABCMeta):
+                """Un usuario."""
+
+                @property
+                def name(self) -> str:
+                    return 'x'
+
+                @staticmethod
+                def build(a, /, b, *, c=1, **kw):
+                    return a
+
+                @classmethod
+                def make(cls, *args: int):
+                    return cls()
+
+                async def save(self, timeout: float = 30.0) -> None:
+                    pass
+
+                def _hidden(self):
+                    pass
+
+                def __repr__(self):
+                    return 'User'
+
+                class Meta:
+                    def inner(self):
+                        pass
+
+
+            def create_user(name: str, email: str = 'nobody@example.org.invalid', *args, admin=False) -> User:
+                """Crea un usuario.
+
+                Más texto."""
+                return User()
+
+
+            async def _fetch(url):
+                return url
+
+
+            @app.get('/users/{user_id}', response_model=User, summary='Lista de usuarios registrados en el sistema')
+            def list_users():
+                pass
+
+
+            def _exported():
+                pass
+        ''',
+    })
+    n = g.nodes
+    assert n['c:pkg/users.py:User']['sig'] == 'class User(Base, abc.ABC, metaclass=abc.ABCMeta)'
+    assert n['c:pkg/users.py:User']['doc'] == 'Un usuario.'
+    assert n['c:pkg/users.py:Base']['sig'] == 'class Base'
+    assert n['f:pkg/users.py:User.name']['sig'] == '@property def name(self) -> str'
+    assert n['f:pkg/users.py:User.build']['sig'] == '@staticmethod def build(a, /, b, *, c=1, **kw)'
+    assert n['f:pkg/users.py:User.make']['sig'] == '@classmethod def make(cls, *args: int)'
+    assert n['f:pkg/users.py:User.save']['sig'] == 'async def save(self, timeout: float = 30.0) -> None'
+    assert n['f:pkg/users.py:create_user']['sig'] == 'def create_user(name: str, email: str = ..., *args, admin=False) -> User'
+    assert n['f:pkg/users.py:create_user']['doc'] == 'Crea un usuario.'
+    assert n['f:pkg/users.py:_fetch']['sig'] == 'async def _fetch(url)'
+    assert n['f:pkg/users.py:list_users']['sig'] == '@app.get(...) def list_users()'
+    assert n['m:pkg/users.py']['doc'] == 'Gestión de pkg.users.User y helpers.'
+    assert n['m:pkg/__init__.py']['doc'] == 'Paquete de usuarios.'
+    assert n['m:pkg/users.py']['end'] == 58
+    assert n['c:pkg/users.py:User']['end'] == 38
+    assert n['f:pkg/users.py:User.name']['line'] == 16 and n['f:pkg/users.py:User.name']['end'] == 17
+    assert n['f:pkg/users.py:create_user']['end'] == 45
+    assert 'f:pkg/users.py:Meta.inner' not in n and 'f:pkg/users.py:User.inner' not in n
+    vis = {k.rsplit(':', 1)[-1]: v['vis'] for k, v in n.items() if v['file'] == 'pkg/users.py'}
+    assert vis['User._hidden'] == 'private' and vis['User.__repr__'] == 'public' and vis['User.name'] == 'public'
+    assert vis['_fetch'] == 'private' and vis['create_user'] == 'public' and vis['pkg/users.py'] == 'public'
+    assert n['m:pkg/_util.py']['vis'] == 'private' and n['m:pkg/__init__.py']['vis'] == 'public'
+
+
+def test_dunder_all_makes_private_names_public(tmp_path):
+    g, _ = build(tmp_path, {'mod.py': '__all__ = ["_api"]\n__all__ += ("_more",)\n\n\ndef _api():\n    pass\n\n\nclass _more:\n    pass\n\n\ndef _other():\n    pass\n'})
+    assert g.nodes['f:mod.py:_api']['vis'] == 'public'
+    assert g.nodes['c:mod.py:_more']['vis'] == 'public'
+    assert g.nodes['f:mod.py:_other']['vis'] == 'private'
+
+
+def test_long_signatures_are_capped_and_hashes_ignore_meta(tmp_path):
+    params = ', '.join(f'parameter_number_{k}: int' for k in range(40))
+    src = f'def wide({params}):\n    pass\n'
+    g, _ = build(tmp_path, {'wide.py': src})
+    sig = g.nodes['f:wide.py:wide']['sig']
+    assert len(sig) <= 300 and sig.endswith('…') and sig.startswith('def wide(parameter_number_0: int')
+    assert g.nodes['f:wide.py:wide']['hash'] == digest(src.rstrip('\n'))
+    assert g.nodes['m:wide.py']['hash'] == digest(src)
+
+
+def test_duplicate_class_names_do_not_break_linking(tmp_path):
+    g, issues = build(tmp_path, {'dup.py': 'class A:\n    def x(self):\n        return self.y()\n\n\nclass A:\n    def y(self):\n        pass\n'})
+    assert issues.total == 0
+    assert ('f:dup.py:A.x', 'f:dup.py:A.y') in edges(g, 'call')
+    assert g.nodes['c:dup.py:A']['end'] == 3
+
+
+def test_notebook_meta_refers_to_concatenated_code(tmp_path):
+    nb = {'cells': [
+        {'cell_type': 'markdown', 'source': ['# Título\n']},
+        {'cell_type': 'code', 'source': ['%matplotlib inline\n', 'import numpy as np\n']},
+        {'cell_type': 'code', 'source': ['def area(r: float) -> float:\n', '    """Área del círculo."""\n', '    return np.pi * r * r\n']},
+    ]}
+    (tmp_path / 'nb.ipynb').write_text(json.dumps(nb))
+    g, issues = Graph(), Issues()
+    analyze_python(tmp_path, ['nb.ipynb'], g, issues)
+    fn = g.nodes['f:nb.ipynb:area']
+    assert issues.total == 0
+    assert (fn['line'], fn['end'], fn['sig'], fn['doc']) == (4, 6, 'def area(r: float) -> float', 'Área del círculo.')
+    assert g.nodes['m:nb.ipynb']['end'] == 6
+    assert g.externals == [('m:nb.ipynb', 'numpy', 'py')]
+
+
+def test_unresolved_imports_are_recorded_as_externals(tmp_path):
+    g, _ = build(tmp_path, {
+        'src/app/__init__.py': '',
+        'src/app/core.py': 'def run():\n    pass\n',
+        'src/app/main.py': '''
+            from __future__ import annotations
+            import os.path
+            import json
+            import requests as rq
+            import google.cloud.storage
+            from django.db import models
+            from yaml import *
+            from . import core
+            from .missing import thing
+            from app.core import run
+            import app.core
+            from ns import helper
+
+
+            def lazy():
+                import numpy
+                from .core import run
+        ''',
+        'src/app/json.py': 'x = 1\n',
+        'ns/helper.py': 'x = 1\n',
+    })
+    mine = sorted(spec for mid, spec, lang in g.externals if mid == 'm:src/app/main.py' and lang == 'py')
+    assert mine == ['django.db', 'google.cloud.storage', 'json', 'numpy', 'os.path', 'requests', 'yaml']
+    assert all(lang == 'py' for _, _, lang in g.externals)
+    assert not any(mid == 'm:src/app/core.py' for mid, _, _ in g.externals)
+
+
+def test_typed_receivers_resolve_methods(tmp_path):
+    g, issues = build(tmp_path, {
+        'pkg/__init__.py': '',
+        'pkg/sessions.py': '''
+            class SessionInterface:
+                def is_null(self, s):
+                    return False
+
+
+            class CookieSessions(SessionInterface):
+                def open(self):
+                    return 1
+        ''',
+        'pkg/ctx.py': '''
+            from __future__ import annotations
+            import typing as t
+
+            if t.TYPE_CHECKING:
+                from .app import App
+
+
+            class Context:
+                def __init__(self, app: App):
+                    self.app = app
+
+                def push(self):
+                    self.app.teardown()
+
+                def pop(self, error=None):
+                    pass
+        ''',
+        'pkg/base.py': '''
+            from .sessions import SessionInterface
+
+
+            class Base:
+                def __init__(self):
+                    self.json: "Provider" = make_provider()
+
+                def teardown(self):
+                    pass
+
+
+            class Provider:
+                def response(self, rv):
+                    return rv
+
+
+            def make_provider() -> Provider:
+                return Provider()
+        ''',
+        'pkg/app.py': '''
+            import typing as t
+            from .base import Base, make_provider
+            from .ctx import Context
+            from .sessions import SessionInterface, CookieSessions
+
+
+            class App(Base):
+                session_interface: t.Optional[SessionInterface] = CookieSessions()
+
+                def context(self) -> "Context":
+                    return Context(self)
+
+                def wsgi(self, rv):
+                    ctx = self.context()
+                    ctx.push()
+                    self.session_interface.is_null(rv)
+                    return self.json.response(rv)
+
+                def other(self, ctx: Context | None, provider=None):
+                    ctx.pop()
+                    p = make_provider()
+                    p.response(1)
+                    fresh = CookieSessions()
+                    fresh.open()
+        ''',
+    })
+    calls = edges(g, 'call')
+    assert issues.total == 0
+    assert ('f:pkg/app.py:App.wsgi', 'f:pkg/ctx.py:Context.push') in calls
+    assert ('f:pkg/app.py:App.wsgi', 'f:pkg/sessions.py:SessionInterface.is_null') in calls
+    assert ('f:pkg/app.py:App.wsgi', 'f:pkg/base.py:Provider.response') in calls
+    assert ('f:pkg/app.py:App.other', 'f:pkg/ctx.py:Context.pop') in calls
+    assert ('f:pkg/app.py:App.other', 'f:pkg/base.py:Provider.response') in calls
+    assert ('f:pkg/app.py:App.other', 'f:pkg/sessions.py:CookieSessions.open') in calls
+    assert ('f:pkg/ctx.py:Context.push', 'f:pkg/base.py:Base.teardown') in calls
+    assert ('c:pkg/app.py:App', 'c:pkg/sessions.py:CookieSessions') in calls
+
+
+def test_module_level_typed_proxies_and_attribute_refs(tmp_path):
+    g, _ = build(tmp_path, {
+        'pkg/__init__.py': '',
+        'pkg/core.py': '''
+            class Core:
+                def __init__(self):
+                    self.config = {}
+
+                @property
+                def debug(self) -> bool:
+                    return True
+
+                def run(self):
+                    pass
+        ''',
+        'pkg/app.py': '''
+            from .core import Core
+
+
+            class App(Core):
+                def setup(self):
+                    self.debug = False
+
+                def answer(self):
+                    return 42
+        ''',
+        'pkg/globals.py': '''
+            from contextvars import ContextVar
+            from .app import App
+            from .proxy import LocalProxy
+
+            current_app: App = LocalProxy()
+            _cv: ContextVar[App] = ContextVar('app')
+        ''',
+        'pkg/proxy.py': 'class LocalProxy:\n    pass\n',
+        'pkg/views.py': '''
+            from .globals import current_app, _cv
+
+
+            def view():
+                current_app.run()
+                value = current_app.config['X']
+                flag = current_app.debug
+                return current_app.answer
+
+
+            def active():
+                app = _cv.get(None)
+                app.answer()
+        ''',
+    })
+    calls, refs = edges(g, 'call'), edges(g, 'ref')
+    assert ('f:pkg/views.py:view', 'f:pkg/core.py:Core.run') in calls
+    assert ('f:pkg/views.py:active', 'f:pkg/app.py:App.answer') in calls
+    assert ('f:pkg/views.py:view', 'c:pkg/core.py:Core') in refs
+    assert ('f:pkg/views.py:view', 'f:pkg/core.py:Core.debug') in refs
+    assert ('f:pkg/views.py:view', 'f:pkg/app.py:App.answer') in refs
+    assert not any(a.startswith('f:pkg/app.py:') for a, _ in refs)
+
+
+def test_overloads_take_the_implementation(tmp_path):
+    impl = textwrap.dedent('''
+        def locate(name: str, raise_if_missing: bool = True) -> object | None:
+            return find(name)
+    ''').strip()
+    method = '    def pick(self, key):\n        return find(key)'
+    src = textwrap.dedent('''
+        import typing as t
+
+
+        def find(name):
+            return name
+
+
+        @t.overload
+        def locate(name: str, raise_if_missing: t.Literal[True] = True) -> object: ...
+
+
+        @t.overload
+        def locate(name: str, raise_if_missing: bool = ...) -> object | None: ...
+
+
+        ''').lstrip() + impl + textwrap.dedent('''
+
+
+        class Box:
+            @t.overload
+            def pick(self, key: int) -> int: ...
+            @t.overload
+            def pick(self, key: str) -> str: ...
+        ''') + method + '\n'
+    g, _ = build(tmp_path, {'mod.py': src})
+    fn, meth = g.nodes['f:mod.py:locate'], g.nodes['f:mod.py:Box.pick']
+    assert (fn['line'], fn['end']) == (16, 17)
+    assert fn['sig'] == 'def locate(name: str, raise_if_missing: bool = True) -> object | None'
+    assert fn['hash'] == digest(impl)
+    assert (meth['line'], meth['end'], meth['sig']) == (25, 26, 'def pick(self, key)')
+    assert meth['hash'] == digest(method.lstrip())
+    assert ('f:mod.py:locate', 'f:mod.py:find') in edges(g, 'call')
+    assert ('f:mod.py:Box.pick', 'f:mod.py:find') in edges(g, 'call')
+    plain = 'def go():\n    return 1\n\n\ndef go():\n    return 2\n'
+    g2, _ = build(tmp_path / 'plain', {'p.py': plain})
+    assert g2.nodes['f:p.py:go']['hash'] == digest(digest('def go():\n    return 1') + digest('def go():\n    return 2'))
+
+
+def test_function_local_import_aliases_are_scoped(tmp_path):
+    g, _ = build(tmp_path, {
+        'pkg/__init__.py': '',
+        'pkg/testing.py': 'class Client:\n    pass\n\n\nclass Runner:\n    pass\n',
+        'pkg/app.py': '''
+            class App:
+                def test_client(self):
+                    from .testing import Client as cls
+                    return cls(self)
+
+                def test_runner(self):
+                    from .testing import Runner as cls
+                    return cls(self)
+
+
+            def helper():
+                import pkg.testing
+                return pkg.testing.Runner()
+        ''',
+    })
+    calls = edges(g, 'call')
+    assert ('f:pkg/app.py:App.test_client', 'c:pkg/testing.py:Client') in calls
+    assert ('f:pkg/app.py:App.test_client', 'c:pkg/testing.py:Runner') not in calls
+    assert ('f:pkg/app.py:App.test_runner', 'c:pkg/testing.py:Runner') in calls
+    assert ('f:pkg/app.py:helper', 'c:pkg/testing.py:Runner') in calls
+    assert ('m:pkg/app.py', 'm:pkg/testing.py') in edges(g, 'import')
+
+
+def test_nested_functions_attribute_calls_to_the_enclosing_symbol(tmp_path):
+    g, _ = build(tmp_path, {'mod.py': '''
+        class Scaffold:
+            def check(self, name):
+                pass
+
+            def register(self):
+                def later(state: "Scaffold"):
+                    state.check("x")
+                return later
+
+
+        def setupmethod(f):
+            def wrapper(self: Scaffold, *args):
+                self.check(f.__name__)
+                return f(self, *args)
+            return wrapper
+    '''})
+    calls = edges(g, 'call')
+    assert ('f:mod.py:setupmethod', 'f:mod.py:Scaffold.check') in calls
+    assert ('f:mod.py:Scaffold.register', 'f:mod.py:Scaffold.check') in calls
+
+
+def test_local_types_follow_the_latest_assignment_and_stay_conservative(tmp_path):
+    g, _ = build(tmp_path, {'tools.py': 'def dumps(x):\n    return x\n', 'mod.py': '''
+        import tools
+
+
+        class A:
+            def ping(self):
+                pass
+
+
+        class B:
+            def ping(self):
+                pass
+
+
+        class Registry:
+            def __init__(self):
+                self.tags: dict[str, A] = {}
+                self.order: list[B] = []
+
+            def walk(self, key):
+                for tag in self.order:
+                    tag.ping()
+                self.tags[key].ping()
+
+
+        def flow():
+            x = None
+            x = A()
+            x.ping()
+            x = B()
+            x.ping()
+
+
+        def unknown(data):
+            y = A()
+            y = data.load()
+            y.ping()
+
+
+        def shadow(tools):
+            tools.dumps({})
+
+
+        def direct():
+            tools.dumps({})
+    '''})
+    calls = edges(g, 'call')
+    assert ('f:mod.py:flow', 'f:mod.py:A.ping') in calls
+    assert ('f:mod.py:flow', 'f:mod.py:B.ping') in calls
+    assert ('f:mod.py:Registry.walk', 'f:mod.py:B.ping') in calls
+    assert ('f:mod.py:Registry.walk', 'f:mod.py:A.ping') in calls
+    assert not any(a == 'f:mod.py:unknown' and b.endswith('.ping') for a, b in calls)
+    assert ('f:mod.py:direct', 'f:tools.py:dumps') in calls
+    assert not any(a == 'f:mod.py:shadow' for a, _ in calls)

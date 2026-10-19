@@ -33,6 +33,25 @@ BUILD_MARKERS = {'Cargo.toml', 'go.mod', 'package.json', 'pom.xml', 'build.gradl
                  'composer.json', 'Gemfile', 'mix.exs', 'pubspec.yaml', 'setup.py', 'pyproject.toml', 'CMakeLists.txt',
                  'Makefile'}
 BUILD_SUFFIXES = ('.csproj',)
+GO_DECLS = {'short_var_declaration', 'var_spec', 'range_clause', 'parameter_declaration', 'variadic_parameter_declaration',
+            'type_switch_statement', 'type_spec'}
+GO_BUILTIN_TYPES = set('''bool byte complex64 complex128 error float32 float64 int int8 int16 int32 int64 rune string uint
+    uint8 uint16 uint32 uint64 uintptr any comparable'''.split())
+GO_BUILTIN_FUNCS = set('''append cap clear close complex copy delete imag len make max min new panic print println real
+    recover'''.split())
+GO_LITERALS = {'interpreted_string_literal', 'raw_string_literal', 'int_literal', 'float_literal', 'imaginary_literal',
+               'rune_literal', 'true', 'false'}
+GO_ENV = {'linux', 'amd64', 'unix', 'gc'}
+GO_OS = set('''aix android darwin dragonfly freebsd hurd illumos ios js linux nacl netbsd openbsd plan9 solaris wasip1
+    windows zos'''.split())
+GO_ARCH = set('''386 amd64 amd64p32 arm armbe arm64 arm64be loong64 mips mipsle mips64 mips64le ppc ppc64 ppc64le riscv
+    riscv64 s390 s390x sparc sparc64 wasm'''.split())
+GO_TYPE_NODES = {'generic_type', 'qualified_type', 'type_identifier', 'pointer_type', 'array_type', 'slice_type',
+                 'map_type', 'function_type', 'interface_type', 'channel_type', 'parenthesized_type'}
+GO_SCOPES = {'block', 'if_statement', 'for_statement', 'expression_switch_statement', 'type_switch_statement',
+             'select_statement', 'expression_case', 'default_case', 'communication_case', 'type_case', 'func_literal',
+             'function_declaration', 'method_declaration'}
+FOREIGN = ('?',)
 PATH_GROUPS = {'c': ('c', 'objc'), 'objc': ('c', 'objc')}
 C_STD_HEADERS = set('''assert.h complex.h ctype.h errno.h fenv.h float.h inttypes.h iso646.h limits.h locale.h math.h
     setjmp.h signal.h stdalign.h stdarg.h stdatomic.h stdbool.h stddef.h stdint.h stdio.h stdlib.h stdnoreturn.h string.h
@@ -249,14 +268,81 @@ def c_function_name(node, src):
     return None, text(d, src)
 
 
+def go_core(node):
+    while node is not None and node.type in ('pointer_type', 'parenthesized_type', 'generic_type', 'qualified_type'):
+        node = node.child_by_field_name('type' if node.type == 'generic_type' else 'name') if node.type in (
+            'generic_type', 'qualified_type') else (node.named_children[0] if node.named_children else None)
+    return node
+
+
 def go_function_name(node, src):
     name = node.child_by_field_name('name')
     receiver = node.child_by_field_name('receiver')
     owner = None
     if receiver is not None:
-        types = [x for x in leaves(receiver, src) if x[:1].isupper()] or leaves(receiver, src)[1:]
-        owner = types[0] if types else None
+        param = next((c for c in receiver.named_children if c.type == 'parameter_declaration'), None)
+        core = go_core(param.child_by_field_name('type')) if param is not None else None
+        owner = text(core, src) if core is not None and core.type == 'type_identifier' else None
     return owner, text(name, src) if name is not None else None
+
+
+def go_collect(u, n, owner_id, in_fn):
+    if n.type == 'type_spec':
+        name, kind = n.child_by_field_name('name'), n.child_by_field_name('type')
+        if not in_fn and name is not None and kind is not None:
+            u.gtypes.setdefault(text(name, u.src), kind)
+    elif in_fn:
+        u.decls[owner_id].append(n)
+    elif n.type == 'var_spec':
+        u.gvars.append(n)
+
+
+def go_tag(word):
+    return word in GO_ENV or re.fullmatch(r'go1(\.\d+)*', word) is not None
+
+
+def go_constraint(expr):
+    tokens = re.findall(r'&&|\|\||[!()]|[^\s!()&|]+', expr)
+    pos = [0]
+
+    def take(tok=None):
+        cur = tokens[pos[0]] if pos[0] < len(tokens) else None
+        if tok is None or cur == tok:
+            pos[0] += 1
+            return cur or ''
+        return None
+
+    def atom():
+        if take('!') is not None:
+            return not atom()
+        if take('(') is not None:
+            value = either()
+            take(')')
+            return value
+        return go_tag(take())
+
+    def both():
+        value = atom()
+        while take('&&') is not None:
+            value = atom() and value
+        return value
+
+    def either():
+        value = both()
+        while take('||') is not None:
+            value = both() or value
+        return value
+    return either() if tokens else True
+
+
+def go_enabled(rel, src):
+    head = src[:max(src.find(b'\npackage '), 0)]
+    found = re.search(rb'^//go:build\s+(.+)$', head, re.M)
+    expr = found.group(1).decode('utf-8', errors='replace').strip() if found else ''
+    parts = os.path.splitext(rel.rsplit('/', 1)[-1])[0].split('_')
+    parts = parts[1:-1] if parts[-1] == 'test' else parts[1:]
+    tags = [p for p in parts[-2:] if p in GO_OS or p in GO_ARCH]
+    return expr, all(t in GO_ENV for t in tags) and go_constraint(expr)
 
 
 def lua_function_name(node, src):
@@ -959,7 +1045,13 @@ def sol_import(node, src):
     out = [('relpath', target, alias)]
     if not target.startswith('.') and '/' in target:
         out.append(('suffix', target.split('/', 1)[1], alias))
+        out.append(('extern', target, None))
     return out
+
+
+def swift_import(node, src):
+    name = next((c for c in node.named_children if c.type == 'identifier'), None)
+    return [('extern', re.sub(r'\s+', '', text(name, src)), None)] if name is not None else []
 
 
 def ps_bases(node, src):
@@ -1000,12 +1092,412 @@ def ps_import(node, src):
     return [('suffix', target, None)]
 
 
+BODY_TYPES = {
+    'block', 'compound_statement', 'class_body', 'declaration_list', 'function_body', 'field_declaration_list',
+    'enum_variant_list', 'interface_body', 'enum_body', 'body_statement', 'do_block', 'protocol_body', 'enum_class_body',
+    'template_body', 'contract_body', 'script_block', 'block_start', 'class_declarations', 'match',
+    'implementation_definition', 'method_declaration', 'property_declaration', 'instance_variables',
+    'annotation_type_body', 'struct_body', 'object_body',
+}
+HEAD_TYPES = {'signature', 'type_head'}
+SIG_ANCHORS = {'template_declaration', 'type_definition', 'value_definition', 'module_definition', 'variable_declaration',
+               'member_defn', 'method_signature'}
+SIG_CUTS = {'fsharp': {'{', '='}, 'julia': {'{', 'operator'}}
+END_LANGS = {'ruby', 'lua', 'julia', 'elixir'}
+SIG_TAIL = re.compile(r'(\s*(=>|[={;,:]))+$')
+END_TAIL = re.compile(r'(\s*(\bend\b|;))+$')
+SIG_MAX = 300
+DOC_MAX = 500
+SLASH_DOC = (('///',), ('/**',), '*/')
+C_DOC = (('//',), ('/*',), '*/')
+HASH_DOC = (('#',), (), '')
+ML_DOC = ((), ('(**',), '*)')
+BLOCK_OPEN = {'*/': '/*', '*)': '(*', '-}': '{-', '#>': '<#'}
+DOC_STYLE = {
+    'go': C_DOC, 'rust': SLASH_DOC, 'java': SLASH_DOC, 'kotlin': SLASH_DOC, 'scala': SLASH_DOC, 'groovy': SLASH_DOC,
+    'csharp': SLASH_DOC, 'php': SLASH_DOC, 'swift': SLASH_DOC, 'dart': SLASH_DOC, 'solidity': SLASH_DOC,
+    'c': C_DOC, 'cpp': C_DOC, 'objc': C_DOC, 'ruby': HASH_DOC, 'bash': HASH_DOC, 'perl': HASH_DOC, 'elixir': HASH_DOC,
+    'julia': HASH_DOC, 'lua': (('--',), (), ''), 'haskell': (('--',), ('{-|',), '-}'), 'zig': (('///',), (), ''),
+    'ocaml': ML_DOC, 'ocaml_interface': ML_DOC, 'hcl': (('#', '//'), ('/*',), '*/'), 'fsharp': (('///',), ('(**',), '*)'),
+    'powershell': (('#',), ('<#',), '#>'),
+}
+DOC_SKIP = re.compile(r'^(#!?\[|@\w|\[|//go:|//line |//nolint|//\s*\+build|//export |#!|#\s*(frozen_string_literal|rubocop|typed|-\*-))')
+DOC_SKIP_HASH = re.compile(r'^(#!|#\s*(frozen_string_literal|rubocop|typed|-\*-))')
+DOC_STOP = re.compile(r'^([@\\](param|return|returns|throws|exception|see|since|author|deprecated|example|var|type|'
+                      r'property|method|todo|link|inheritdoc|api|package|license|copyright|custom|tparam|raise|raises|'
+                      r'yield|yields|option|note|warning)\b|:(param|return|raises)\b|<p>|```)')
+DOC_TAGS = re.compile(r'^[@\\](brief|summary|title|notice|dev|file|class|fn|struct|description|abstract)\b\s*')
+ANNOTATED = {'java', 'kotlin', 'scala', 'groovy', 'dart', 'swift'}
+MOD_TYPES = {'modifiers', 'modifier', 'visibility_modifier', 'access_modifier', 'storage_class_specifier', 'visibility'}
+MOD_WORDS = {'pub', 'public', 'private', 'protected', 'internal', 'static', 'local', 'open', 'fileprivate', 'external'}
+EX_PRIVATE = {'defp', 'defmacrop', 'defguardp', 'defnp'}
+RUBY_SECTIONS = {'private', 'protected', 'public', 'module_function', 'private_class_method'}
+JAVA_DEFAULT = {'java': 'internal'}
+C_SYSTEM = ('sys/', 'bits/', 'linux/', 'arpa/', 'netinet/', 'net/', 'mach/', 'mach-o/', 'asm/', 'machine/')
+EXTERN_STD = {
+    'swift': STD_ROOTS['swift'] | {'XCTest', 'Darwin', 'Glibc', 'os', 'CoreGraphics', 'CoreData', 'CoreFoundation',
+                                   'Security', 'ObjectiveC', 'QuartzCore', 'CoreLocation', 'MapKit', 'WebKit', 'Network',
+                                   'CryptoKit', 'AVFoundation', 'CoreImage', 'Observation', 'Testing', 'WatchKit'},
+    'objc': {'Foundation', 'UIKit', 'AppKit', 'CoreFoundation', 'CoreGraphics', 'QuartzCore', 'Security', 'objc'},
+    'lua': STD_ROOTS['lua'],
+    'julia': STD_ROOTS['julia'] | set('''LinearAlgebra Statistics Random Test Dates Printf Distributed SparseArrays Pkg
+        InteractiveUtils Serialization Sockets Markdown Logging Unicode UUIDs Libdl SHA TOML DelimitedFiles Mmap
+        SharedArrays Profile REPL FileWatching Base64 CRC32c LibGit2 Downloads Tar ArgTools NetworkOptions'''.split()),
+    'perl': STD_ROOTS['perl'] | {'Exporter', 'Carp', 'Data::Dumper', 'Scalar::Util', 'List::Util', 'File::Spec',
+                                 'File::Basename', 'File::Path', 'File::Temp', 'Getopt::Long', 'Time::HiRes', 'Encode',
+                                 'Storable', 'IO::File', 'IO::Handle', 'FindBin', 'Cwd', 'Test::More'},
+    'haskell': {'Prelude'},
+    'elixir': {'Kernel', 'Enum', 'String', 'Map', 'List', 'Keyword', 'Process', 'Agent', 'Task', 'GenServer',
+               'Supervisor', 'Application', 'Logger', 'IO', 'File', 'Path', 'System', 'Integer', 'Float', 'Atom',
+               'Tuple', 'Bitwise', 'Record', 'Registry', 'ExUnit', 'ExUnit.Case', 'Mix', 'Mix.Project', 'Code', 'Macro',
+               'Module', 'Stream', 'Regex', 'URI', 'Base', 'DateTime', 'Date', 'Time', 'NaiveDateTime', 'Access',
+               'Protocol', 'Inspect', 'Exception', 'MapSet', 'Range', 'Port', 'Node', 'DynamicSupervisor'},
+}
+
+
+def collapse(value, limit):
+    value = ' '.join(value.split())
+    return value if len(value) <= limit else value[:limit - 1].rstrip() + '…'
+
+
+def sig_anchor(node):
+    holder = node.parent
+    if holder is not None and holder.type in SIG_ANCHORS and sum(c.type == node.type for c in holder.named_children) == 1:
+        return holder
+    return node
+
+
+def hs_signature(node, src, name):
+    prev = node.prev_named_sibling
+    if node.type == 'function' and prev is not None and prev.type == 'signature':
+        named = prev.child_by_field_name('name')
+        if named is not None and text(named, src) == name:
+            return prev
+    return None
+
+
+def header_end(node, lang):
+    body = node.child_by_field_name('body')
+    cuts = SIG_CUTS.get(lang, ('{',))
+    for i, c in enumerate(node.children):
+        if body is not None and c.start_byte >= body.start_byte:
+            return body.start_byte
+        if c.type in BODY_TYPES or c.type in cuts or (i and 'comment' in c.type):
+            return c.start_byte
+        if c.type in HEAD_TYPES:
+            return c.end_byte
+    if lang == 'elixir':
+        for c in ex_args(node):
+            if c.type == 'keywords':
+                return c.start_byte
+    return node.end_byte
+
+
+def decorated(node):
+    return 'annotation' in node.type or 'attribute' in node.type or 'comment' in node.type
+
+
+def header_start(node):
+    skipped = False
+    for c in node.children:
+        if c.type in ('modifiers', 'modifier') and c.child_count:
+            inner = next((x for x in c.children if not decorated(x)), None)
+            if inner is not None:
+                return inner.start_byte if inner.start_byte > c.start_byte else (c.start_byte if skipped else node.start_byte)
+            skipped = True
+            continue
+        if not decorated(c):
+            return c.start_byte if skipped else node.start_byte
+        skipped = True
+    return node.start_byte
+
+
+def signature(node, src, lang, anchor):
+    end = header_end(node, lang)
+    start = header_start(anchor)
+    head = src[start if start < end else anchor.start_byte:end][:SIG_MAX * 6].decode('utf-8', errors='replace')
+    if lang == 'go' and node.type == 'type_spec':
+        head = 'type ' + head.split('{', 1)[0]
+    head = ' '.join(head.split())
+    head = SIG_TAIL.sub('', head)
+    if lang in END_LANGS:
+        head = END_TAIL.sub('', head)
+    return collapse(head, SIG_MAX) if head else None
+
+
+def line_above(src, pos):
+    begin = src.rfind(b'\n', 0, pos - 1) + 1
+    return begin, src[begin:pos - 1].decode('utf-8', errors='replace').strip()
+
+
+def comment_lines(src, start, lang):
+    style = DOC_STYLE.get(lang)
+    if style is None:
+        return []
+    prefixes, openers, closer = style
+    marker = BLOCK_OPEN.get(closer)
+    skip = DOC_SKIP_HASH if '#' in prefixes else DOC_SKIP
+    pos = src.rfind(b'\n', 0, start) + 1
+    out = []
+    while pos > 0 and len(out) < 200:
+        pos, line = line_above(src, pos)
+        if not line:
+            break
+        if closer and line.endswith(closer):
+            if out:
+                break
+            block = [line]
+            while marker not in line and pos > 0 and len(block) < 200:
+                pos, line = line_above(src, pos)
+                block.append(line)
+            return block[::-1] if line.startswith(openers) else []
+        if skip.match(line) and (lang in ANNOTATED or not line.startswith('@')):
+            if out:
+                break
+            continue
+        if prefixes and line.startswith(prefixes):
+            out.append(line)
+            continue
+        break
+    out.reverse()
+    if lang == 'haskell' and out and not re.match(r'--\s*\|', out[0]):
+        return []
+    return out
+
+
+def doc_paragraph(lines, lang):
+    lines = [re.sub(r'^\s*(?:/\*+!?|\(\*+|\{-\||<#)', '', line) for line in lines]
+    lines = [re.sub(r'(?:\*+/|\*+\)|-\}|#>)\s*$', '', line) for line in lines]
+    lines = [re.sub(r'^\s*(?://[/!]?|--+\s*\|?|#+|\*(?![*/]))\s?', '', line).strip() for line in lines]
+    if lang in ('csharp', 'fsharp') and any('<' in line for line in lines):
+        joined = '\n'.join(lines)
+        found = re.search(r'<summary>(.*?)</summary>', joined, re.S)
+        joined = found.group(1) if found else joined
+        joined = re.sub(r'<(?:see|seealso|paramref|typeparamref)\s+\w+="([^"]*)"\s*/>', lambda m: m.group(1).split(':')[-1], joined)
+        lines = [re.sub(r'<[^>]+>', '', line).strip() for line in joined.split('\n')]
+    out = []
+    for line in lines:
+        if not line or DOC_STOP.match(line) or (lang == 'powershell' and re.match(r'\.[A-Z]+\b', line)):
+            if out:
+                break
+            continue
+        line = DOC_TAGS.sub('', line)
+        parts = re.split(r'\s[@\\](?:param|returns?|throws|exception|see)\b', re.sub(r'\{@\w+\s+([^}]*)\}', r'\1', line))
+        if parts[0]:
+            out.append(parts[0])
+        if len(parts) > 1:
+            break
+    return collapse(' '.join(out), DOC_MAX) if out else None
+
+
+def string_doc(raw):
+    raw = re.sub(r'^~[sS]', '', raw.strip())
+    quote = '"""' if raw.startswith('"""') else '"' if raw.startswith('"') else None
+    if quote is None:
+        return None
+    raw = raw[len(quote):]
+    raw = raw[:-len(quote)] if raw.endswith(quote) else raw
+    lines = raw.split('\n')
+    while lines and not lines[0].strip():
+        lines.pop(0)
+    indent = min((len(x) - len(x.lstrip()) for x in lines if x.strip()), default=0)
+    lines = [x[indent:] for x in lines]
+    if lines and lines[0].startswith('    '):
+        while lines and lines[0].strip():
+            lines.pop(0)
+    out = []
+    for line in lines:
+        line = line.strip()
+        if not line or line.startswith(('## ', '# ', '```')):
+            if out:
+                break
+            continue
+        out.append(line)
+    return collapse(' '.join(out), DOC_MAX) if out else None
+
+
+def ex_attribute(node, src):
+    if node is None or node.type != 'unary_operator':
+        return None, None
+    operand = node.child_by_field_name('operand')
+    if operand is None or operand.type != 'call':
+        return None, None
+    args = ex_args(operand)
+    return ex_target(operand, src), args[0] if args else None
+
+
+def ex_doc(node, src, kind):
+    if kind == 'class':
+        block = next((c for c in node.named_children if c.type == 'do_block'), None)
+        for c in block.named_children[:12] if block is not None else []:
+            name, value = ex_attribute(c, src)
+            if name == 'moduledoc':
+                return string_doc(text(value, src)) if value is not None else None
+        return None
+    prev = node.prev_named_sibling
+    while prev is not None and prev.type == 'unary_operator':
+        name, value = ex_attribute(prev, src)
+        if name == 'doc':
+            return string_doc(text(value, src)) if value is not None else None
+        prev = prev.prev_named_sibling
+    return False
+
+
+def jl_doc(node, src):
+    prev = node.prev_named_sibling
+    if prev is not None and prev.type == 'string_literal' and prev.end_point[0] >= node.start_point[0] - 1:
+        return string_doc(text(prev, src))
+    return False
+
+
+def documentation(node, src, lang, kind, anchor):
+    found = False
+    if lang == 'elixir':
+        found = ex_doc(node, src, kind)
+    elif lang == 'julia':
+        found = jl_doc(node, src)
+    if found is not False:
+        return found
+    return doc_paragraph(comment_lines(src, anchor.start_byte, lang), lang)
+
+
+def module_doc(src, lang):
+    if lang != 'rust':
+        return None
+    found = re.match(rb'\s*((?:[ \t]*//![^\n]*\n?)+)', src)
+    if not found:
+        return None
+    return doc_paragraph(found.group(1).decode('utf-8', errors='replace').split('\n'), lang)
+
+
+def modifier_words(node, src):
+    words = set()
+    for c in node.children:
+        if c.type in MOD_TYPES:
+            parts = c.children if c.type == 'modifiers' and c.child_count else [c]
+            for p in parts:
+                if 'annotation' not in p.type and 'attribute' not in p.type:
+                    words.update(re.findall(r'[a-z]+', text(p, src)))
+        elif not c.is_named and c.type in MOD_WORDS:
+            words.add(c.type)
+    return words
+
+
+def enclosing(node, classes):
+    holder = node.parent
+    while holder is not None:
+        if holder.type in classes:
+            return holder
+        holder = holder.parent
+    return None
+
+
+def ruby_visibility(node, src):
+    if node.type == 'singleton_method':
+        return 'public'
+    holder = node.parent
+    if holder is not None and holder.type == 'argument_list' and holder.parent is not None and holder.parent.type == 'call':
+        method = holder.parent.child_by_field_name('method')
+        word = text(method, src) if method is not None else ''
+        if word in ('private', 'protected', 'public'):
+            return word
+    prev = node.prev_named_sibling
+    while prev is not None:
+        if prev.type == 'identifier' and text(prev, src) in RUBY_SECTIONS:
+            word = text(prev, src)
+            return word if word in ('private', 'protected') else 'public'
+        if prev.type in ('class', 'module'):
+            break
+        prev = prev.prev_named_sibling
+    return 'public'
+
+
+def cpp_visibility(node, src, words):
+    holder = node.parent
+    if holder is not None and holder.type == 'field_declaration_list':
+        prev = node.prev_named_sibling
+        while prev is not None:
+            if prev.type == 'access_specifier':
+                return re.sub(r'\W', '', text(prev, src))
+            prev = prev.prev_named_sibling
+        owner = holder.parent
+        return 'private' if owner is not None and owner.type == 'class_specifier' else 'public'
+    if 'static' in words:
+        return 'private'
+    while holder is not None:
+        if holder.type == 'namespace_definition' and holder.child_by_field_name('name') is None:
+            return 'private'
+        holder = holder.parent
+    return 'public'
+
+
+def visibility(node, src, lang, name, anchor):
+    short = (name or '').rsplit('.', 1)[-1]
+    if lang == 'go':
+        return 'public' if short[:1].isupper() else 'private'
+    if lang in ('dart', 'perl', 'julia'):
+        return 'private' if short.startswith('_') else 'public'
+    if lang == 'elixir':
+        return 'private' if ex_target(node, src) in EX_PRIVATE else 'public'
+    if lang == 'ruby':
+        return ruby_visibility(node, src) if node.type in ('method', 'singleton_method') else 'public'
+    words = modifier_words(node, src)
+    if anchor is not node:
+        words |= modifier_words(anchor, src)
+    if lang == 'fsharp' and node.named_children:
+        words |= modifier_words(node.named_children[0], src)
+    if lang in ('c', 'cpp', 'objc'):
+        return cpp_visibility(node, src, words)
+    if lang == 'lua':
+        return 'private' if 'local' in words else 'public'
+    if lang == 'rust':
+        vis = next((c for c in node.children if c.type == 'visibility_modifier'), None)
+        if vis is not None:
+            return 'public' if text(vis, src).strip() == 'pub' else 'internal'
+        holder = enclosing(node, {'trait_item', 'impl_item', 'source_file', 'mod_item'})
+        if holder is not None and (holder.type == 'trait_item' or (holder.type == 'impl_item' and holder.child_by_field_name('trait') is not None)):
+            return 'public'
+        return 'private'
+    if lang == 'zig':
+        return 'public' if 'pub' in words else 'private'
+    for word, vis in (('protected', 'protected'), ('private', 'private'), ('fileprivate', 'private'), ('internal', 'internal'),
+                      ('public', 'public'), ('open', 'public'), ('external', 'public')):
+        if word in words:
+            return vis
+    if lang in ('java', 'csharp', 'groovy', 'kotlin', 'swift', 'scala', 'php'):
+        holder = enclosing(node, LANGS[lang]['classes'])
+        if lang == 'swift' and holder is not None and holder.type == 'protocol_declaration':
+            return visibility(holder, src, lang, '', holder)
+        if holder is not None and holder.type in ('interface_declaration', 'protocol_declaration', 'annotation_type_declaration'):
+            return 'public'
+        if lang == 'csharp':
+            return 'private' if holder is not None else 'internal'
+        if lang == 'swift':
+            return 'internal'
+        return JAVA_DEFAULT.get(lang, 'public')
+    return 'public'
+
+
+def describe(node, src, lang, kind, name):
+    anchor = sig_anchor(node)
+    head = hs_signature(node, src, name) if lang == 'haskell' else None
+    end = node.end_point[0] + (0 if node.end_point[1] == 0 and node.end_point[0] > node.start_point[0] else 1)
+    return dict(
+        sig=collapse(text(head, src), SIG_MAX) if head is not None else signature(node, src, lang, anchor),
+        doc=documentation(node, src, lang, kind, head or anchor), end=end, vis=visibility(node, src, lang, name, anchor),
+    )
+
+
+def line_count(src):
+    return src.count(b'\n') + (1 if src and not src.endswith(b'\n') else 0)
+
+
 LANGS = {
     'go': dict(
         exts=('.go',), grammar=('tree_sitter_go', 'language'), family='go',
         classes={'type_spec'}, functions={'function_declaration', 'method_declaration'}, fn_name=go_function_name,
         calls={'call_expression': ('function',)}, imports={'import_spec': go_imports}, package={'package_clause'},
-        types=({'type_identifier'}, None), refs={'selector_expression'},
+        types=({'type_identifier'}, None), refs={'selector_expression'}, collect=(GO_DECLS, go_collect),
     ),
     'rust': dict(
         exts=('.rs',), grammar=('tree_sitter_rust', 'language'), family='rust',
@@ -1084,7 +1576,8 @@ LANGS = {
         exts=('.swift',), grammar=('tree_sitter_swift', 'language'), family='swift',
         classes={'class_declaration', 'protocol_declaration'}, owner=swift_owner,
         functions={'function_declaration', 'protocol_function_declaration'}, bases={'inheritance_specifier'},
-        calls={'call_expression': (None,)}, types=({'type_identifier'}, None),
+        calls={'call_expression': (None,)}, imports={'import_declaration': swift_import},
+        types=({'type_identifier'}, None),
     ),
     'lua': dict(
         exts=('.lua',), grammar=('tree_sitter_lua', 'language'), family='lua',
@@ -1257,6 +1750,12 @@ class Unit:
         self.types = {}
         self.refs = {}
         self.foreign = set()
+        self.fnodes = {}
+        self.decls = defaultdict(list)
+        self.gtypes = {}
+        self.gvars = []
+        self.build = None
+        self.enabled = True
 
 
 class Family:
@@ -1274,6 +1773,10 @@ def read_unit(g, family, rel, lang, src, digest, skip_tests=False):
     spec = LANGS[lang]
     tree = parser_for(lang).parse(src)
     mid = g.node(f'm:{rel}', kind='module', name=rel.rsplit('/', 1)[-1], file=rel, line=1, lang=lang, hash=digest(src))
+    g.nodes[mid].setdefault('end', line_count(src))
+    found = module_doc(src, lang)
+    if found:
+        g.nodes[mid].setdefault('doc', found)
     u = Unit(rel, lang, src, mid)
     classes, functions = spec['classes'], spec['functions']
     calls, imports, packages = spec['calls'], spec.get('imports', {}), spec.get('package', set())
@@ -1282,11 +1785,15 @@ def read_unit(g, family, rel, lang, src, digest, skip_tests=False):
     class_bases, body_of = spec.get('class_bases'), spec.get('body')
     type_idents, type_parents = spec.get('types', (set(), None))
     refs, is_test = spec.get('refs', set()), spec.get('tests') if skip_tests else None
+    collect_types, collect = spec.get('collect', (set(), None))
     spaces, detached = set(), {}
+    if lang == 'go':
+        u.build, u.enabled = go_enabled(rel, src)
 
     def declare_method(owner, name, node, cid):
         fid = g.node(f'f:{rel}:{owner}.{name}', kind='method', name=f'{owner}.{name}', file=rel,
-                     line=node.start_point[0] + 1, lang=lang, hash=digest(src[node.start_byte:node.end_byte]))
+                     line=node.start_point[0] + 1, lang=lang, hash=digest(src[node.start_byte:node.end_byte]),
+                     **describe(node, src, lang, 'method', name))
         g.edge(cid or mid, fid, 'contains')
         add(family.methods[(owner, name)], fid)
         add(family.methods_by_name[name], fid)
@@ -1310,12 +1817,18 @@ def read_unit(g, family, rel, lang, src, digest, skip_tests=False):
                 u.refs.setdefault((text(operand, src), text(field, src)), None)
         if t in calls:
             u.calls.append((owner_id, ctx, n))
+        if t in collect_types:
+            collect(u, n, owner_id, in_fn)
         if t in imports:
             u.imports += imports[t](n, src)
         if t in packages:
             name = package_name(n, src)
             if name:
                 u.packages.append(name)
+            if lang in ('go', 'haskell') and 'doc' not in g.nodes[mid]:
+                found = doc_paragraph(comment_lines(src, n.start_byte, lang), lang)
+                if found:
+                    g.nodes[mid]['doc'] = found
         if not in_fn:
             owner = owner_of(n, src) if owner_of else None
             if owner:
@@ -1330,7 +1843,7 @@ def read_unit(g, family, rel, lang, src, digest, skip_tests=False):
                 name = class_name(n, src) if class_name else last_name(n.child_by_field_name('name'), src)
                 if name:
                     cid = g.node(f'c:{rel}:{name}', kind='class', name=name, file=rel, line=n.start_point[0] + 1, lang=lang,
-                                 hash=digest(src[n.start_byte:n.end_byte]))
+                                 hash=digest(src[n.start_byte:n.end_byte]), **describe(n, src, lang, 'class', name))
                     g.edge(ctx_id or mid, cid, 'contains')
                     add(family.classes_by_name[name], cid)
                     if t in namespaces:
@@ -1355,10 +1868,12 @@ def read_unit(g, family, rel, lang, src, digest, skip_tests=False):
                         fid = declare_method(owner, name, n, ctx_id if owner == ctx else None)
                     else:
                         fid = g.node(f'f:{rel}:{name}', kind='function', name=name, file=rel, line=n.start_point[0] + 1,
-                                     lang=lang, hash=digest(src[n.start_byte:n.end_byte]))
+                                     lang=lang, hash=digest(src[n.start_byte:n.end_byte]),
+                                     **describe(n, src, lang, 'function', name))
                         g.edge(mid, fid, 'contains')
                         u.top.setdefault(name, fid)
                         add(family.top_by_name[name], fid)
+                    u.fnodes.setdefault(fid, n)
                     body = body_of(n) if body_of else None
                     if body is not None:
                         detached[body.id] = (owner, ctx_id, fid)
@@ -1387,7 +1902,7 @@ class Linker:
             self.by_dir[os.path.dirname(rel)].append(rel)
             self.by_name[base.lower()].append(rel)
             self.by_stem[os.path.splitext(base)[0].lower()].append(rel)
-        self.gomods = self.find_markers('go.mod', r'^module\s+(\S+)')
+        self.gomods = {d: m.strip('"`') for d, m in self.find_markers('go.mod', r'^module\s+(\S+)').items()}
         self.crates = self.find_markers('Cargo.toml', r'^name\s*=\s*"([^"]+)"')
         self.pubs = None
         self.derived = set()
@@ -1397,6 +1912,12 @@ class Linker:
             self.tails[re.split(r'\.|::', pkg)[-1]].update(rels)
         self.roots = {}
         self.reps = {}
+        self.prefixes = None
+        self.dirnames = None
+        self.gotypes = None
+        self.govars = None
+        self.envs = {}
+        self.memo = {}
 
     def find_markers(self, filename, pattern):
         found = {}
@@ -1555,6 +2076,26 @@ class Linker:
         roots = STD_ROOTS.get(u.family, ())
         return any(w in u.foreign or (w in roots and w not in u.aliases and not self.known(w)) for w in words if w)
 
+    def internal(self, u, value):
+        if self.prefixes is None:
+            self.prefixes = set()
+            for name in list(self.f.by_package) + list(self.f.fqn):
+                parts = re.split(r'\.|::', name)
+                self.prefixes.update('.'.join(parts[:i]) for i in range(1, len(parts) + 1))
+        owner = value.rsplit('.', 1)[0]
+        return (value in self.prefixes or owner in self.f.by_package or owner in self.f.fqn
+                or (u.family in MODULE_NAMES and owner in self.prefixes))
+
+    def external(self, u, value):
+        roots = EXTERN_STD.get(u.lang) or EXTERN_STD.get(u.family, ())
+        if value and value not in roots and re.split(r'\.|::|/', value)[0] not in roots:
+            self.g.external(u.mid, value, u.lang)
+
+    def local_dir(self, value):
+        if self.dirnames is None:
+            self.dirnames = {os.path.basename(d).lower() for d in self.by_dir}
+        return value.lower() in self.dirnames
+
     def global_ok(self, u, name):
         return u.family not in NO_GLOBAL and name not in u.foreign and name not in BUILTINS.get(u.family, ())
 
@@ -1569,6 +2110,7 @@ class Linker:
                 if mod_dir is None:
                     if alias not in ('_', '.'):
                         u.foreign.add(alias or go_package(value))
+                    self.external(u, value)
                     continue
                 targets = [r for r in self.by_dir.get(mod_dir, []) if r.endswith('.go') and r != u.rel]
                 if targets:
@@ -1588,6 +2130,8 @@ class Linker:
                 if not found:
                     if kind == 'rust' and alias != '_' and value[0] not in ('crate', 'self', 'super'):
                         u.foreign.add(alias or value[-1])
+                    if value[0] not in ('crate', 'self', 'super') and value[0] not in u.top and not self.defined(value[0]):
+                        self.external(u, '::'.join(value))
                     continue
                 self.add_explicit(u, found)
                 if kind == 'rustglob':
@@ -1610,13 +2154,19 @@ class Linker:
                         self.add_explicit(u, hits[0])
                     elif value not in self.f.by_package and not self.defined(alias or value.rsplit('.', 1)[-1]):
                         u.foreign.add(alias or value.rsplit('.', 1)[-1])
+                    if not hits and not self.internal(u, value):
+                        self.external(u, value.replace('.', '\\') if u.lang == 'php' else value)
             elif kind == 'open':
                 target = self.f.fqn.get(value)
                 if target and self.g.nodes[target]['kind'] == 'class':
                     self.add_explicit(u, self.g.nodes[target]['file'])
                     add(u.opened, target)
+                elif not target and not self.internal(u, value):
+                    self.external(u, value)
             elif kind == 'pkg':
                 u.wide.update(r for r in self.f.by_package.get(value, ()) if r != u.rel)
+                if not self.internal(u, value):
+                    self.external(u, value)
             elif kind == 'relpath':
                 cands = [self.norm(u.rel, value.lstrip('/')) if value.startswith('/') else self.norm(u.rel, value)]
                 cands.append(cands[0] + '.rb')
@@ -1640,12 +2190,20 @@ class Linker:
                 hits = self.suffix(value, family_exts)
                 if len(hits) == 1:
                     self.add_explicit(u, hits[0])
+                elif not hits and not value.startswith(C_SYSTEM):
+                    self.external(u, value)
             elif kind == 'suffix':
                 hits = self.suffix(value, family_exts)
                 if len(hits) == 1:
                     self.add_explicit(u, hits[0])
                     if alias:
                         u.aliases[alias] = ('files', hits)
+                elif not hits and u.lang in ('ruby', 'powershell'):
+                    self.external(u, value)
+            elif kind == 'extern':
+                tail = value.split('/', 1)[-1]
+                if not (self.suffix(value, family_exts) or self.suffix(tail, family_exts) or self.local_dir(value.split('.')[0])):
+                    self.external(u, value)
             elif kind == 'module':
                 hits = sorted(r for r in self.f.by_package.get(value, ()) if r != u.rel)
                 if not hits:
@@ -1655,11 +2213,15 @@ class Linker:
                     self.add_explicit(u, hit)
                 if hits and alias:
                     u.aliases[alias] = ('files', hits)
+                if not hits and not self.internal(u, value):
+                    self.external(u, value)
             elif kind == 'stem':
                 if value in u.top:
                     continue
                 hits = [r for r in self.by_stem.get(value.lower(), []) if os.path.splitext(r)[1] in exts and r != u.rel]
                 hits = [r for r in hits if os.path.dirname(r) == os.path.dirname(u.rel)] or hits
+                if not hits and alias is None and not self.defined(value):
+                    self.external(u, value)
                 if len(hits) != 1:
                     continue
                 if alias is None:
@@ -1678,6 +2240,8 @@ class Linker:
                     u.aliases[alias] = ('files', [hit])
                 elif alias and not hit:
                     u.foreign.add(alias)
+                if not roots:
+                    self.external(u, f'package:{pkg}/{path}')
             elif kind == 'lua':
                 path = value.replace('.', '/')
                 hits = self.suffix(path, family_exts) or self.suffix(path + '/init', family_exts)
@@ -1685,9 +2249,16 @@ class Linker:
                     self.add_explicit(u, hits[0])
                     if alias:
                         u.aliases[alias] = ('files', hits)
+                elif not hits:
+                    self.external(u, value)
+
+    def unit_of(self, nid):
+        return self.f.units.get(self.g.nodes[nid]['file'])
 
     def pick(self, cands, rel):
         cands = list(dict.fromkeys(cands))
+        if len(cands) > 1:
+            cands = [c for c in cands if getattr(self.unit_of(c), 'enabled', True)] or cands
         if len(cands) == 1:
             return cands[0]
         if not cands:
@@ -1696,7 +2267,15 @@ class Linker:
         if len(same) == 1:
             return same[0]
         near = [c for c in cands if os.path.dirname(self.g.nodes[c]['file']) == os.path.dirname(rel)]
-        return near[0] if len(near) == 1 else None
+        if len(near) == 1:
+            return near[0]
+        return self.twin(near or cands)
+
+    def twin(self, cands):
+        units = [self.unit_of(c) for c in cands]
+        if any(x is None or x.build is None for x in units) or len({os.path.dirname(x.rel) for x in units}) != 1:
+            return None
+        return min(cands, key=lambda c: (bool(self.unit_of(c).build), self.g.nodes[c]['file'], c))
 
     def in_files(self, name, rels):
         return sorted(self.f.units[r].top[name] for r in rels if r in self.f.units and name in self.f.units[r].top)
@@ -1794,6 +2373,14 @@ class Linker:
         return None, None
 
     def resolve_call(self, u, owner_id, ctx, node):
+        if u.family == 'go' and node.type == 'call_expression':
+            kind, value, via = self.go_callee(u, self.go_env(u, owner_id), node.child_by_field_name('function'), 0)
+            if kind == 'func':
+                return value, via, ''
+            if kind == 'type':
+                return self.go_class(value), 'conv' if via == 'ref' else 'typed', ''
+            if kind not in ('unknown', 'iface'):
+                return None, None, ''
         fields = LANGS[u.lang]['calls'][node.type]
         parts = []
         if callable(fields):
@@ -1819,7 +2406,7 @@ class Linker:
         for owner_id, ctx, node in u.calls:
             target, via, _ = self.resolve_call(u, owner_id, ctx, node)
             if target and target != owner_id:
-                self.g.edge(owner_id, target, 'call')
+                self.g.edge(owner_id, target, 'ref' if via == 'conv' else 'call')
                 self.derive(u, target, via)
 
     def link_bases(self, u):
@@ -1888,6 +2475,343 @@ class Linker:
     def derive(self, u, target, via):
         if via in ('wide', 'alias'):
             self.touch(u, self.g.nodes[target]['file'])
+
+    def go_setup(self):
+        self.gotypes, self.govars, self.anon = {}, defaultdict(list), {}
+        for rel in sorted(self.f.units):
+            u = self.f.units[rel]
+            d = os.path.dirname(rel)
+            for name, node in u.gtypes.items():
+                held = self.gotypes.get((d, name))
+                if held is None or (u.enabled and not held[0].enabled):
+                    self.gotypes[(d, name)] = (u, node)
+            for spec in u.gvars:
+                for name, entry, _ in self.go_entries(u, spec):
+                    self.govars[(d, name)].append((u, entry))
+
+    def go_entries(self, u, n):
+        t, out, start = n.type, [], n.end_byte
+        if t in ('parameter_declaration', 'variadic_parameter_declaration'):
+            kind, start = n.child_by_field_name('type'), 0
+            out = [(x, ('type', kind, t != 'parameter_declaration')) for x in n.children_by_field_name('name')]
+        elif t == 'var_spec':
+            names, kind, value = n.children_by_field_name('name'), n.child_by_field_name('type'), n.child_by_field_name('value')
+            values = value.named_children if value is not None else []
+            for i, x in enumerate(names):
+                if kind is not None:
+                    out.append((x, ('type', kind, False)))
+                elif len(values) == len(names):
+                    out.append((x, ('expr', values[i], 0)))
+                elif len(values) == 1:
+                    out.append((x, ('expr', values[0], i)))
+        elif t in ('short_var_declaration', 'range_clause'):
+            left, right = n.child_by_field_name('left'), n.child_by_field_name('right')
+            names = left.named_children if left is not None else []
+            values = right.named_children if right is not None and right.type == 'expression_list' else [right]
+            for i, x in enumerate(names):
+                if t == 'range_clause':
+                    out.append((x, ('range', right, i)))
+                elif len(values) == len(names):
+                    out.append((x, ('expr', values[i], 0)))
+                elif len(values) == 1:
+                    out.append((x, ('expr', values[0], i)))
+        elif t == 'type_switch_statement':
+            alias = n.child_by_field_name('alias')
+            out = [(x, ('none',)) for x in (alias.named_children if alias is not None else [])]
+            start = alias.end_byte if alias is not None else start
+        return [(text(x, u.src), e, start) for x, e in out if x.type == 'identifier' and text(x, u.src) != '_']
+
+    def go_env(self, u, fid):
+        if self.gotypes is None:
+            self.go_setup()
+        env = self.envs.get(fid)
+        if env is None:
+            env = self.envs[fid] = defaultdict(list)
+            for n in u.decls.get(fid, ()):
+                scope = n.parent
+                while scope is not None and scope.type not in GO_SCOPES:
+                    scope = scope.parent
+                if scope is None:
+                    continue
+                for name, entry, start in self.go_entries(u, n):
+                    env[name].append((scope.start_byte, scope.end_byte, max(start, scope.start_byte), entry))
+        return env
+
+    def go_local(self, env, name, pos):
+        seen = [x for x in env.get(name, ()) if x[0] <= pos < x[1] and x[2] <= pos]
+        inner = max((x[0] for x in seen), default=None)
+        return [x[3] for x in seen if x[0] == inner]
+
+    def go_named(self, u, name):
+        if name in GO_BUILTIN_TYPES:
+            return FOREIGN
+        key = (os.path.dirname(u.rel), name)
+        return ('t',) + key if key in self.gotypes else None
+
+    def go_pkg_type(self, u, pkg, name):
+        alias = u.aliases.get(pkg)
+        if alias and alias[0] == 'files':
+            key = (os.path.dirname(alias[1][0]), name)
+            return ('t',) + key if key in self.gotypes else None
+        return FOREIGN if pkg in u.foreign else None
+
+    def go_type(self, u, node, depth=0):
+        while node is not None and node.type in ('pointer_type', 'parenthesized_type', 'parenthesized_expression'):
+            node = node.named_children[0] if node.named_children else None
+        if node is None or depth > 6:
+            return None
+        t = node.type
+        if t in ('type_identifier', 'identifier'):
+            return self.go_named(u, text(node, u.src))
+        if t == 'generic_type':
+            return self.go_type(u, node.child_by_field_name('type'), depth + 1)
+        if t in ('qualified_type', 'selector_expression'):
+            pkg = node.child_by_field_name('package' if t == 'qualified_type' else 'operand')
+            name = node.child_by_field_name('name' if t == 'qualified_type' else 'field')
+            if pkg is None or name is None or pkg.type not in ('package_identifier', 'identifier'):
+                return None
+            return self.go_pkg_type(u, text(pkg, u.src), text(name, u.src))
+        if t in ('slice_type', 'array_type', 'implicit_length_array_type'):
+            return ('e', self.go_type(u, node.child_by_field_name('element'), depth + 1))
+        if t in ('map_type', 'channel_type'):
+            return ('e', self.go_type(u, node.child_by_field_name('value'), depth + 1))
+        if t in ('struct_type', 'interface_type', 'function_type'):
+            self.anon[(u.rel, node.start_byte)] = (u, node)
+            return ('s', u.rel, node.start_byte)
+        if t == 'unary_expression' and text(node, u.src).startswith('*'):
+            return self.go_type(u, node.child_by_field_name('operand'), depth + 1)
+        return None
+
+    def go_class(self, typ):
+        found = self.gotypes.get(typ[1:]) if typ and typ[0] == 't' else None
+        return found[0].top.get(typ[2]) if found else None
+
+    def go_struct(self, typ):
+        found = (self.gotypes if typ[0] == 't' else self.anon).get(typ[1:]) if typ and typ[0] in 'ts' else None
+        if found is None:
+            return None, None, None
+        u, node = found
+        fields, embeds = {}, []
+        if node.type == 'struct_type':
+            body = next((c for c in node.named_children if c.type == 'field_declaration_list'), None)
+            for fd in body.named_children if body is not None else []:
+                kind = fd.child_by_field_name('type')
+                names = fd.children_by_field_name('name')
+                for x in names:
+                    fields.setdefault(text(x, u.src), kind)
+                if not names and kind is not None:
+                    embeds.append(kind)
+        elif node.type == 'interface_type':
+            for c in node.named_children:
+                if c.type == 'method_elem':
+                    name = c.child_by_field_name('name')
+                    if name is not None:
+                        fields.setdefault(text(name, u.src), c)
+                elif c.type == 'type_elem':
+                    embeds.append(c.named_children[0] if len(c.named_children) == 1 else None)
+        return u, node, (fields, embeds)
+
+    def go_field(self, typ, name, depth=0):
+        if typ == FOREIGN:
+            return FOREIGN
+        u, node, info = self.go_struct(typ)
+        if u is None or depth > 3 or node.type != 'struct_type':
+            return None
+        fields, embeds = info
+        if name in fields:
+            return self.go_type(u, fields[name])
+        for kind in embeds:
+            inner = self.go_type(u, kind)
+            core = go_core(kind)
+            if core is not None and text(core, u.src) == name:
+                return inner
+            found = self.go_field(inner, name, depth + 1)
+            if found:
+                return found
+        return None
+
+    def go_method(self, typ, name, depth=0):
+        if typ == FOREIGN or (typ and typ[0] == 'e'):
+            return None, True, None
+        if not typ or depth > 3:
+            return None, False, None
+        if typ[0] == 't':
+            d, owner = typ[1], typ[2]
+            cands = [f for f in self.f.methods.get((owner, name), ()) if os.path.dirname(self.g.nodes[f]['file']) == d]
+            if cands:
+                return self.pick(cands, self.g.nodes[cands[0]]['file']), True, None
+        u, node, info = self.go_struct(typ)
+        if u is None:
+            return None, False, None
+        if node.type == 'interface_type' and name in info[0]:
+            return None, False, (u, info[0][name])
+        if node.type not in ('struct_type', 'interface_type'):
+            return None, node.type not in ('type_identifier', 'qualified_type', 'generic_type'), None
+        sure = True
+        for kind in info[1]:
+            found, known, decl = self.go_method(self.go_type(u, kind), name, depth + 1)
+            if found or decl:
+                return found, known, decl
+            sure = sure and known
+        return None, sure, None
+
+    def go_elem(self, typ):
+        if typ == FOREIGN:
+            return FOREIGN
+        if typ and typ[0] == 'e':
+            return typ[1]
+        u, node, _ = self.go_struct(typ)
+        if node is not None and node.type in ('slice_type', 'array_type', 'map_type'):
+            return self.go_type(u, node.child_by_field_name('value' if node.type == 'map_type' else 'element'))
+        return None
+
+    def go_results(self, u, node):
+        result = node.child_by_field_name('result') if node is not None else None
+        if result is None:
+            return []
+        if result.type != 'parameter_list':
+            return [self.go_type(u, result)]
+        out = []
+        for p in result.named_children:
+            if p.type in ('parameter_declaration', 'variadic_parameter_declaration'):
+                out += [self.go_type(u, p.child_by_field_name('type'))] * max(1, len(p.children_by_field_name('name')))
+        return out
+
+    def go_var(self, u, env, name, depth, pos):
+        entries = [(u, e) for e in self.go_local(env, name, pos)] or self.govars.get((os.path.dirname(u.rel), name), [])
+        return self.go_merge(u, env, entries, depth)
+
+    def go_pkg_var(self, files, name, depth):
+        return self.go_merge(None, {}, self.govars.get((os.path.dirname(files[0]), name), []), depth)
+
+    def go_merge(self, u, env, entries, depth):
+        found = {self.go_entry(owner, env if owner is u else {}, e, depth) for owner, e in entries} - {None}
+        return found.pop() if len(found) == 1 else None
+
+    def go_entry(self, u, env, entry, depth):
+        if entry[0] == 'type':
+            found = self.go_type(u, entry[1])
+            return ('e', found) if entry[2] else found
+        if entry[0] == 'expr':
+            return self.go_expr(u, env, entry[1], depth + 1, entry[2])
+        if entry[0] == 'range':
+            outer = self.go_expr(u, env, entry[1], depth + 1)
+            return self.go_elem(outer) if entry[2] == 1 else None
+        return None
+
+    def go_expr(self, u, env, node, depth=0, idx=0):
+        if node is None or depth > 12:
+            return None
+        key = (u.rel, node.id, idx)
+        if key not in self.memo:
+            self.memo[key] = None
+            self.memo[key] = self.go_infer(u, env, node, depth, idx)
+        return self.memo[key]
+
+    def go_infer(self, u, env, node, depth, idx):
+        t = node.type
+        if t == 'parenthesized_expression':
+            return self.go_expr(u, env, node.named_children[0] if node.named_children else None, depth + 1, idx)
+        if t in GO_LITERALS:
+            return FOREIGN
+        if t == 'type_assertion_expression':
+            return self.go_type(u, node.child_by_field_name('type')) if idx == 0 else FOREIGN
+        if idx and t != 'call_expression':
+            return FOREIGN if t == 'index_expression' else None
+        if t == 'identifier':
+            return self.go_var(u, env, text(node, u.src), depth, node.start_byte)
+        if t == 'unary_expression':
+            op = text(node, u.src)[:2]
+            inner = self.go_expr(u, env, node.child_by_field_name('operand'), depth + 1)
+            return inner if op[:1] in '&*' else self.go_elem(inner) if op == '<-' else None
+        if t in ('composite_literal', 'type_conversion_expression'):
+            return self.go_type(u, node.child_by_field_name('type'))
+        if t == 'selector_expression':
+            operand, field = node.child_by_field_name('operand'), node.child_by_field_name('field')
+            if operand is None or field is None:
+                return None
+            name = text(operand, u.src)
+            if operand.type == 'identifier' and not self.go_local(env, name, operand.start_byte):
+                alias = u.aliases.get(name)
+                if alias and alias[0] == 'files':
+                    return self.go_pkg_var(alias[1], text(field, u.src), depth)
+                if name in u.foreign:
+                    return FOREIGN
+            return self.go_field(self.go_expr(u, env, operand, depth + 1), text(field, u.src))
+        if t == 'index_expression':
+            return self.go_elem(self.go_expr(u, env, node.child_by_field_name('operand'), depth + 1))
+        if t == 'slice_expression':
+            return self.go_expr(u, env, node.child_by_field_name('operand'), depth + 1)
+        if t == 'call_expression':
+            fn = node.child_by_field_name('function')
+            word = text(fn, u.src) if fn is not None and fn.type == 'identifier' else None
+            if word in ('new', 'make') and not self.go_local(env, word, fn.start_byte):
+                args = node.child_by_field_name('arguments')
+                return self.go_type(u, args.named_children[0] if args is not None and args.named_children else None)
+            kind, value, _ = self.go_callee(u, env, fn, depth + 1)
+            if kind == 'type':
+                return value if idx == 0 else FOREIGN
+            if kind == 'foreign':
+                return FOREIGN
+            if kind == 'none' and fn is not None and fn.type in ('identifier', 'selector_expression'):
+                kind, value = 'iface', self.go_struct(self.go_expr(u, env, fn, depth + 1))[:2]
+            if kind in ('func', 'iface'):
+                owner, decl = (self.unit_of(value), None) if kind == 'func' else value
+                results = self.go_results(owner, decl or (owner.fnodes.get(value) if owner is not None else None))
+                return results[idx] if idx < len(results) else None
+        return None
+
+    def go_callee(self, u, env, fn, depth):
+        if fn is None or depth > 12:
+            return 'none', None, None
+        t = fn.type
+        if t == 'identifier':
+            name = text(fn, u.src)
+            if self.go_local(env, name, fn.start_byte):
+                return 'none', None, None
+            target, via = self.unqualified(u, None, name)
+            if target:
+                if self.g.nodes[target]['kind'] == 'class':
+                    return 'type', self.go_named(u, name), None
+                return 'func', target, via
+            return ('type', FOREIGN, None) if name in GO_BUILTIN_TYPES else ('none', None, None)
+        if t == 'selector_expression':
+            operand, field = fn.child_by_field_name('operand'), fn.child_by_field_name('field')
+            if operand is None or field is None:
+                return 'none', None, None
+            name, method = text(operand, u.src), text(field, u.src)
+            if operand.type == 'identifier' and not self.go_local(env, name, operand.start_byte):
+                alias = u.aliases.get(name)
+                if alias and alias[0] == 'files':
+                    target = self.pick(self.in_files(method, alias[1]), u.rel)
+                    if target and self.g.nodes[target]['kind'] == 'class':
+                        return 'type', self.go_pkg_type(u, name, method), None
+                    return ('func', target, 'wide') if target else ('none', None, None)
+                if name in u.foreign:
+                    return 'foreign', None, None
+            base = self.go_expr(u, env, operand, depth + 1)
+            if base == FOREIGN:
+                return 'foreign', None, None
+            target, sure, decl = self.go_method(base, method)
+            if target:
+                return 'func', target, 'typed'
+            if decl:
+                return 'iface', decl, None
+            return ('none' if sure else 'unknown'), None, None
+        if t == 'parenthesized_expression':
+            inner = fn.named_children[0] if fn.named_children else None
+            if inner is not None and text(inner, u.src).startswith('*'):
+                found = self.go_type(u, inner)
+                if found:
+                    return 'type', found, 'ref'
+            return 'none', None, None
+        if t == 'index_expression':
+            kind, value, via = self.go_callee(u, env, fn.child_by_field_name('operand'), depth + 1)
+            return (kind, value, via) if kind in ('func', 'type') else ('none', None, None)
+        if t in GO_TYPE_NODES:
+            found = self.go_type(u, fn)
+            return ('type', found, None) if found else ('none', None, None)
+        return 'none', None, None
 
 
 def go_package(path):

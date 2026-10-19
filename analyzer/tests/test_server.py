@@ -125,7 +125,7 @@ def test_upload_review_tree_and_analyze(api):
     assert status == 409
     status, projects = api.get('/api/projects')
     entry = next(p for p in projects['projects'] if p['project'] == 'demo')
-    assert entry['last']['options'] == {'exclude': ['docs'], 'tests': False}
+    assert {k: entry['last']['options'][k] for k in ('exclude', 'tests')} == {'exclude': ['docs'], 'tests': False}
     assert set(entry['last']['changes']) == {'added', 'modified', 'removed'} and entry['origin'] == {'type': 'upload'}
 
 
@@ -188,7 +188,7 @@ def test_stream_full_and_resume(api):
     seen_nodes = set()
     for group in full_groups:
         node = next(i for i in group if i['t'] == 'node')
-        assert 'key' not in node
+        assert node['key'].split(':', 1)[0] in {'m', 'd', 'c', 'f', 'p', 'v', 'e', 't'}
         seen_nodes.add(node['id'])
         for edge in (i for i in group if i['t'] == 'edge'):
             assert {edge['a'], edge['b']} <= seen_nodes
@@ -257,6 +257,16 @@ def test_exports_import_and_open(api):
     ('GET', '/api/query/changes?project=demo&since=99', None, 404),
     ('GET', '/api/query/community?ref=999&project=demo', None, 404),
     ('GET', '/api/query/path?a=slugify', None, 400),
+    ('GET', '/api/query/symbol', None, 400),
+    ('GET', '/api/query/symbol?ref=zzz-none&project=demo', None, 404),
+    ('GET', '/api/query/symbol?ref=slugify&context=wide&project=demo', None, 400),
+    ('GET', '/api/query/context', None, 400),
+    ('GET', '/api/query/context?q=user&budget=lots&project=demo', None, 400),
+    ('GET', '/api/query/architecture?section=planets&project=demo', None, 400),
+    ('GET', '/api/query/dependencies?name=zzz-none&project=demo', None, 404),
+    ('GET', '/api/query/endpoints?limit=many&project=demo', None, 400),
+    ('GET', '/api/query/variables?offset=x&project=demo', None, 400),
+    ('POST', '/api/query/review', {'base': 5}, 400),
 ])
 def test_malformed_requests_get_client_errors(api, saved_demo, method, path, body, code):
     status, out = api.json(method, path, body)
@@ -284,7 +294,7 @@ def test_query_endpoints(api, saved_demo):
     status, s = api.get('/api/query/search?q=slugify&kind=function&limit=3&project=demo')
     assert status == 200 and s['results'][0]['key'] == 'f:app/utils.py:slugify'
     status, n = api.get('/api/query/node?ref=create_user&project=demo')
-    assert status == 200 and {c['name'] for c in n['calls']} == {'slugify', 'User'}
+    assert status == 200 and {'slugify', 'User'} <= {c['name'] for c in n['calls']}
     status, f = api.get('/api/query/file?path=app/services.py&project=demo')
     assert status == 200 and f['imports'] == ['app/models.py', 'app/utils.py']
     status, c = api.get('/api/query/community?ref=0&project=demo')
@@ -297,6 +307,36 @@ def test_query_endpoints(api, saved_demo):
     assert status == 200 and ch['from_version'] == 1
     status, default = api.get('/api/query/overview')
     assert status == 200 and default['project'] == store.latest_project()
+
+
+def test_new_query_endpoints(api, saved_demo):
+    status, sym = api.get('/api/query/symbol?ref=create_user&context=1&project=demo')
+    assert status == 200 and 'def create_user(name):' in sym['code'] and sym['file'] == 'app/services.py'
+    status, ctx = api.get('/api/query/context?q=how+is+a+user+created&budget=1200&project=demo')
+    assert status == 200 and ctx['items'][0]['name'] == 'create_user' and ctx['tokens_used'] <= 1200 and ctx['source'] is True
+    status, arch = api.get('/api/query/architecture?project=demo')
+    assert status == 200 and arch['endpoints']['items'][0]['route'] == 'GET /users' and 'layers' in arch
+    status, part = api.get('/api/query/architecture?section=dead_code&limit=3&project=demo')
+    assert status == 200 and set(part) == {'project', 'version', 'dead_code'}
+    status, deps = api.get('/api/query/dependencies?project=demo')
+    assert status == 200 and 'packages' in deps
+    status, eps = api.get('/api/query/endpoints?method=GET&project=demo')
+    assert status == 200 and eps['endpoints']['items'][0]['handlers'][0]['name'] == 'list_users'
+    status, vs = api.get('/api/query/variables?project=demo')
+    assert status == 200 and 'variables' in vs
+    status, found = api.get('/api/query/search?q=user&limit=1&offset=1&project=demo')
+    assert status == 200 and found['offset'] == 1 and 'score' in found['results'][0]
+
+
+def test_review_endpoint(api, saved_demo, monkeypatch):
+    from cortex_graph import review
+    calls = []
+    monkeypatch.setattr(review, 'review', lambda root, base, head, project, diff_text: calls.append((root, base, head, project, diff_text)) or {'ok': 1})
+    assert api.get('/api/query/review?project=demo') == (200, {'ok': 1})
+    assert api.get('/api/query/review?project=demo&worktree=1')[0] == 200
+    assert api.post('/api/query/review', {'project': 'demo', 'diff': 'diff --git a/x b/x', 'base': 'main'}) == (200, {'ok': 1})
+    assert calls == [(None, 'HEAD~1', 'HEAD', 'demo', None), (None, 'HEAD', 'WORKTREE', 'demo', None),
+                     (None, 'main', 'HEAD', 'demo', 'diff --git a/x b/x')]
 
 
 def test_server_survives_internal_errors(api, monkeypatch):

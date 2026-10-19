@@ -4,12 +4,26 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "cortex-graph"
-version = "1.0.0"
+version = "1.1.0"
 description = "Córtex: analiza un repositorio en cualquier lenguaje de forma determinista (sin IA) y lo convierte en un grafo de conocimiento con comunidades, versiones, CLI, API HTTP y servidor MCP."
 readme = { text = "Córtex convierte un repositorio en un grafo de conocimiento determinista: módulos, clases, funciones y documentos unidos por imports, llamadas, herencia y referencias, agrupados en comunidades.", content-type = "text/plain" }
 authors = [{ name = "Jonathan C (ldikay99)" }]
 license = "MIT"
-requires-python = ">=3.11"
+requires-python = ">=3.11,<3.14"
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development",
+    "Topic :: Software Development :: Documentation",
+    "Topic :: Scientific/Engineering :: Information Analysis",
+]
 keywords = ["knowledge-graph", "code-analysis", "mcp", "static-analysis", "leiden", "tree-sitter"]
 dependencies = [
     "tree-sitter==0.26.0",
@@ -42,25 +56,31 @@ dependencies = [
     "tree-sitter-powershell==0.26.4",
     "python-igraph==1.0.0",
     "leidenalg==0.12.0",
-    "networkx==3.7",
-    "numpy==2.5.4",
-    "scipy==1.18.1",
+    "networkx==3.7; python_version >= '3.12'",
+    "networkx==3.6.1; python_version < '3.12'",
+    "numpy==2.5.4; python_version >= '3.12'",
+    "numpy==2.4.6; python_version < '3.12'",
+    "scipy==1.18.1; python_version >= '3.12'",
+    "scipy==1.17.1; python_version < '3.12'",
     "mcp==1.29.1",
 ]
 
 [project.urls]
 Homepage = "https://github.com/ldikay99/Cortex"
 Repository = "https://github.com/ldikay99/Cortex"
+Documentation = "https://github.com/ldikay99/Cortex#readme"
 Issues = "https://github.com/ldikay99/Cortex/issues"
+Changelog = "https://github.com/ldikay99/Cortex/releases"
 
 [project.optional-dependencies]
-dev = ["pytest==9.1.1"]
+dev = ["pytest==9.1.1", "pyflakes==3.4.0"]
 
 [project.scripts]
 cortex = "cortex_graph.cli:main"
 
 [tool.setuptools]
 packages = ["cortex_graph"]
+include-package-data = false
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

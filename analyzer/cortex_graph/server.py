@@ -14,7 +14,7 @@ from collections import Counter, defaultdict, deque
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
-from . import pipeline, query, store
+from . import context, pipeline, query, store
 from .analyze import (MAX_NOTEBOOK_BYTES, MAX_SCRIPT_BYTES, SKIP_DIRS, export_json, export_markdown, formats, is_test,
                       list_files, maybe_script, script_route, wanted)
 from .errors import Conflict, CortexError, InvalidInput, NotFound, TooLarge
@@ -489,7 +489,7 @@ class Handler(BaseHTTPRequestHandler):
                 n = nodes[order[k]]
                 if first[n['c']] == k:
                     batch.append({'t': 'community', **communities[n['c']]})
-                batch.append({'t': 'node', **{x: n[x] for x in n if x != 'key'}})
+                batch.append({'t': 'node', **n})
                 for e in waiting.get(n['id'], ()):
                     batch.append({'t': 'edge', 'a': e['a'], 'b': e['b'], 'kind': e['kind'], 'w': e['w']})
                 budget -= 1
@@ -503,7 +503,8 @@ class Handler(BaseHTTPRequestHandler):
         self.send_json(query.overview(project_param(params)))
 
     def get_query_search(self, params):
-        self.send_json(query.search(params.get('q', ''), project_param(params), params.get('kind') or None, params.get('limit')))
+        self.send_json(query.search(params.get('q', ''), project_param(params), params.get('kind') or None, params.get('limit'),
+                                    params.get('offset')))
 
     def get_query_node(self, params):
         self.send_json(query.node(params.get('ref', ''), project_param(params)))
@@ -522,6 +523,44 @@ class Handler(BaseHTTPRequestHandler):
 
     def get_query_changes(self, params):
         self.send_json(query.changes(project_param(params), params.get('since') or None))
+
+    def get_query_symbol(self, params):
+        self.send_json(context.read_symbol(params.get('ref', ''), project_param(params), params.get('context')))
+
+    def get_query_context(self, params):
+        self.send_json(context.context_for(params.get('q', ''), project_param(params), params.get('budget')))
+
+    def get_query_architecture(self, params):
+        self.send_json(query.architecture(project_param(params), params.get('section') or None, params.get('limit'), params.get('offset')))
+
+    def get_query_dependencies(self, params):
+        self.send_json(query.dependencies(project_param(params), params.get('name') or None, params.get('limit'), params.get('offset')))
+
+    def get_query_endpoints(self, params):
+        self.send_json(query.endpoints(project_param(params), params.get('limit'), params.get('offset'), params.get('method') or None))
+
+    def get_query_variables(self, params):
+        self.send_json(query.variables(project_param(params), params.get('name') or None, params.get('limit'), params.get('offset')))
+
+    def review(self, base, head, project, diff=None):
+        from .mcp_server import run_review
+        for label, value in (('base', base), ('head', head)):
+            if value is not None and not isinstance(value, str):
+                raise InvalidInput(f'«{label}» debe ser texto')
+        if diff is not None and not isinstance(diff, str):
+            raise InvalidInput('«diff» debe ser texto')
+        self.send_json(run_review(base or 'HEAD~1', head or 'HEAD', project, None, diff))
+
+    def get_query_review(self, params):
+        worktree = params.get('worktree') in ('1', 'true', 'yes')
+        base = params.get('base') or ('HEAD' if worktree else None)
+        head = 'WORKTREE' if worktree else params.get('head')
+        self.review(base, head, project_param(params))
+
+    def post_query_review(self, params):
+        req = self.body_json(MAX_UPLOAD // 8)
+        project = req.get('project') if isinstance(req.get('project'), str) and req.get('project') else project_param(params)
+        self.review(req.get('base'), req.get('head'), project, req.get('diff'))
 
     def post_analyze(self, params):
         opts = self.body_json()
@@ -638,6 +677,13 @@ GET_ROUTES = {
     '/api/query/path': Handler.get_query_path,
     '/api/query/impact': Handler.get_query_impact,
     '/api/query/changes': Handler.get_query_changes,
+    '/api/query/symbol': Handler.get_query_symbol,
+    '/api/query/context': Handler.get_query_context,
+    '/api/query/architecture': Handler.get_query_architecture,
+    '/api/query/dependencies': Handler.get_query_dependencies,
+    '/api/query/endpoints': Handler.get_query_endpoints,
+    '/api/query/variables': Handler.get_query_variables,
+    '/api/query/review': Handler.get_query_review,
 }
 
 POST_ROUTES = {
@@ -647,6 +693,7 @@ POST_ROUTES = {
     '/api/open': Handler.post_open,
     '/api/update': Handler.post_update,
     '/api/import': Handler.post_import,
+    '/api/query/review': Handler.post_query_review,
 }
 
 

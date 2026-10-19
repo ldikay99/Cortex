@@ -359,3 +359,161 @@ def test_ts_graph_is_deterministic(tmp_path):
         analyze_ts(root, rels, g, Issues())
         runs.append((list(g.nodes.items()), list(g.edges.items())))
     assert runs[0] == runs[1]
+
+
+ENRICHED = {
+    'src/api.tsx': """
+        /**
+         * @file Shared helpers for the app.
+         */
+
+        import React, { memo } from 'react';
+        import { ReactQueryDevtools } from '@tanstack/react-query/devtools';
+        import fs from 'node:fs';
+        import { local } from './local';
+        import missing from './nope';
+        import aliased from '@/nowhere';
+        export { atom } from 'jotai';
+        const lazy = () => import('lodash/debounce');
+        const env = require('dotenv');
+
+        /**
+         * Fetches a user by id.
+         * Uses the {@link Client | shared client}.
+         *
+         * Second paragraph is ignored.
+         * @param id the id
+         * @returns the user
+         */
+        export async function fetchUser(id: string): Promise<User> {
+          return fetch(id);
+        }
+
+        /** Renders a button. */
+        export const Button = memo((props: Props) => <div>{props.x}</div>);
+
+        const clamp = (x: number, lo = 0): number => Math.max(lo, x);
+
+        export const useStore = create<State>()((set) => ({}));
+
+        /** Main app. */
+        @Component({})
+        export class App extends React.Component<Props, State> implements Disposable {
+          /** Loads it. */
+          @Input()
+          async load(id: number): Promise<void> {
+            await this.save();
+          }
+
+          private save() {}
+          protected handle = (e: Event): void => {};
+          #secret() {}
+          static create() {}
+        }
+
+        /** Button props. */
+        interface Props<T> extends Base {
+          x: number;
+        }
+
+        // plain comment
+        function helper() {}
+
+        export { helper };
+    """,
+    'src/local.js': """
+        function local() {}
+        function hidden() {}
+        module.exports = { local };
+    """,
+    'src/Counter.vue': """
+        <template>
+          <div>hi</div>
+        </template>
+
+        <script setup lang="ts">
+        import { ref } from 'vue';
+        /** Counter state. */
+        function useCounter(start: number) {
+          return ref(start);
+        }
+        </script>
+    """,
+}
+
+
+def meta_of(g, nid):
+    return {k: g.nodes[nid].get(k) for k in ('line', 'end', 'vis', 'sig', 'doc')}
+
+
+def test_functions_and_arrow_consts_carry_signature_doc_end_and_visibility(tmp_path):
+    g = ts_graph(tmp_path / 'enriched', ENRICHED)
+    assert meta_of(g, 'f:src/api.tsx:fetchUser') == {
+        'line': 23, 'end': 25, 'vis': 'public', 'sig': 'export async function fetchUser(id: string): Promise<User>',
+        'doc': 'Fetches a user by id. Uses the shared client.'}
+    assert meta_of(g, 'f:src/api.tsx:Button') == {
+        'line': 28, 'end': 28, 'vis': 'public', 'sig': 'Button(props: Props)', 'doc': 'Renders a button.'}
+    assert meta_of(g, 'f:src/api.tsx:clamp') == {
+        'line': 30, 'end': 30, 'vis': 'internal', 'sig': 'const clamp = (x: number, lo = 0): number =>', 'doc': None}
+    assert g.nodes['f:src/api.tsx:useStore']['sig'] == 'export const useStore = create<State>()(…)'
+    assert meta_of(g, 'f:src/api.tsx:helper') == {
+        'line': 55, 'end': 55, 'vis': 'public', 'sig': 'function helper()', 'doc': None}
+    assert g.nodes['f:src/local.js:local']['vis'] == 'public'
+    assert g.nodes['f:src/local.js:hidden']['vis'] == 'internal'
+    module = g.nodes['m:src/api.tsx']
+    assert (module['end'], module['doc']) == (57, 'Shared helpers for the app.')
+    assert 'sig' not in module and 'vis' not in module
+
+
+def test_classes_methods_and_interfaces_carry_signature_doc_and_visibility(tmp_path):
+    g = ts_graph(tmp_path / 'enriched', ENRICHED)
+    assert meta_of(g, 'c:src/api.tsx:App') == {
+        'line': 36, 'end': 47, 'vis': 'public', 'doc': 'Main app.',
+        'sig': 'export class App extends React.Component<Props, State> implements Disposable'}
+    assert meta_of(g, 'f:src/api.tsx:App.load') == {
+        'line': 39, 'end': 41, 'vis': 'public', 'sig': 'async load(id: number): Promise<void>', 'doc': 'Loads it.'}
+    assert meta_of(g, 'f:src/api.tsx:App.save')['vis'] == 'private'
+    assert meta_of(g, 'f:src/api.tsx:App.save')['doc'] is None
+    assert meta_of(g, 'f:src/api.tsx:App.handle') == {
+        'line': 44, 'end': 44, 'vis': 'protected', 'sig': 'protected handle = (e: Event): void =>', 'doc': None}
+    assert meta_of(g, 'f:src/api.tsx:App.#secret')['vis'] == 'private'
+    assert meta_of(g, 'f:src/api.tsx:App.create')['sig'] == 'static create()'
+    assert meta_of(g, 'c:src/api.tsx:Props') == {
+        'line': 50, 'end': 52, 'vis': 'internal', 'sig': 'interface Props<T> extends Base', 'doc': 'Button props.'}
+
+
+def test_vue_sfc_symbols_keep_original_line_numbers(tmp_path):
+    g = ts_graph(tmp_path / 'enriched', ENRICHED)
+    assert meta_of(g, 'f:src/Counter.vue:useCounter') == {
+        'line': 8, 'end': 10, 'vis': 'internal', 'sig': 'function useCounter(start: number)', 'doc': 'Counter state.'}
+    assert g.nodes['m:src/Counter.vue']['end'] == 11
+
+
+def test_unresolved_bare_imports_are_recorded_as_externals(tmp_path):
+    g = ts_graph(tmp_path / 'enriched', ENRICHED)
+    assert g.externals == [
+        ('m:src/Counter.vue', 'vue', 'ts'),
+        ('m:src/api.tsx', 'react', 'ts'),
+        ('m:src/api.tsx', '@tanstack/react-query/devtools', 'ts'),
+        ('m:src/api.tsx', 'node:fs', 'ts'),
+        ('m:src/api.tsx', 'jotai', 'ts'),
+        ('m:src/api.tsx', 'dotenv', 'ts'),
+        ('m:src/api.tsx', 'lodash/debounce', 'ts'),
+    ]
+
+
+def test_workspace_packages_are_not_externals(tmp_path):
+    g = ts_graph(tmp_path / 'barrel', BARREL)
+    assert ('m:apps/web/src/use.ts', '@pkg/math', 'ts') not in g.externals
+    assert ('m:packages/math/src/index.ts', 'jotai', 'ts') in g.externals
+
+
+def test_long_signatures_are_clipped_and_doc_tags_dropped(tmp_path):
+    params = ', '.join(f'argument{i}: number' for i in range(40))
+    g = ts_graph(tmp_path / 'long', {'src/long.ts': f"""
+        /** @deprecated use other */
+        export function wide({params}) {{ return 1; }}
+    """})
+    meta = g.nodes['f:src/long.ts:wide']
+    assert len(meta['sig']) == 300 and meta['sig'].endswith('…')
+    assert 'doc' not in meta

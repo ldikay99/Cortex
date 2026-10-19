@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { mulberry32, gauss } from './rand.js';
 import { pointsMaterial, pointsGeometry } from './materials.js';
-import { createGraph, EDGE } from './graph.js';
+import { createGraph, EDGE, SHAPE, EDGE_BASE_OF } from './graph.js';
 import { createLightning } from './lightning.js';
 
 const SPREAD = 1.7;
@@ -11,6 +11,12 @@ const MORE = 2.6;
 const MAX_GROWTH = 900;
 const NEST_RADIUS = 5.5;
 const SILK = [0.72, 0.92, 1.0];
+export const BRIDGE_TINT = { http: [1.0, 0.68, 0.3], rpc: [0.26, 0.86, 0.76], event: [0.74, 0.5, 1.0], data: [0.5, 0.68, 1.0] };
+const FLOW_KINDS = new Set(['http', 'rpc', 'event']);
+const CROSS_KINDS = new Set(['import', 'call', 'contains', 'inherits', 'ref', 'loads']);
+const TIER = { module: 0, doc: 0, endpoint: 0, topic: 0, class: 1, package: 1 };
+const HTTP_VERB = /^(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS|ANY|ALL|WS|WEBSOCKET)\b/i;
+export const isHttp = (n) => HTTP_VERB.test(n.route || n.name || '');
 
 const DEMO = [
   { key: 'lenguaje', name: 'lenguaje', color: [0.58, 0.7, 1.0], center: [-13, 3.5, 3], n: 220, r: 2.4 },
@@ -272,33 +278,117 @@ export function createCosmos(scene) {
     class: { size: 0.09, alpha: 0.78, white: 0 },
     function: { size: 0.055, alpha: 0.5, white: 0 },
     method: { size: 0.05, alpha: 0.45, white: 0 },
+    endpoint: { size: 0.15, alpha: 0.9, white: 0, shape: SHAPE.diamond, grow: 0.6 },
+    package: { size: 0.13, alpha: 0.34, white: 0.45, shape: SHAPE.ring, grow: 0.4, fixed: [0.66, 0.72, 0.86], mix: 0.35 },
+    variable: { size: 0.036, alpha: 0.6, white: 0, grow: 0.3, fixed: [1.0, 0.74, 0.4], mix: 0 },
+    topic: { size: 0.075, alpha: 0.72, white: 0, grow: 0.6, fixed: [0.8, 0.64, 1.0], mix: 0 },
   };
   const projectNode = new Map();
+  const alias = new Map();
+  const callers = new Map();
+  const tested = new Map();
+  let endpointCount = 0;
+  const lod = { bridges: 1, on: false, frac: [1, 1, 1], total: [0, 0, 0], kept: [0, 0, 0], seen: [0, 0, 0], hist: [new Uint32Array(65), new Uint32Array(65), new Uint32Array(65)], skipped: 0 };
+
+  function planCapacity(stats) {
+    const kinds = stats?.kinds;
+    if (!kinds) return lod;
+    const total = [0, 0, 0];
+    lod.bridges = Math.min(1, Math.max(0.3, Math.sqrt(40 / Math.max(1, kinds.endpoint || 0))));
+    for (const [k, c] of Object.entries(kinds)) total[TIER[k] ?? 2] += c;
+    const budget = graph.capacity - graph.count - 1500;
+    lod.total = total;
+    if (total[0] + total[1] + total[2] <= budget) return lod;
+    lod.on = true;
+    lod.frac = [1, Math.min(1, Math.max(0, (budget - total[0]) / Math.max(1, total[1]))), Math.max(0, (budget - total[0] - total[1]) / Math.max(1, total[2]))];
+    return lod;
+  }
+
+  function admit(n) {
+    const t = TIER[n.kind] ?? 2;
+    if (!lod.on || t === 0) return true;
+    const f = lod.frac[t];
+    if (f >= 1) return true;
+    const d = Math.min(64, n.deg || 0);
+    const h = lod.hist[t];
+    h[d]++;
+    lod.seen[t]++;
+    if (f <= 0 || lod.kept[t] >= f * lod.total[t]) return false;
+    let cum = 0, cut = 0;
+    for (let k = 64; k >= 0; k--) {
+      cum += h[k];
+      if (cum / lod.seen[t] > f) {
+        cut = k + 1;
+        break;
+      }
+    }
+    if (d < cut) return false;
+    lod.kept[t]++;
+    return true;
+  }
+
+  function aggregate(n) {
+    const rep = projectNode.get(n.parent) ?? alias.get(n.parent);
+    if (rep === undefined) return -1;
+    alias.set(n.id, rep);
+    if (meta[rep]) meta[rep].hidden = (meta[rep].hidden || 0) + 1;
+    lod.skipped++;
+    return -1;
+  }
 
   function addProjectCommunity(c) {
     mode = 'project';
     return addCommunity({ name: c.name, sub: c.hub, color: c.color, center: c.center, radius: c.radius / NODE_SPREAD, nodeRadius: c.radius });
   }
 
+  function satellite(n, region, out) {
+    const c = centers[region];
+    out.set(n.pos[0], n.pos[1], n.pos[2]).sub(c);
+    if (out.lengthSq() < 1e-6) out.set(gauss(rng), gauss(rng) * 0.4, gauss(rng));
+    return out.normalize().multiplyScalar(regions[region].nr * (1.25 + rng() * 0.35)).add(c);
+  }
+
   function addProjectNode(n, region) {
+    if (projectNode.has(n.id)) return projectNode.get(n.id);
+    if (!(region >= 0) || !regions[region]) return -1;
+    if (!admit(n)) return aggregate(n);
     const look = KIND_LOOK[n.kind] || KIND_LOOK.function;
     const R = regions[region];
     const mark = n.status === 'new' ? [0.55, 1.0, 0.72] : n.status === 'changed' ? [1.0, 0.74, 0.32] : null;
-    const color = mark || R.color.map((x) => x * (1 - look.white) + look.white);
-    const size = (look.size + Math.min(0.12, Math.log2(1 + n.deg) * 0.012)) * (mark ? 1.5 : 1);
-    const id = addNode(n.pos[0], n.pos[1], n.pos[2], region, tint(color, 0.9 + rng() * 0.2), size, look.alpha, true);
+    const own = n.kind === 'endpoint' ? BRIDGE_TINT[isHttp(n) ? 'http' : 'rpc'] : look.fixed;
+    const base = own ? own.map((x, q) => x * (1 - (look.mix || 0)) + R.color[q] * (look.mix || 0)) : R.color;
+    const color = mark || base.map((x) => x * (1 - look.white) + look.white);
+    const size = (look.size + Math.min(0.12, Math.log2(1 + (n.deg || 0)) * 0.012 * (look.grow ?? 1))) * (mark ? 1.5 : 1);
+    const p = n.kind === 'package' ? satellite(n, region, tmp) : tmp.set(n.pos[0], n.pos[1], n.pos[2]);
+    const alpha = look.alpha * (n.test ? 0.7 : 1);
+    const id = graph.addNode(p.x, p.y, p.z, { region, color: tint(color, 0.9 + rng() * 0.2), size, alpha, animate: true, shape: look.shape || 0 });
     if (id < 0) return -1;
+    regionNodes[region].push(id);
     projectNode.set(n.id, id);
     meta[id] = { ...n, region };
+    if (n.kind === 'endpoint') endpointCount++;
     return id;
   }
 
   function addProjectEdge(e) {
-    const a = projectNode.get(e.a), b = projectNode.get(e.b);
-    if (a === undefined || b === undefined) return -1;
+    const a = projectNode.get(e.a) ?? alias.get(e.a), b = projectNode.get(e.b) ?? alias.get(e.b);
+    if (a === undefined || b === undefined || a === b) return -1;
+    if (e.kind === 'http' || e.kind === 'rpc') callers.set(b, (callers.get(b) || 0) + 1);
+    if (e.kind === 'tests') tested.set(b, (tested.get(b) || 0) + 1);
     const cross = graph.region[a] !== graph.region[b];
-    const kind = cross ? EDGE.cross : EDGE[e.kind] ?? EDGE.call;
-    return graph.addEdge(a, b, { kind, animate: true });
+    const kind = cross && CROSS_KINDS.has(e.kind) ? EDGE.cross : EDGE[e.kind] ?? EDGE.call;
+    const tintOf = BRIDGE_TINT[e.kind] || null;
+    const flow = FLOW_KINDS.has(e.kind);
+    const strength = flow ? EDGE_BASE_OF(kind) * lod.bridges : null;
+    return graph.addEdge(a, b, { kind, animate: true, tint: tintOf, arc: tintOf ? (cross ? 0.12 : 0.04) : 0, flow, strength });
+  }
+
+  function endpoints() {
+    const out = [];
+    meta.forEach((m, id) => {
+      if (m && m.kind === 'endpoint') out.push({ id, m, callers: callers.get(id) || 0 });
+    });
+    return out.sort((x, y) => y.callers - x.callers || (x.m.route || x.m.name).localeCompare(y.m.route || y.m.name));
   }
 
   const STORMS = 6;
@@ -455,6 +545,15 @@ export function createCosmos(scene) {
     addProjectCommunity,
     addProjectNode,
     addProjectEdge,
+    planCapacity,
+    endpoints,
+    lod,
+    get endpointCount() {
+      return endpointCount;
+    },
+    callersOf: (id) => callers.get(id) || 0,
+    testsOf: (id) => tested.get(id) || 0,
+    nodeOf: (sid) => projectNode.get(sid) ?? alias.get(sid) ?? -1,
     spawn,
     strike: strikeNodes,
 

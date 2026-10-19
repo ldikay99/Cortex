@@ -6,6 +6,11 @@ COPY src ./src
 RUN npm run build
 
 FROM nginx:1.29-alpine
+LABEL org.opencontainers.image.title="cortex-web" \
+      org.opencontainers.image.description="Córtex: web que teje el grafo de conocimiento de un repositorio como un universo 3D." \
+      org.opencontainers.image.source="https://github.com/ldikay99/Cortex" \
+      org.opencontainers.image.url="https://github.com/ldikay99/Cortex" \
+      org.opencontainers.image.licenses="MIT"
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 COPY index.html style.css favicon.svg manifest.webmanifest icon-192.png icon-512.png /usr/share/nginx/html/
 COPY --from=build /app/app.js /usr/share/nginx/html/app.js

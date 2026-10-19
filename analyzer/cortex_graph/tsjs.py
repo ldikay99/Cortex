@@ -23,13 +23,23 @@ COMPONENT_FACTORIES = {'memo', 'forwardRef', 'lazy', 'observer', 'styled', 'conn
                        'defineComponent', 'defineAsyncComponent'}
 COLLECTION_CALLS = {'map', 'filter', 'reduce', 'reduceRight', 'find', 'findIndex', 'findLast', 'some', 'every',
                     'flatMap', 'forEach', 'sort', 'then', 'catch', 'finally'}
+SAME_SHAPE_WRAPPERS = {'useCallback', 'useEvent', 'useEffectEvent', 'useMemoizedFn', 'debounce', 'throttle', 'memoize',
+                       'memoizeOne', 'once', 'curry', 'action', 'flow', 'cache'}
 HOOK_NAME_RE = re.compile(r'^use[A-Z0-9]')
 HOC_NAME_RE = re.compile(r'^with[A-Z]')
 FIELD_MEMBERS = ('public_field_definition', 'field_definition')
 MAX_HOPS = 5
 MAX_BASES = 10
+MAX_SIG = 300
+MAX_DOC = 500
+LOCAL_PREFIXES = ('.', '/', '#', '~', '@/')
+FILE_TAGS = ('@file', '@fileoverview', '@overview')
+SKIPPED_TAGS = ('@module', '@packagedocumentation')
+LINK_RE = re.compile(r'\{@(?:link|linkcode|linkplain)\s+([^}|\s]+)(?:[\s|]+([^}]*))?\}')
+VIS_MODIFIERS = {'private': 'private', 'protected': 'protected', 'public': 'public'}
 
 
+BLANK = bytes(10 if b == 10 else 32 for b in range(256))
 TS_LANG = Language(tsts.language_typescript())
 TSX_LANG = Language(tsts.language_tsx())
 CALL_SITES = '(call_expression) @site (new_expression) @site'
@@ -179,11 +189,66 @@ class TsResolver:
 
 
 def script_only(src):
-    out = bytearray(b if b == 10 else 32 for b in src)
+    out = bytearray(src.translate(BLANK))
     for match in SCRIPT_RE.finditer(src):
         start, end = match.start(2), match.end(2)
         out[start:end] = src[start:end]
     return bytes(out)
+
+
+def clip(text, limit):
+    text = ' '.join(text.split())
+    return text if len(text) <= limit else text[:limit - 1].rstrip() + '…'
+
+
+def is_bare(spec):
+    return not spec.startswith(LOCAL_PREFIXES) and '://' not in spec
+
+
+def jsdoc(text, module=False):
+    if not text.startswith('/**') or text.startswith('/**/'):
+        return ''
+    lines, tagged = [], False
+    for line in text[3:-2].split('\n'):
+        line = line.strip()
+        line = line[1:].strip() if line.startswith('*') else line
+        low = line.lower()
+        if module and low.startswith(FILE_TAGS):
+            line, tagged = line.split(None, 1)[1] if ' ' in line else '', True
+        elif module and low.startswith(SKIPPED_TAGS):
+            tagged = True
+            continue
+        elif line.startswith('@'):
+            break
+        if not line and any(lines):
+            break
+        lines.append(line)
+    if module and not tagged:
+        return None
+    return clip(LINK_RE.sub(lambda m: m.group(2) or m.group(1), ' '.join(lines)), MAX_DOC)
+
+
+def member_vis(member, src):
+    name = member.child_by_field_name('name') or member.child_by_field_name('property')
+    if name is not None and name.type == 'private_property_identifier':
+        return 'private'
+    for c in member.children:
+        if c.type == 'accessibility_modifier':
+            return VIS_MODIFIERS.get(ts_text(c, src), 'public')
+    return 'public'
+
+
+def inner_function(call, depth=0):
+    args = call.child_by_field_name('arguments')
+    for arg in args.named_children if args is not None and args.type == 'arguments' else ():
+        arg = unwrap(arg)
+        if arg.type in FUNCTION_VALUES:
+            return arg
+        if arg.type == 'call_expression' and depth < 3:
+            found = inner_function(arg, depth + 1)
+            if found is not None:
+                return found
+    return None
 
 
 def unwrap(node):
@@ -302,7 +367,8 @@ class TsModule:
         self.rel = rel
         self.src = src
         self.resolver = resolver
-        self.mid = g.node(f'm:{rel}', kind='module', name=rel.rsplit('/', 1)[-1], file=rel, line=1, lang='ts', hash=digest(src))
+        self.mid = g.node(f'm:{rel}', kind='module', name=rel.rsplit('/', 1)[-1], file=rel, line=1, lang='ts', hash=digest(src),
+                          end=src.count(b'\n') + (not src.endswith(b'\n')))
         self.defs = {}
         self.classes = {}
         self.default = None
@@ -314,10 +380,14 @@ class TsModule:
         self.foreign_star = False
         self.bodies = []
         self.heritage = []
+        self.public = set()
+        self.outer = None
+        self.doc = ''
         tsx = rel.endswith(('.tsx', '.jsx', '.js', '.mjs', '.cjs'))
         self.sites = TSX_SITES if tsx else TS_SITES
         self.tree_root = Parser(TSX_LANG if tsx else TS_LANG).parse(src).root_node
         self.read_top_level(self.tree_root)
+        self.read_module_doc(self.tree_root)
         if LOAD_RE.search(src):
             self.read_loads(self.tree_root)
         self.resolver = None
@@ -326,46 +396,125 @@ class TsModule:
         return ts_text(node, self.src)
 
     def resolve(self, spec):
-        return self.resolver.resolve(self.rel, spec) if spec else None
+        if not spec:
+            return None
+        target = self.resolver.resolve(self.rel, spec)
+        if not target and is_bare(spec):
+            self.g.external(self.mid, spec, 'ts')
+        return target
+
+    def leading_doc(self, comment, node):
+        if comment is None or comment.end_point[0] < node.start_point[0] - 1:
+            return ''
+        return jsdoc(self.text(comment))
+
+    def read_module_doc(self, tree_root):
+        first = tree_root.children[0] if tree_root.children else None
+        if first is None or first.type != 'comment':
+            return
+        doc = jsdoc(self.text(first), module=True)
+        after = first.next_sibling
+        if doc is None and (after is None or after.start_point[0] > first.end_point[0] + 1):
+            doc = jsdoc(self.text(first))
+        if doc:
+            self.g.nodes[self.mid]['doc'] = doc
+
+    def prefix(self):
+        if self.outer is None or self.outer.type != 'export_statement':
+            return ''
+        return 'export default ' if any(c.type == 'default' for c in self.outer.children) else 'export '
+
+    def top_vis(self):
+        return 'public' if self.outer is not None and self.outer.type == 'export_statement' else 'internal'
+
+    def head(self, node, stop):
+        start = next((c.start_byte for c in node.children if c.type not in ('decorator', 'comment')), node.start_byte)
+        return self.src[start:stop].decode('utf-8', errors='replace')
+
+    def body_start(self, node):
+        body = node.child_by_field_name('body')
+        return body.start_byte if body is not None else node.end_byte
+
+    def value_sig(self, holder, value, label, before):
+        value = unwrap(value)
+        if value is None:
+            return before + label
+        if value.type in FUNCTION_VALUES:
+            return before + self.head(holder, self.body_start(value))
+        if value.type != 'call_expression':
+            return before + label
+        callee = value.child_by_field_name('function')
+        root, last = callee_names(callee, self.src)
+        wraps = root in COMPONENT_FACTORIES or last in COMPONENT_FACTORIES or last in SAME_SHAPE_WRAPPERS or \
+            HOC_NAME_RE.match(root or '')
+        fn = inner_function(value) if wraps else None
+        if fn is not None:
+            params = fn.child_by_field_name('parameters') or fn.child_by_field_name('parameter')
+            text = self.text(params) if params is not None else ''
+            text = text[1:-1] if params is not None and params.type == 'formal_parameters' else text
+            ret = fn.child_by_field_name('return_type')
+            return f'{label}({text}){self.text(ret) if ret is not None else ""}'
+        if callee is not None and callee.type in ('identifier', 'member_expression', 'call_expression') and \
+                callee.end_byte - callee.start_byte <= 80:
+            return before + self.head(holder, callee.start_byte) + self.text(callee) + '(…)'
+        return before + label
 
     def side(self, target):
         self.imports.setdefault(f'__side__{target}', (target, '*'))
 
-    def symbol(self, key, kind, name, node, line):
+    def symbol(self, key, kind, name, node, line, sig='', end=None, vis=None, doc=''):
+        meta = {'sig': clip(sig, MAX_SIG), 'doc': doc, 'end': end or node.end_point[0] + 1, 'vis': vis or self.top_vis()}
         return self.g.node(key, kind=kind, name=name, file=self.rel, line=line, lang='ts',
-                           hash=digest(self.src[node.start_byte:node.end_byte]))
+                           hash=digest(self.src[node.start_byte:node.end_byte]), **{k: v for k, v in meta.items() if v})
 
-    def declare_function(self, name_node, body, line):
+    def declare_function(self, name_node, body, line, sig, end):
         name = self.text(name_node)
-        sid = self.symbol(f'f:{self.rel}:{name}', 'function', name, body, line)
+        sid = self.symbol(f'f:{self.rel}:{name}', 'function', name, body, line, sig, end, doc=self.doc)
         self.defs[name] = sid
         self.g.edge(self.mid, sid, 'contains')
         self.bodies.append((sid, body, None))
         return sid
 
-    def declare_class(self, node, name_node):
+    def declare_class(self, node, name_node, before):
         name = self.text(name_node)
-        cid = self.symbol(f'c:{self.rel}:{name}', 'class', name, node, node.start_point[0] + 1)
+        cid = self.symbol(f'c:{self.rel}:{name}', 'class', name, node, node.start_point[0] + 1,
+                          before + self.head(node, self.body_start(node)), doc=self.doc)
         self.defs[name] = cid
         self.g.edge(self.mid, cid, 'contains')
         self.heritage.append((cid, heritage_of(node)))
         methods = self.classes.setdefault(cid, {})
         body = node.child_by_field_name('body')
+        comment, reach = None, -1
         for member in body.named_children if body is not None else []:
+            if member.type == 'comment':
+                comment, reach = member, member.end_point[0] + 1
+                continue
+            if member.type == 'decorator' and member.start_point[0] <= reach:
+                reach = member.end_point[0] + 1
             method = self.member_method(member)
             if method is None:
                 self.bodies.append((cid, member, cid))
+                comment = comment if member.type == 'decorator' else None
                 continue
             if method not in methods:
+                doc = jsdoc(self.text(comment)) if comment is not None and member.start_point[0] <= reach else ''
                 methods[method] = self.symbol(f'f:{self.rel}:{name}.{method}', 'method', f'{name}.{method}', member,
-                                              member.start_point[0] + 1)
+                                              member.start_point[0] + 1, self.member_sig(member, method),
+                                              vis=member_vis(member, self.src), doc=doc)
                 self.g.edge(cid, methods[method], 'contains')
+            comment = None
             self.bodies.append((methods[method], member, cid))
         return cid
 
+    def member_sig(self, member, name):
+        if member.type == 'method_definition':
+            return self.head(member, self.body_start(member))
+        return self.value_sig(member, member.child_by_field_name('value'), name, '')
+
     def declare_interface(self, node, name_node):
         name = self.text(name_node)
-        iid = self.symbol(f'c:{self.rel}:{name}', 'class', name, node, node.start_point[0] + 1)
+        iid = self.symbol(f'c:{self.rel}:{name}', 'class', name, node, node.start_point[0] + 1,
+                          self.prefix() + self.head(node, self.body_start(node)), doc=self.doc)
         self.defs.setdefault(name, iid)
         self.g.edge(self.mid, iid, 'contains')
         self.heritage.append((iid, heritage_of(node)))
@@ -400,7 +549,13 @@ class TsModule:
         self.side(target)
 
     def read_top_level(self, tree_root):
+        comment = None
         for top in tree_root.children:
+            if top.type == 'comment':
+                comment = top
+                continue
+            self.outer, self.doc = top, self.leading_doc(comment, top)
+            comment = None
             node, exported_default = top, False
             if top.type == 'export_statement':
                 if self.read_export(top):
@@ -414,6 +569,14 @@ class TsModule:
             sid = self.read_statement(node)
             if exported_default and sid:
                 self.default = ('id', sid)
+        self.outer, self.doc = None, ''
+        self.public.update(self.exports.values())
+        if self.default and self.default[0] == 'name':
+            self.public.add(self.default[1])
+        for name in sorted(self.public):
+            meta = self.g.nodes.get(self.defs.get(name))
+            if meta is not None and meta.get('file') == self.rel:
+                meta['vis'] = 'public'
 
     def read_export(self, node):
         source = node.child_by_field_name('source')
@@ -454,9 +617,10 @@ class TsModule:
     def read_statement(self, node):
         kind, name = node.type, node.child_by_field_name('name')
         if kind in ('function_declaration', 'generator_function_declaration') and name is not None:
-            return self.declare_function(name, node, node.start_point[0] + 1)
+            return self.declare_function(name, node, node.start_point[0] + 1,
+                                         self.prefix() + self.head(node, self.body_start(node)), None)
         if kind in ('class_declaration', 'abstract_class_declaration') and name is not None:
-            return self.declare_class(node, name)
+            return self.declare_class(node, name, self.prefix())
         if kind == 'interface_declaration' and name is not None:
             return self.declare_interface(node, name)
         if kind in ('lexical_declaration', 'variable_declaration'):
@@ -470,6 +634,7 @@ class TsModule:
         return None
 
     def read_variables(self, node):
+        keyword = node.children[0].type + ' ' if node.children and not node.children[0].is_named else ''
         for d in node.children:
             if d.type != 'variable_declarator':
                 continue
@@ -478,10 +643,12 @@ class TsModule:
             if target:
                 self.bind(name, target, True)
             elif name is not None and name.type == 'identifier' and value is not None and value.type == 'class':
-                self.declare_class(value, name)
+                self.declare_class(value, name, self.prefix() + keyword + self.head(d, value.start_byte))
             elif name is not None and name.type == 'identifier' and (
                     is_function_value(value, self.src) or is_hook_factory(self.text(name), value)):
-                self.declare_function(name, value, d.start_point[0] + 1)
+                self.declare_function(name, value, d.start_point[0] + 1,
+                                      self.value_sig(d, value, self.text(name), self.prefix() + keyword),
+                                      d.end_point[0] + 1)
             elif value is not None:
                 self.bodies.append((self.mid, value, None))
 
@@ -493,8 +660,9 @@ class TsModule:
             return True
         if expr is None or expr.type != 'assignment_expression':
             return False
-        left = expr.child_by_field_name('left')
-        target = self.resolve(load_spec(expr.child_by_field_name('right'), self.src))
+        left, right = expr.child_by_field_name('left'), expr.child_by_field_name('right')
+        self.read_cjs_exports(left, right)
+        target = self.resolve(load_spec(right, self.src))
         if target and left is not None and self.text(left) == 'module.exports':
             self.side(target)
             if target not in self.wildcards:
@@ -502,6 +670,18 @@ class TsModule:
             self.default = self.default or ('module', target)
             return True
         return False
+
+    def read_cjs_exports(self, left, right):
+        head = self.text(left) if left is not None and left.type == 'member_expression' else ''
+        if right is None or not (head == 'module.exports' or head.startswith(('exports.', 'module.exports.'))):
+            return
+        if right.type == 'identifier':
+            self.public.add(self.text(right))
+        elif right.type == 'object' and head == 'module.exports':
+            for part in right.named_children:
+                value = part.child_by_field_name('value') if part.type == 'pair' else part
+                if value is not None and value.type in ('identifier', 'shorthand_property_identifier'):
+                    self.public.add(self.text(value))
 
     def read_loads(self, tree_root):
         for match in LOAD_RE.finditer(self.src):

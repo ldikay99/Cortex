@@ -1,6 +1,7 @@
 import json
 import os
 import re
+import sys
 import threading
 import time
 from collections import Counter
@@ -14,9 +15,20 @@ NODE_KINDS = {'module', 'class', 'function', 'method', 'doc', 'package', 'variab
 save_lock = threading.Lock()
 
 
+def user_data_dir():
+    if os.name == 'nt':
+        return os.path.join(os.environ.get('LOCALAPPDATA') or os.path.expanduser('~'), 'cortex')
+    if sys.platform == 'darwin':
+        return os.path.expanduser('~/Library/Application Support/cortex')
+    return os.path.join(os.environ.get('XDG_DATA_HOME') or os.path.expanduser('~/.local/share'), 'cortex')
+
+
 def data_dir():
     configured = os.environ.get('CORTEX_DATA') or os.environ.get('DATA_PATH')
-    return os.path.abspath(configured or os.path.join(os.getcwd(), 'datos'))
+    if configured:
+        return os.path.abspath(configured)
+    local = os.path.join(os.getcwd(), 'datos')
+    return os.path.abspath(local if os.path.isdir(local) else user_data_dir())
 
 
 def slug(name):
@@ -192,11 +204,11 @@ def diff(graph, prev):
     return changes
 
 
-def save_version(graph, origin=None, options=None, commit=None):
+def save_version(graph, origin=None, options=None, commit=None, previous=None):
     project = graph['project']
     with save_lock:
         hist = load_history(project)
-        prev = load_version(project) if hist['versions'] else None
+        prev = (previous if previous and previous.get('version') == hist['versions'][-1]['v'] else load_version(project)) if hist['versions'] else None
         if prev:
             stabilize(graph, prev)
         changes = diff(graph, prev)

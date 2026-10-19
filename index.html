@@ -39,6 +39,7 @@
         <span class="chip"><b id="chip-nodes">0</b> nodos</span>
         <span class="chip"><b id="chip-edges">0</b> relaciones</span>
         <button type="button" class="chip comms" id="comms-chip" aria-expanded="false" aria-controls="comms" title="Ver comunidades y nodos más conectados"><b id="chip-comms">0</b> comunidades</button>
+        <button type="button" class="chip comms bridges" id="bridges-chip" hidden aria-expanded="false" aria-controls="bridges" title="Ver los endpoints y quién los llama"><i aria-hidden="true"></i><b id="chip-bridges">0</b> puentes</button>
         <span class="chip version" id="chip-version" hidden></span>
         <span class="chip changes" id="chip-changes" hidden></span>
         <span class="chip here"><i aria-hidden="true"></i><span id="chip-here">en el nido</span></span>
@@ -120,7 +121,7 @@
     </div>
 
     <div id="search" class="popover bare" hidden>
-      <input type="search" placeholder="buscar archivo, clase o función…" autocomplete="off" spellcheck="false" aria-label="Buscar en el proyecto" />
+      <input type="search" placeholder="buscar… o endpoint: /users · dep: react" autocomplete="off" spellcheck="false" aria-label="Buscar en el proyecto" />
       <ul id="results"></ul>
     </div>
 
@@ -133,7 +134,24 @@
       </div>
     </section>
 
+    <section id="bridges" class="popover" hidden aria-label="Puentes entre servicios">
+      <p class="title">Puentes</p>
+      <p class="note">Endpoints HTTP y RPC del proyecto, con cuántas llamadas les llegan. Clic para que la araña vaya.</p>
+      <ul id="bridges-list" class="rank"></ul>
+    </section>
+
     <div id="tip" hidden></div>
+    <div id="card" class="node-card" hidden role="dialog" aria-label="Ficha del nodo"></div>
+
+    <section id="code" hidden aria-label="Código del nodo">
+      <header>
+        <span class="info"><b id="code-title"></b><span id="code-where"></span></span>
+        <button type="button" class="close" id="code-close" aria-label="Cerrar el código (Esc)">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" /></svg>
+        </button>
+      </header>
+      <div id="code-body" tabindex="0"></div>
+    </section>
 
     <p id="hint">
       <span class="desk">clic en una nebulosa: la araña va o salta · clic izq. girar · clic der. mover · rueda acercar / alejar · ? ayuda</span>
@@ -161,8 +179,9 @@
               <dt>arrastrar con clic izq.</dt><dd>girar la cámara</dd>
               <dt>arrastrar con clic der.</dt><dd>mover la cámara</dd>
               <dt>rueda</dt><dd>acercar / alejar</dd>
-              <dt>clic en un nodo o nebulosa</dt><dd>la araña va hacia allí</dd>
-              <dt><kbd>/</kbd></dt><dd>buscar en el proyecto</dd>
+              <dt>clic en un nodo o nebulosa</dt><dd>la araña va hacia allí y fija su ficha</dd>
+              <dt><kbd>C</kbd></dt><dd>ver el código del nodo fijado</dd>
+              <dt><kbd>/</kbd></dt><dd>buscar · prefijos <code>endpoint:</code> <code>dep:</code> <code>var:</code> <code>topic:</code> <code>clase:</code> <code>fn:</code> <code>archivo:</code></dd>
               <dt><kbd>F</kbd></dt><dd>seguir a la araña</dd>
               <dt><kbd>H</kbd></dt><dd>modo cine</dd>
               <dt><kbd>?</kbd></dt><dd>esta ayuda</dd>
@@ -179,6 +198,25 @@
               <li><i class="cloud"></i><span>nebulosa: una comunidad de código</span></li>
               <li><i class="core"></i><span>núcleo: el nido de la araña</span></li>
               <li><i class="pulse-line"></i><span>pulsos: conocimiento tejido que viaja por el grafo</span></li>
+            </ul>
+          </div>
+          <div>
+            <p class="subtitle">Tipos de nodo</p>
+            <ul class="legend kinds">
+              <li><i class="shape diamond" style="--c: rgb(255 199 122)"></i><span>endpoint HTTP: una ruta que el servicio expone</span></li>
+              <li><i class="shape diamond" style="--c: rgb(122 235 214)"></i><span>endpoint RPC / gRPC</span></li>
+              <li><i class="shape ring" style="--c: rgb(168 184 219)"></i><span>paquete: dependencia externa, orbita su comunidad</span></li>
+              <li><i class="shape dot small" style="--c: rgb(255 189 102)"></i><span>variable de entorno o de configuración</span></li>
+              <li><i class="shape dot" style="--c: rgb(204 163 255)"></i><span>tópico: cola, canal o evento de mensajería</span></li>
+            </ul>
+          </div>
+          <div>
+            <p class="subtitle">Puentes</p>
+            <ul class="legend kinds">
+              <li><i class="thread" style="--c: rgb(255 199 122)"></i><span>HTTP: un servicio llama a la ruta de otro; un pulso lento recorre el hilo</span></li>
+              <li><i class="thread" style="--c: rgb(122 235 214)"></i><span>RPC: llamada a un método remoto</span></li>
+              <li><i class="thread" style="--c: rgb(204 163 255)"></i><span>evento: productor → tópico → consumidor</span></li>
+              <li><i class="thread faint"></i><span>dependencias, variables, tests y cambios conjuntos: solo se encienden al pasar o fijar un nodo</span></li>
             </ul>
           </div>
         </div>

@@ -1,0 +1,29 @@
+[[repo]]
+name = "flask"
+language = "python"
+url = "https://github.com/pallets/flask"
+commit = "ab8149664182b662453a563161aa89013c806dc9"
+ref = "3.1.0"
+scope = ["src/flask/"]
+indexer = "scip-python index --cwd {src} --project-name flask --project-version 3.1.0 --environment {work}/empty-env.json --output {index} --quiet"
+
+[[repo]]
+name = "gin"
+language = "go"
+url = "https://github.com/gin-gonic/gin"
+commit = "75ccf94d605a05fe24817fc2f166f6f2959d5cea"
+ref = "v1.10.0"
+indexer = "scip-go index --output {index}"
+cwd = "src"
+env = { GOTOOLCHAIN = "local", GOFLAGS = "-mod=mod", CGO_ENABLED = "0", GOPATH = "{work}/go", GOMODCACHE = "{work}/go/mod", GOCACHE = "{work}/go/build" }
+
+[[repo]]
+name = "excalidraw-math"
+language = "typescript"
+url = "https://github.com/excalidraw/excalidraw"
+commit = "817d8c553c3389650f8b4503984a6d4a5d2f0c11"
+ref = "v0.18.0"
+subdir = "packages/math"
+prepare = "npm install --ignore-scripts --no-audit --no-fund"
+indexer = "scip-typescript index --cwd {src} --output {index}"
+skip = true

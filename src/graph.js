@@ -10,9 +10,16 @@ const NODE_IN = 0.9;
 const EDGE_IN = 0.7;
 const CHUNK = 512;
 const CHUNK_FLOATS = CHUNK * SEG * 6;
+const MAX_FLOWS = 900;
+const FLOW_SPEED = 2.2;
 
-export const EDGE = { intra: 0, bridge: 1, import: 2, call: 3, contains: 4, inherits: 5, ref: 6, loads: 6, silk: 7, cross: 8 };
-const EDGE_BASE = [0.13, 0.15, 0.085, 0.045, 0.04, 0.07, 0.06, 0.2, 0.022];
+export const EDGE = {
+  intra: 0, bridge: 1, import: 2, call: 3, contains: 4, inherits: 5, ref: 6, loads: 6, silk: 7, cross: 8,
+  http: 9, rpc: 10, handles: 11, data: 12, event: 13, env: 14, depends: 15, tests: 16, cochange: 17,
+};
+const EDGE_BASE = [0.13, 0.15, 0.085, 0.045, 0.04, 0.07, 0.06, 0.2, 0.022, 0.12, 0.12, 0.05, 0.035, 0.1, 0, 0, 0, 0];
+export const SHAPE = { dot: 0, ring: 1, diamond: 2 };
+export const EDGE_BASE_OF = (kind) => EDGE_BASE[kind] ?? 0.13;
 
 function bez(ax, ay, az, cx, cy, cz, bx, by, bz, t, out, o = 0) {
   const s = 1 - t;
@@ -21,7 +28,7 @@ function bez(ax, ay, az, cx, cy, cz, bx, by, bz, t, out, o = 0) {
   out[o + 2] = s * s * az + 2 * s * t * cz + t * t * bz;
 }
 
-export function createGraph(scene, { maxNodes = 60000, maxEdges = 120000, seed = 0x9a7 } = {}) {
+export function createGraph(scene, { maxNodes = 120000, maxEdges = 140000, seed = 0x9a7 } = {}) {
   const rng = mulberry32(seed);
   let n = 0;
   let m = 0;
@@ -42,14 +49,16 @@ export function createGraph(scene, { maxNodes = 60000, maxEdges = 120000, seed =
   const moving = new Set();
 
   const nodeGeo = pointsGeometry(maxNodes);
+  nodeGeo.setAttribute('aShape', new THREE.BufferAttribute(new Float32Array(maxNodes), 1));
   nodeGeo.setDrawRange(0, 0);
-  const nodeMat = pointsMaterial({ fog: 0.0009, heatSize: 0.9 });
+  const nodeMat = pointsMaterial({ fog: 0.0009, heatSize: 0.9, shapes: true });
   const nodePoints = new THREE.Points(nodeGeo, nodeMat);
   nodePoints.frustumCulled = false;
   scene.add(nodePoints);
 
   const ea = new Int32Array(maxEdges);
   const eb = new Int32Array(maxEdges);
+  const ekind = new Uint8Array(maxEdges);
   const ectrl = new Float32Array(maxEdges * 3);
   const elen = new Float32Array(maxEdges);
   const lineBase = new Float32Array(maxEdges);
@@ -80,6 +89,14 @@ export function createGraph(scene, { maxNodes = 60000, maxEdges = 120000, seed =
   pulsePoints.frustumCulled = false;
   scene.add(pulsePoints);
   const pulses = [];
+
+  const flowGeo = pointsGeometry(MAX_FLOWS, { size: 0.06, alpha: 0, color: [1, 0.9, 0.7] });
+  flowGeo.setDrawRange(0, 0);
+  const flowMat = pointsMaterial({ fog: 0.0009, heatSize: 0 });
+  const flowPoints = new THREE.Points(flowGeo, flowMat);
+  flowPoints.frustumCulled = false;
+  scene.add(flowPoints);
+  const flows = [];
 
   const cellKey = (ix, iy, iz) => ((ix + 512) * 1024 + (iy + 512)) * 1024 + (iz + 512);
   const cellOf = (v) => Math.floor(v / CELL);
@@ -145,6 +162,15 @@ export function createGraph(scene, { maxNodes = 60000, maxEdges = 120000, seed =
 
   let hot = -1;
   let hotSize = 0;
+  let selected = -1;
+
+  const glowAround = (i) => {
+    heat[i] = Math.max(heat[i], 1);
+    for (const e of adj[i]) {
+      if (glow[e] < 0.75) glow[e] = 0.75;
+      lit.add(e);
+    }
+  };
 
   const api = {
     pos, base, region,
@@ -160,7 +186,21 @@ export function createGraph(scene, { maxNodes = 60000, maxEdges = 120000, seed =
       }
       sz.needsUpdate = true;
     },
-    materials: [nodeMat, pulseMat],
+    setSelected(i) {
+      selected = i;
+    },
+    get selected() {
+      return selected;
+    },
+    neighbors(i, kinds) {
+      const out = [];
+      for (const e of adj[i] || []) if (!kinds || kinds.includes(ekind[e])) out.push({ node: ea[e] === i ? eb[e] : ea[e], kind: ekind[e], out: ea[e] === i });
+      return out;
+    },
+    get flows() {
+      return flows.length;
+    },
+    materials: [nodeMat, pulseMat, flowMat],
     nodeMat,
     lineMat: lines.material,
     get count() {
@@ -169,11 +209,12 @@ export function createGraph(scene, { maxNodes = 60000, maxEdges = 120000, seed =
     get edges() {
       return m;
     },
+    capacity: maxNodes,
     get full() {
       return n >= maxNodes - 1 || m >= maxEdges - 8;
     },
 
-    addNode(x, y, z, { region: r = -1, color: c = [1, 1, 1], size = 0.06, alpha = 0.6, animate = false } = {}) {
+    addNode(x, y, z, { region: r = -1, color: c = [1, 1, 1], size = 0.06, alpha = 0.6, animate = false, shape = 0 } = {}) {
       if (n >= maxNodes) return -1;
       const i = n++;
       base[i * 3] = pos[i * 3] = x;
@@ -188,6 +229,8 @@ export function createGraph(scene, { maxNodes = 60000, maxEdges = 120000, seed =
       g.color.array.set(c, i * 3);
       g.aSize.array[i] = size;
       g.aAlpha.array[i] = animate ? 0 : alpha;
+      g.aShape.array[i] = shape;
+      g.aShape.needsUpdate = true;
       if (animate) {
         newborn.set(i, 0);
         heat[i] = 1.2;
@@ -201,29 +244,30 @@ export function createGraph(scene, { maxNodes = 60000, maxEdges = 120000, seed =
       return i;
     },
 
-    addEdge(a, b, { kind = 0, animate = false } = {}) {
+    addEdge(a, b, { kind = 0, animate = false, tint = null, arc = 0, flow = false, strength = null } = {}) {
       if (a === b || a < 0 || b < 0 || m >= maxEdges) return -1;
-      const key = a < b ? a * 65536 + b : b * 65536 + a;
+      const key = a < b ? a * 1048576 + b : b * 1048576 + a;
       if (edgeSet.has(key)) return -1;
       edgeSet.add(key);
       const e = m++;
       ea[e] = a;
       eb[e] = b;
+      ekind[e] = kind;
       const ax = base[a * 3], ay = base[a * 3 + 1], az = base[a * 3 + 2];
       const bx = base[b * 3], by = base[b * 3 + 1], bz = base[b * 3 + 2];
       const len = Math.hypot(bx - ax, by - ay, bz - az);
       const bend = len * (0.03 + rng() * 0.07);
       ectrl[e * 3] = (ax + bx) / 2 + gauss(rng) * bend;
-      ectrl[e * 3 + 1] = (ay + by) / 2 + gauss(rng) * bend;
+      ectrl[e * 3 + 1] = (ay + by) / 2 + gauss(rng) * bend + len * arc;
       ectrl[e * 3 + 2] = (az + bz) / 2 + gauss(rng) * bend;
       elen[e] = len * 1.05;
-      lineBase[e] = EDGE_BASE[kind] ?? 0.13;
+      lineBase[e] = strength ?? EDGE_BASE[kind] ?? 0.13;
       grow[e] = animate ? 0 : 1;
       for (let s = 0; s < SEG; s++) {
         const o = (e * SEG + s) * 6;
         const t0 = s / SEG, t1 = (s + 1) / SEG;
         for (let q = 0; q < 3; q++) {
-          const ca = color[a * 3 + q], cb = color[b * 3 + q];
+          const ca = tint ? tint[q] : color[a * 3 + q], cb = tint ? tint[q] : color[b * 3 + q];
           lineTint[o + q] = ca * (1 - t0) + cb * t0;
           lineTint[o + 3 + q] = ca * (1 - t1) + cb * t1;
         }
@@ -233,6 +277,12 @@ export function createGraph(scene, { maxNodes = 60000, maxEdges = 120000, seed =
       if (animate) growing.add(e), lit.add(e);
       adj[a].push(e);
       adj[b].push(e);
+      if (flow && flows.length < MAX_FLOWS) {
+        const k = flows.length;
+        flows.push({ e, u: rng(), rate: Math.min(0.2, FLOW_SPEED / Math.max(1, elen[e])) });
+        flowGeo.attributes.color.array.set(tint || [color[a * 3], color[a * 3 + 1], color[a * 3 + 2]], k * 3);
+        flowGeo.attributes.color.needsUpdate = true;
+      }
       lineGeo.setDrawRange(0, m * SEG * 2);
       return e;
     },
@@ -296,13 +346,8 @@ export function createGraph(scene, { maxNodes = 60000, maxEdges = 120000, seed =
     },
 
     update(dt) {
-      if (hot >= 0) {
-        heat[hot] = Math.max(heat[hot], 1);
-        for (const e of adj[hot]) {
-          if (glow[e] < 0.75) glow[e] = 0.75;
-          lit.add(e);
-        }
-      }
+      if (hot >= 0) glowAround(hot);
+      if (selected >= 0 && selected < n) glowAround(selected);
       const hd = Math.exp(-dt * 2.4);
       for (let i = 0; i < n; i++) {
         heat[i] *= hd;
@@ -345,6 +390,21 @@ export function createGraph(scene, { maxNodes = 60000, maxEdges = 120000, seed =
       pulseGeo.setDrawRange(0, w);
       pulseGeo.attributes.position.needsUpdate = true;
       pulseGeo.attributes.aAlpha.needsUpdate = true;
+
+      if (flows.length) {
+        const fp = flowGeo.attributes.position.array;
+        const fa = flowGeo.attributes.aAlpha.array;
+        for (let k = 0; k < flows.length; k++) {
+          const f = flows[k];
+          f.u += dt * f.rate;
+          if (f.u >= 1) f.u -= 1;
+          edgePoint(f.e, f.u, fp, k * 3);
+          fa[k] = grow[f.e] < 1 ? 0 : 0.5 * Math.pow(Math.sin(f.u * Math.PI), 0.6);
+        }
+        flowGeo.setDrawRange(0, flows.length);
+        flowGeo.attributes.position.needsUpdate = true;
+        flowGeo.attributes.aAlpha.needsUpdate = true;
+      }
 
       for (const e of growing) {
         grow[e] = Math.min(1, grow[e] + dt / EDGE_IN);

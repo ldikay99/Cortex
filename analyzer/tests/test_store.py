@@ -24,6 +24,8 @@ def test_data_dir_resolution(tmp_path, monkeypatch):
     monkeypatch.delenv('CORTEX_DATA', raising=False)
     monkeypatch.delenv('DATA_PATH', raising=False)
     monkeypatch.chdir(tmp_path)
+    assert store.data_dir() == os.path.abspath(store.user_data_dir())
+    (tmp_path / 'datos').mkdir()
     assert store.data_dir() == str(tmp_path / 'datos')
     monkeypatch.setenv('DATA_PATH', str(tmp_path / 'legacy'))
     assert store.data_dir() == str(tmp_path / 'legacy')
@@ -128,3 +130,73 @@ def test_slug_and_parse_version():
     for bad in ('0', 'x', True, -2):
         with pytest.raises(InvalidInput):
             store.parse_version(bad)
+
+
+def test_unchanged_source_skips_analysis(repo, data_dir, monkeypatch):
+    real = pipeline.analyze
+    first = pipeline.analyze_source(str(repo), 'demo')
+    assert first['version'] == 1 and first['unchanged'] is False
+    assert {'fingerprint', 'analyze', 'save', 'total'} <= set(first['stats']['timings'])
+    fingerprint = store.load_history('demo')['versions'][0]['options']['fingerprint']
+    assert len(fingerprint) == 64
+
+    def boom(*args, **kwargs):
+        raise AssertionError('no debería analizar')
+
+    monkeypatch.setattr(pipeline, 'analyze', boom)
+    again = pipeline.analyze_source(str(repo), 'demo')
+    assert again['unchanged'] is True and again['version'] == 1 and again['nodes'] == first['nodes']
+    assert isinstance(again['stats']['seconds'], float)
+    result = pipeline.summary(again)
+    assert result['unchanged'] and result['changes'] == {'added': 0, 'modified': 0, 'removed': 0}
+    assert len(store.load_history('demo')['versions']) == 1
+    assert sorted(os.listdir(data_dir / 'demo')) == sorted(['.lock', 'historial.json', 'v1.cortex.json', 'grafo.md', 'grafo.json'])
+
+    before = os.stat(repo / 'app/utils.py').st_mtime_ns
+    (repo / 'app/utils.py').write_text(UTILS_V2)
+    os.utime(repo / 'app/utils.py', ns=(before + 10 ** 9, before + 10 ** 9))
+    seen = {}
+
+    def spy(*args, **kwargs):
+        seen.update(kwargs)
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(pipeline, 'analyze', spy)
+    third = pipeline.analyze_source(str(repo), 'demo')
+    assert third['version'] == 2 and not third['unchanged'] and seen['previous']['version'] == 1
+    assert 'f:app/utils.py:titlecase' in third['changes']['added']
+
+
+def test_fingerprint_tracks_options_and_files(repo):
+    base = pipeline.fingerprint(repo)
+    assert pipeline.fingerprint(repo) == base
+    assert pipeline.fingerprint(repo, include_tests=True) != base
+    assert pipeline.fingerprint(repo, exclude=['docs']) != base
+    (repo / 'notes.unknownext').write_text('x')
+    assert pipeline.fingerprint(repo) == base
+    (repo / 'app/new.py').write_text('x = 1\n')
+    added = pipeline.fingerprint(repo)
+    assert added != base
+    (repo / '.cortexignore').write_text('app/new.py\n')
+    assert pipeline.fingerprint(repo) not in (base, added)
+    (repo / 'app/new.py').unlink()
+    (repo / '.cortexignore').unlink()
+    assert pipeline.fingerprint(repo) == base
+    assert pipeline.fingerprint(repo, commit={'sha': 'abc'}) != base
+
+
+def test_config_defaults_for_name_tests_and_git(repo, data_dir, monkeypatch):
+    (repo / '.cortex.toml').write_text('name = "desde-config"\ninclude_tests = true\ngit = false\n', encoding='utf-8')
+    seen = {}
+    real = pipeline.analyze
+
+    def spy(*args, **kwargs):
+        seen.update(kwargs)
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(pipeline, 'analyze', spy)
+    graph = pipeline.analyze_source(str(repo))
+    assert graph['project'] == 'desde-config' and seen['git'] is False and seen['skip_tests'] is False
+    assert store.load_history('desde-config')['versions'][0]['options']['tests'] is True
+    pipeline.analyze_source(str(repo), 'otro', include_tests=False)
+    assert seen['skip_tests'] is True

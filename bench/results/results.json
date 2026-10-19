@@ -1,0 +1,254 @@
+{
+ "meta": {
+  "date": "2026-10-19"
+ },
+ "results": {
+  "flask": {
+   "calls": {
+    "fn": 8,
+    "fp": 2,
+    "precision": 0.9913,
+    "recall": 0.9661,
+    "tp": 228
+   },
+   "commit": "ab8149664182b662453a563161aa89013c806dc9",
+   "definitions": {
+    "cortex": 374,
+    "extra": [
+     {
+      "count": 2,
+      "examples": [
+       "src/flask/cli.py:241 locate_app",
+       "src/flask/helpers.py:62 stream_with_context"
+      ],
+      "pattern": "nodo function sin definición SCIP"
+     },
+     {
+      "count": 1,
+      "examples": [
+       "src/flask/config.py:35 ConfigAttribute.__get__"
+      ],
+      "pattern": "nodo method sin definición SCIP"
+     }
+    ],
+    "matched": 371,
+    "missed": [
+     {
+      "count": 19,
+      "examples": [
+       "src/flask/cli.py:395 decorator",
+       "src/flask/cli.py:422 decorator",
+       "src/flask/config.py:30 __get__"
+      ],
+      "pattern": "función anidada (closure)"
+     },
+     {
+      "count": 2,
+      "examples": [
+       "src/flask/cli.py:230 locate_app",
+       "src/flask/helpers.py:51 stream_with_context"
+      ],
+      "pattern": "función"
+     }
+    ],
+    "precision": 0.992,
+    "recall": 0.9464,
+    "scip": 392
+   },
+   "dispatch_ignored": 0,
+   "file_deps": {
+    "fn": 0,
+    "fp": 2,
+    "precision": 0.9825,
+    "recall": 1.0,
+    "tp": 112
+   },
+   "files_indexed": 24,
+   "language": "python",
+   "patterns": {
+    "calls_fn": [
+     {
+      "count": 4,
+      "examples": [
+       "src/flask/cli.py:631 app = info.load_app()",
+       "src/flask/cli.py:653 rv.update(info.load_app().cli.list_commands(ctx))",
+       "src/flask/ctx.py:426 app_ctx.pop(exc)"
+      ],
+      "pattern": "método · calificado obj.x() · mismo archivo"
+     },
+     {
+      "count": 1,
+      "examples": [
+       "src/flask/app.py:278 view_func=lambda **kw: self_ref().send_static_file(**kw),  # type: ignore # noqa: B950"
+      ],
+      "pattern": "método · cadena a.b.x() / x().y() · mismo archivo"
+     },
+     {
+      "count": 1,
+      "examples": [
+       "src/flask/cli.py:640 ctx.with_resource(app.app_context())"
+      ],
+      "pattern": "método · calificado obj.x() · otro archivo"
+     },
+     {
+      "count": 1,
+      "examples": [
+       "src/flask/cli.py:398 ctx.with_resource(app.app_context())"
+      ],
+      "pattern": "método · calificado obj.x() · otro archivo · llamador anidado"
+     },
+     {
+      "count": 1,
+      "examples": [
+       "src/flask/cli.py:397 app = ctx.ensure_object(ScriptInfo).load_app()"
+      ],
+      "pattern": "método · cadena a.b.x() / x().y() · mismo archivo · llamador anidado"
+     }
+    ],
+    "calls_fp": [
+     {
+      "count": 2,
+      "examples": [
+       "src/flask/app.py:727 f:src/flask/app.py:Flask.test_cli_runner -> c:src/flask/testing.py:FlaskCliRunner | def test_cli_runner(self, **kwargs: t.Any) -> FlaskCliRunner:",
+       "src/flask/app.py:669 f:src/flask/app.py:Flask.test_client -> c:src/flask/testing.py:FlaskClient | def test_client(self, use_cookies: bool = True, **kwargs: t.Any) -> FlaskClient:"
+      ],
+      "pattern": "SCIP ve una referencia, no una llamada (conversión, valor, tipo) · class"
+     }
+    ],
+    "files_fn": [],
+    "files_fp": [
+     {
+      "count": 1,
+      "examples": [
+       "src/flask/helpers.py:0 -> src/flask/cli.py"
+      ],
+      "pattern": "aristas Córtex: env · existe la inversa"
+     },
+     {
+      "count": 1,
+      "examples": [
+       "src/flask/wrappers.py:10 -> src/flask/json/__init__.py | from . import json"
+      ],
+      "pattern": "aristas Córtex: import · destino __init__.py (reexporta) · existe la inversa"
+     }
+    ]
+   },
+   "precise": {
+    "added": {
+     "call": 8,
+     "import": 8,
+     "ref": 183
+    },
+    "calls": {
+     "fn": 0,
+     "fp": 2,
+     "precision": 0.9916,
+     "recall": 1.0,
+     "tp": 236
+    },
+    "file_deps": {
+     "fn": 0,
+     "fp": 2,
+     "precision": 0.9825,
+     "recall": 1.0,
+     "tp": 112
+    }
+   },
+   "seconds": 1.8,
+   "url": "https://github.com/pallets/flask"
+  },
+  "gin": {
+   "calls": {
+    "fn": 0,
+    "fp": 0,
+    "precision": 1.0,
+    "recall": 1.0,
+    "tp": 1841
+   },
+   "commit": "75ccf94d605a05fe24817fc2f166f6f2959d5cea",
+   "definitions": {
+    "cortex": 1146,
+    "extra": [
+     {
+      "count": 6,
+      "examples": [
+       "gin_test.go:209 init",
+       "logger_test.go:18 init",
+       "mode_test.go:16 init"
+      ],
+      "pattern": "nodo function sin definición SCIP"
+     }
+    ],
+    "matched": 1140,
+    "missed": [],
+    "precision": 0.9948,
+    "recall": 1.0,
+    "scip": 1140
+   },
+   "dispatch_ignored": 29,
+   "file_deps": {
+    "fn": 17,
+    "fp": 1,
+    "precision": 0.9958,
+    "recall": 0.9325,
+    "tp": 235
+   },
+   "files_indexed": 84,
+   "language": "go",
+   "patterns": {
+    "calls_fn": [],
+    "calls_fp": [],
+    "files_fn": [
+     {
+      "count": 15,
+      "examples": [
+       "benchmarks_test.go:44 -> mode.go | DefaultWriter = os.Stdout",
+       "binding/binding_test.go:189 -> binding/json.go | EnableDecoderDisallowUnknownFields = true",
+       "binding/multipart_form_mapping_test.go:29 -> binding/binding.go | err := FormMultipart.Bind(req, &s)"
+      ],
+      "pattern": "primera referencia a term"
+     },
+     {
+      "count": 2,
+      "examples": [
+       "debug_test.go:62 -> context_test.go | debugPrintRoute(\"GET\", \"/path/to/route/:param\", HandlersChain{func(c *Context) {}, handlerNameTest})",
+       "routes_test.go:778 -> gin_test.go | base.GET(\"/metrics\", handlerTest1)"
+      ],
+      "pattern": "primera referencia a callable"
+     }
+    ],
+    "files_fp": [
+     {
+      "count": 1,
+      "examples": [
+       "gin.go:0 -> render/render.go"
+      ],
+      "pattern": "aristas Córtex: import"
+     }
+    ]
+   },
+   "precise": {
+    "added": {
+     "import": 102,
+     "ref": 1026
+    },
+    "calls": {
+     "fn": 0,
+     "fp": 0,
+     "precision": 1.0,
+     "recall": 1.0,
+     "tp": 1841
+    },
+    "file_deps": {
+     "fn": 15,
+     "fp": 1,
+     "precision": 0.9958,
+     "recall": 0.9405,
+     "tp": 237
+    }
+   },
+   "seconds": 2.1,
+   "url": "https://github.com/gin-gonic/gin"
+  }
+ }
+}

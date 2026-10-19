@@ -20,12 +20,12 @@ npm run test:e2e
 
 ## Usar el grafo
 
-- MCP: `docker exec -i cortex-analyzer cortex mcp` (11 herramientas: `list_projects`, `analyze_project`, `project_overview`, `search_code`, `node_context`, `file_context`, `community_context`, `find_path`, `impact_analysis`, `changes`, `get_report`).
-- CLI: `cortex analyze|projects|overview|search|node|file|community|path|impact|changes|export … [--json]`.
-- HTTP: `/api/query/overview|search|node|file|community|path|impact|changes`.
+- MCP: `docker exec -i cortex-analyzer cortex mcp` o `uvx --from git+https://github.com/ldikay99/Cortex#subdirectory=analyzer cortex mcp` (18 herramientas, recursos `cortex://` y prompts).
+- CLI: `cortex analyze|context|read|search|node|file|community|path|impact|review|architecture|deps|endpoints|vars|changes|watch|hook|context-files|mcp-config|export … [--json]`.
+- HTTP: `/api/query/*` con los mismos nombres.
 - Sin servidor: lee `datos/<proyecto>/grafo.md`.
 
-Flujo: overview → search → node/file/community → impact antes de editar → changes después de reanalizar. Cita siempre `archivo:línea`.
+Flujo: `context_for` con la tarea → `read_symbol` en vez de abrir archivos → `node_context`/`find_path` → `impact_analysis` antes de editar → `review_changes` después. Cita siempre `archivo:línea`.
 
 ## Reglas
 

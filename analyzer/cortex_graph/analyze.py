@@ -2,6 +2,7 @@ import math
 import os
 import random
 import re
+import subprocess
 from collections import Counter, defaultdict
 from pathlib import Path
 
@@ -40,8 +41,8 @@ EDGE_WEIGHT = {
     'rpc': 1.2, 'handles': 2.0, 'env': 0.2, 'data': 0.6, 'event': 0.8, 'depends': 0.3, 'cochange': 0.3,
 }
 STRUCTURAL_RANK = {'contains': 3, 'handles': 2, 'inherits': 2, 'import': 1}
-BRIDGE_KINDS = {'http', 'rpc', 'handles', 'event', 'data'}
-NODE_EXTRA = ('route', 'table', 'sig', 'doc', 'end', 'vis', 'test', 'version', 'ecosystem', 'churn', 'last', 'authors')
+BRIDGE_KINDS = {'http', 'rpc', 'handles', 'event', 'data', 'env', 'depends'}
+NODE_EXTRA = ('route', 'table', 'sig', 'doc', 'end', 'vis', 'test', 'version', 'ecosystem', 'scope', 'churn', 'last', 'authors')
 MAX_COMMUNITIES = 28
 MIN_COMMUNITY = 8
 MIN_NODES = 40
@@ -146,6 +147,15 @@ LANGUAGE_NAMES = {
     '.scss': 'CSS', '.sass': 'CSS', '.less': 'CSS', '.styl': 'CSS', '.xml': 'XML', '.csproj': 'MSBuild',
     '.fsproj': 'MSBuild', '.vbproj': 'MSBuild', '.sln': 'MSBuild', '.ini': 'INI', '.cfg': 'INI', '.conf': 'Config',
     '.properties': 'Properties', '.cmake': 'CMake', '.mk': 'Make', '.bzl': 'Bazel', '.nix': 'Nix',
+    '.cshtml': 'Razor', '.razor': 'Razor', '.erb': 'ERB', '.haml': 'Haml', '.slim': 'Slim', '.twig': 'Twig',
+    '.liquid': 'Liquid', '.hbs': 'Handlebars', '.handlebars': 'Handlebars', '.j2': 'Jinja', '.jinja': 'Jinja',
+    '.jinja2': 'Jinja', '.njk': 'Nunjucks', '.ejs': 'EJS', '.tpl': 'Go template', '.tmpl': 'Go template',
+    '.gotmpl': 'Go template', '.bicep': 'Bicep', '.bicepparam': 'Bicep', '.storyboard': 'Interface Builder',
+    '.xib': 'Interface Builder', '.cbl': 'COBOL', '.cob': 'COBOL', '.cpy': 'COBOL', '.vb': 'Visual Basic',
+    '.bas': 'Visual Basic', '.vbs': 'Visual Basic', '.f': 'Fortran', '.for': 'Fortran', '.f77': 'Fortran',
+    '.f90': 'Fortran', '.f95': 'Fortran', '.f03': 'Fortran', '.f08': 'Fortran', '.cls': 'Apex', '.trigger': 'Apex',
+    '.apex': 'Apex', '.abap': 'ABAP', '.pks': 'PL/SQL', '.pkb': 'PL/SQL', '.pck': 'PL/SQL', '.pls': 'PL/SQL',
+    '.plsql': 'PL/SQL', '.prc': 'PL/SQL', '.fnc': 'PL/SQL', '.dbml': 'DBML',
 }
 FILE_LANGUAGES = {
     'Dockerfile': 'Docker', 'Containerfile': 'Docker', 'Makefile': 'Make', 'GNUmakefile': 'Make', 'makefile': 'Make',
@@ -157,6 +167,8 @@ FILE_LANGUAGES = {
 
 def language_of(rel):
     name = rel.rsplit('/', 1)[-1]
+    if generic.claims(rel) and name.endswith('.blade.php'):
+        return 'Blade'
     if name in FILE_LANGUAGES:
         return FILE_LANGUAGES[name]
     if name.startswith(('Dockerfile', 'Containerfile')) or name.endswith('.dockerfile'):
@@ -169,20 +181,36 @@ def language_of(rel):
 
 def formats():
     return {
-        'exts': sorted(CODE_EXTS | generic.CODE | generic.CONFIG | {'.json'}),
+        'exts': sorted(CODE_EXTS | generic.CODE | generic.CONFIG | {'.json', '.xml'}),
         'names': sorted(generic.CONFIG_NAMES | set(langs.NAME_LANG)), 'max_script_bytes': MAX_SCRIPT_BYTES,
-        'prefixes': list(generic.CONFIG_PREFIXES), 'skip_dirs': sorted(SKIP_DIRS), 'skip_suffixes': list(SKIP_SUFFIXES),
+        'prefixes': list(generic.CONFIG_PREFIXES) + ['requirements'], 'skip_dirs': sorted(SKIP_DIRS), 'skip_suffixes': list(SKIP_SUFFIXES),
         'locks': sorted(generic.LOCKS), 'max_bytes': MAX_FILE_BYTES, 'max_notebook_bytes': MAX_NOTEBOOK_BYTES,
     }
 
 
+def git_visible(root):
+    if not (Path(root) / '.git').exists():
+        return None
+    try:
+        res = subprocess.run(['git', '-C', str(root), 'ls-files', '-co', '--exclude-standard', '-z'], capture_output=True,
+                             timeout=60, env={**os.environ, 'GIT_TERMINAL_PROMPT': '0'})
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    if res.returncode != 0:
+        return None
+    return {p.decode('utf-8', 'replace') for p in res.stdout.split(b'\0') if p}
+
+
 def list_files(root, exclude=(), skip_tests=False):
     exclude = tuple(e.strip('/') for e in exclude if e.strip('/'))
+    visible = git_visible(root)
     out = []
     for dirpath, dirnames, filenames in os.walk(root):
         dirnames[:] = sorted(d for d in dirnames if d not in SKIP_DIRS and not d.endswith(SKIP_DIR_SUFFIXES))
         for name in sorted(filenames):
             rel = os.path.relpath(os.path.join(dirpath, name), root).replace(os.sep, '/')
+            if visible is not None and rel not in visible:
+                continue
             if not wanted(rel) and not (maybe_script(rel) and script_route(read_head(Path(dirpath) / name))):
                 continue
             if os.path.splitext(name)[1] in MINIFIED_EXTS and minified(Path(dirpath) / name):
@@ -207,8 +235,11 @@ def declare_docs(root, files, g, issues):
         raw = read_source(root, rel, issues)
         if raw is None:
             continue
-        g.node(f'd:{rel}', kind='doc', name=rel.rsplit('/', 1)[-1], file=rel, line=1, lang='md', hash=digest(raw))
-        texts[rel] = raw.decode('utf-8', errors='replace')
+        text = raw.decode('utf-8', errors='replace')
+        title = next((line.strip().lstrip('#=*- ').strip() for line in text.splitlines() if line.strip().lstrip('#=*- ').strip()), '')
+        g.node(f'd:{rel}', kind='doc', name=rel.rsplit('/', 1)[-1], file=rel, line=1, lang='md', hash=digest(raw),
+               end=text.count('\n') + 1, doc=title[:200])
+        texts[rel] = text
     return texts
 
 
@@ -639,7 +670,37 @@ def apply_git(g, info):
             g.edges[(by_file[a], by_file[b], 'cochange')] += int(w)
 
 
-def analyze(root, project=None, exclude=(), skip_tests=False, git=True):
+def reuse_layout(g, community, previous):
+    known = {n['key']: n for n in previous.get('nodes', [])}
+    if not g.nodes or sum(1 for nid in g.nodes if nid in known) < 0.9 * len(g.nodes):
+        return None
+    members = defaultdict(list)
+    for nid, c in community.items():
+        members[c].append(nid)
+    node_pos = {}
+    for nid in g.nodes:
+        if nid in known:
+            node_pos[nid] = np.array(known[nid]['pos'], dtype=float)
+    centers, radius = {}, {}
+    for c, nodes in members.items():
+        pts = np.array([node_pos[n] for n in nodes if n in node_pos]) if any(n in node_pos for n in nodes) else None
+        if pts is None:
+            return None
+        centers[c] = pts.mean(axis=0)
+        radius[c] = max(4.5, float(np.percentile(np.linalg.norm(pts - centers[c], axis=1), 90)) if len(pts) > 1 else 4.5)
+    rng = np.random.default_rng(13)
+    file_pos = {g.nodes[n]['file']: node_pos[n] for n in node_pos if g.nodes[n]['kind'] in ('module', 'doc')}
+    for nid in sorted(g.nodes):
+        if nid not in node_pos:
+            anchor = file_pos.get(g.nodes[nid]['file'])
+            base = anchor if anchor is not None else centers[community[nid]]
+            node_pos[nid] = base + rng.normal(scale=0.6, size=3)
+    order = sorted(members)
+    return ([centers[c] for c in order], np.array([radius[c] for c in order]), node_pos,
+            {i: members[c] for i, c in enumerate(order)}) if order == list(range(len(order))) else None
+
+
+def analyze(root, project=None, exclude=(), skip_tests=False, git=True, previous=None, scip=None):
     root = Path(root)
     if not root.is_dir():
         raise CortexError(f'no existe la carpeta «{root}»')
@@ -654,8 +715,8 @@ def analyze(root, project=None, exclude=(), skip_tests=False, git=True):
     overrides = {f: r for f, r in scripts.items() if r not in ('py', 'ts')}
     script_names = {f: {'py': 'Python', 'ts': 'JavaScript'}.get(r) or LANGUAGE_NAMES.get(langs.LANGS[r]['exts'][0], r)
                     for f, r in scripts.items()}
-    other = [f for f in files if langs.lang_of(f) or f in overrides]
-    rest = [f for f in files if os.path.splitext(f)[1] not in CODE_EXTS and not langs.lang_of(f) and f not in scripts]
+    other = [f for f in files if (langs.lang_of(f) or f in overrides) and not generic.claims(f)]
+    rest = [f for f in files if generic.claims(f) or (os.path.splitext(f)[1] not in CODE_EXTS and not langs.lang_of(f) and f not in scripts)]
     issues = Issues()
     g = Graph()
     texts = declare_docs(root, md, g, issues)
@@ -668,16 +729,23 @@ def analyze(root, project=None, exclude=(), skip_tests=False, git=True):
     generic.link_tables(g, tables)
     deps.link_dependencies(root, files, g, issues, read_source)
     bridges.link_bridges(root, files, g, issues, read_source)
+    if scip:
+        from . import scip as scip_index
+        scip_index.apply_scip(g, root, scip)
     if not skip_tests:
         mark_tests(g)
     if git:
         apply_git(g, gitinfo.collect(root, files))
+    for nid, meta in g.nodes.items():
+        if not meta.get('hash'):
+            meta['hash'] = digest(f"{nid}|{meta.get('version', '')}|{meta.get('route', '')}")
     if not g.nodes:
         raise CortexError('no hay archivos de código ni documentos para analizar en esa carpeta')
 
     g.edges = Counter(dict(sorted(g.edges.items())))
     community = detect_communities(g)
-    centers, radius, node_pos, members = layout(g, community)
+    reused = reuse_layout(g, community, previous) if previous else None
+    centers, radius, node_pos, members = reused or layout(g, community)
 
     degree = Counter()
     for (a, b, _), n in g.edges.items():
@@ -734,10 +802,10 @@ def visible_edges(g, community, ids):
             continue
         if kind == 'cochange':
             continue
-        if kind in ('call', 'tests', 'env', 'depends'):
+        if kind in ('call', 'tests'):
             if fa == fb:
                 continue
-            a, b, kind = file_node.get(fa, a), file_node.get(fb, b), 'import'
+            a, b, kind = file_node.get(fa, a), file_node.get(fb, b), 'tests' if kind == 'tests' else 'import'
         if community[a] != community[b]:
             pair = tuple(sorted((community[a], community[b])))
             cross[pair][(file_node.get(fa, a), file_node.get(fb, b))] += n

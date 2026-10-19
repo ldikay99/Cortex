@@ -25,34 +25,37 @@ Reanalizar es barato (segundos a pocos minutos) y no pierde historia: crea `v<n+
 
 Con Docker la CLI va dentro del contenedor: `docker exec cortex-analyzer cortex …`. El MCP se registra en `.mcp.json` con `docker exec -i cortex-analyzer cortex mcp`. En el contenedor las carpetas locales deben estar bajo `/data`; para repos de GitHub basta la URL (usa `GITHUB_TOKEN` si es privado).
 
-Herramientas MCP y equivalentes:
+Herramientas MCP y equivalentes (`project` es opcional en todas; por defecto, el proyecto analizado más recientemente):
 
 | MCP | CLI | HTTP `/api/query/…` |
 | --- | --- | --- |
-| `list_projects` | `projects` | `/api/projects` |
-| `analyze_project(source, name, exclude, include_tests)` | `analyze <carpeta\|url> [--name] [--exclude …] [--tests]` | — (web) |
-| `project_overview` | `overview [proyecto]` | `overview?project=` |
-| `search_code(query, kind, limit)` | `search <texto> [--kind] [--limit]` | `search?q=&kind=&limit=` |
+| `context_for(query, budget)` | `context "<tarea>" [--budget]` | `context?q=&budget=` |
+| `read_symbol(node, context)` | `read <ref> [--context]` | `symbol?ref=` |
+| `search_code(query, kind, limit, offset)` | `search <texto>` | `search?q=` |
 | `node_context(node)` | `node <ref>` | `node?ref=` |
 | `file_context(path)` | `file <ruta>` | `file?path=` |
 | `community_context(community)` | `community <id\|nombre>` | `community?ref=` |
 | `find_path(source, target)` | `path <a> <b>` | `path?a=&b=` |
-| `impact_analysis(node, depth)` | `impact <ref> [--depth]` | `impact?ref=&depth=` |
+| `impact_analysis(node, depth)` | `impact <ref>` | `impact?ref=` |
+| `review_changes(base, head)` | `review [--base] [--head\|--worktree]` | `review?base=&head=` |
+| `architecture(section)` | `architecture` | `architecture` |
+| `dependencies(name)` | `deps [nombre]` | `dependencies` |
+| `endpoints(method)` | `endpoints` | `endpoints` |
+| `variables(name)` | `vars [nombre]` | `variables` |
+| `project_overview` | `overview` | `overview` |
 | `changes(since_version)` | `changes [--since]` | `changes?since=` |
-| `get_report` | `export -f md` | `/api/export.md` |
+| `list_projects` · `analyze_project` · `get_report` | `projects` · `analyze` · `export -f md` | `/api/projects` · web · `/api/export.md` |
 
-`project` es opcional en todas: por defecto, el proyecto analizado más recientemente. Una referencia de nodo acepta clave (`f:app/services.py:create_user`), nombre, ruta o subcadena.
+Una referencia de nodo acepta clave (`f:app/services.py:create_user`), nombre, ruta o subcadena. Tipos de nodo: `module`, `class`, `function`, `method`, `doc`, `endpoint`, `package`, `variable`, `topic`. Relaciones: `contains`, `import`, `call`, `inherits`, `ref`, `loads`, `tests`, `http`, `rpc`, `handles`, `env`, `data`, `event`, `depends`, `cochange`.
 
 ## Flujo recomendado
 
-1. **Orientarse**: `project_overview`. Lee comunidades (subsistemas), sus hubs, los 20 nodos más conectados, rutas de API y tablas.
-2. **Localizar**: `search_code` con 1–3 palabras. Filtra con `kind` (`module|class|function|method|doc`) si hay ruido.
-3. **Entender**: `node_context` para un símbolo (quién lo llama, qué importa, qué hereda, qué docs lo mencionan); `file_context` para un archivo; `community_context` para un subsistema completo.
-4. **Antes de editar**: `impact_analysis` sobre lo que vas a tocar. Revisa el nivel 1 completo y los archivos afectados; súbele `depth` en cambios de API pública.
-5. **Conectar**: `find_path` cuando la pregunta es «cómo llega A a B» (ruta → servicio → modelo).
-6. **Después de editar**: reanaliza y usa `changes` para confirmar que solo cambió lo previsto.
-
-Usa `get_report` solo si necesitas el panorama entero: es grande.
+1. **Contexto para la tarea**: `context_for("<lo que vas a hacer>")`. Devuelve los símbolos relevantes con firma, doc, rango de líneas y el código clave dentro del presupuesto. Empieza siempre aquí.
+2. **Leer código**: `read_symbol` con la clave; no abras archivos completos.
+3. **Seguir vínculos**: `node_context` (llamadas, herencia, tests, rutas, variables, dependencias), `find_path` para «cómo llega A a B», `endpoints` para conexiones entre servicios.
+4. **Antes de editar**: `impact_analysis` sobre lo que vas a tocar.
+5. **Después de editar**: `review_changes` (`--worktree` para cambios sin commitear): símbolos tocados, impacto, tests a correr y riesgo.
+6. **Panorama**: `project_overview` y `architecture` (entradas, capas, ciclos, código muerto, puntos calientes).
 
 ## Leer sin servidor
 

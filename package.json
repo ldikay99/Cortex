@@ -1,7 +1,7 @@
 {
   "name": "cortex",
   "private": true,
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Córtex convierte cualquier repositorio en un grafo de conocimiento vivo que los agentes de IA consultan por MCP, CLI o HTTP, y lo teje como un universo 3D.",
   "author": "Jonathan C (ldikay99)",
   "license": "MIT",

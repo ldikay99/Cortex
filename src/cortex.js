@@ -1,8 +1,8 @@
 import * as THREE from 'three';
-import { createCosmos } from './cosmos.js';
+import { createCosmos, isHttp } from './cosmos.js';
 import { createSpider } from './spider.js';
 import { createSky } from './sky.js';
-import { checkAnalyzer, streamProject, uploadProject, cloneGithub, getTree, analyzeProject, openSaved, updateSaved, importGraph, listSaved } from './project.js';
+import { checkAnalyzer, streamProject, uploadProject, cloneGithub, getTree, analyzeProject, openSaved, updateSaved, importGraph, listSaved, getSymbol, getNodeInfo } from './project.js';
 import { createWeaver } from './weaver.js';
 import { createNest } from './nest.js';
 import { clamp, damp, smooth, mulberry32 } from './rand.js';
@@ -25,6 +25,7 @@ const chip = {
   edges: document.querySelector('#chip-edges'),
   comms: document.querySelector('#chip-comms'),
   here: document.querySelector('#chip-here'),
+  bridges: document.querySelector('#chip-bridges'),
 };
 const tipEl = document.querySelector('#tip');
 const findBtn = document.querySelector('#find');
@@ -50,6 +51,11 @@ const helpBtn = document.querySelector('#help-btn');
 const helpEl = document.querySelector('#help');
 const commsChip = document.querySelector('#comms-chip');
 const commsEl = document.querySelector('#comms');
+const bridgesChip = document.querySelector('#bridges-chip');
+const bridgesEl = document.querySelector('#bridges');
+const cardEl = document.querySelector('#card');
+const codeEl = document.querySelector('#code');
+const codeBody = document.querySelector('#code-body');
 const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 let renderer;
@@ -542,9 +548,11 @@ const release = (e) => {
   dragMode = null;
   if (!wasTap) return;
   const n = pickNode(e.clientX, e.clientY);
-  if (n < 0) return;
+  if (n < 0) return unpin();
   interacted();
   cosmos.fire(n, 1.1);
+  if (cosmos.meta[n]) pin(n);
+  else unpin();
   let r = cosmos.nodeRegion[n];
   if (r < 0) r = cosmos.regionAt(nodeVec(n));
   if (r >= 0) {
@@ -573,6 +581,7 @@ window.addEventListener('keydown', (e) => {
     return openHelp(helpEl.hidden);
   }
   if (!helpEl.hidden) return;
+  if (k === 'c' && card.node >= 0) return openCode(card.node);
   if (k === 'h') return setCine(!cine.on);
   if (k === 'f') return setFollow(true);
   if (k === '/' && project.active) {
@@ -605,7 +614,51 @@ spider.place(nodeVec(cosmos.regionNodes[0][0]));
 pickWander();
 setStatus('en el nido');
 
-const KIND_NAME = { module: 'archivo', doc: 'documento', class: 'clase', function: 'función', method: 'método' };
+const KIND_NAME = { module: 'archivo', doc: 'documento', class: 'clase', function: 'función', method: 'método', package: 'paquete', variable: 'variable', endpoint: 'endpoint', topic: 'tópico' };
+const VIS_NAME = { public: 'público', private: 'privado', protected: 'protegido', internal: 'interno' };
+const clip = (t, n) => {
+  const s = String(t);
+  return s.length > n ? `${s.slice(0, n - 1)}…` : s;
+};
+const firstLine = (doc) => clip(String(doc).split(/\n|(?<=[.!?])\s/)[0], 160);
+const lineRange = (m) => (m.end && m.end > m.line ? `${m.line}–${m.end}` : m.line > 1 ? `${m.line}` : '');
+const whereOf = (m) => (lineRange(m) ? `${m.file}:${lineRange(m)}` : m.file);
+const KEY_PREFIX = { module: 'm', doc: 'd', class: 'c', function: 'f', method: 'f', endpoint: 'e' };
+function keyOf(m) {
+  if (m.key) return m.key;
+  if (m.kind === 'package') return `p:${m.ecosystem || ''}:${m.name}`;
+  if (m.kind === 'variable') return `v:${m.name}`;
+  if (m.kind === 'topic') return `t:${m.name}`;
+  if (m.kind === 'module' || m.kind === 'doc') return `${KEY_PREFIX[m.kind]}:${m.file}`;
+  return KEY_PREFIX[m.kind] ? `${KEY_PREFIX[m.kind]}:${m.file}:${m.name}` : m.name;
+}
+function nodeHtml(n, m, extra = {}) {
+  const R = cosmos.regions[m.region];
+  const kind = m.kind === 'endpoint' ? `endpoint ${isHttp(m) ? 'HTTP' : 'RPC'}` : KIND_NAME[m.kind] || m.kind;
+  const badges = `${m.vis ? `<i class="badge">${VIS_NAME[m.vis] || escapeHtml(m.vis)}</i>` : ''}${m.test ? '<i class="badge test">test</i>' : ''}`;
+  const tags = [];
+  if (m.route && m.route !== m.name) tags.push(escapeHtml(m.route));
+  if (m.kind === 'package') tags.push(`${escapeHtml(m.ecosystem || 'paquete')} · ${m.version ? escapeHtml(m.version) : 'sin versión'}`);
+  if (m.table) tags.push(`tabla ${escapeHtml(m.table)}`);
+  const tests = Math.max(cosmos.testsOf(n), extra.tests || 0);
+  if (tests) tags.push(`${fmt(tests)} ${tests === 1 ? 'test' : 'tests'}`);
+  const calls = cosmos.callersOf(n);
+  if (m.kind === 'endpoint') tags.push(calls ? `${fmt(calls)} ${calls === 1 ? 'llamada entrante' : 'llamadas entrantes'}` : 'sin llamadas conocidas');
+  if (m.hidden) tags.push(`+${fmt(m.hidden)} símbolos agregados`);
+  return `<b>${escapeHtml(m.name)}</b>
+    <span class="kind">${kind}${badges}</span>
+    ${m.sig ? `<code class="sig">${escapeHtml(clip(m.sig, 240))}</code>` : ''}
+    ${m.doc ? `<span class="doc">${escapeHtml(firstLine(m.doc))}</span>` : ''}
+    <span class="where">${escapeHtml(whereOf(m))}</span>
+    ${tags.map((t) => `<span class="tag">${t}</span>`).join('')}
+    <span class="meta">${escapeHtml(R ? R.name : '')} · ${fmt(m.deg || 0)} conexiones</span>`;
+}
+function placeBox(el, x, y) {
+  const w = el.offsetWidth || 300, h = el.offsetHeight || 120;
+  const px = x + 16 + w > window.innerWidth - 8 ? x - 16 - w : x + 16;
+  const py = Math.min(y + 16, window.innerHeight - h - 8);
+  el.style.transform = `translate(${Math.max(8, px).toFixed(0)}px, ${Math.max(8, py).toFixed(0)}px)`;
+}
 const tip = { node: -1, x: 0, y: 0, timer: 0, last: null };
 function hideTip() {
   tipEl.hidden = true;
@@ -623,23 +676,118 @@ function hover(e) {
 function showTip(e) {
   const n = pickNode(e.clientX, e.clientY, 14);
   const m = n >= 0 ? cosmos.meta[n] : null;
-  if (!m) return hideTip();
+  if (!m || cine.on) return hideTip();
   tip.node = n;
   tip.x = e.clientX;
   tip.y = e.clientY;
   cosmos.graph.setHot(n);
   cosmos.hold(n, 1);
-  const R = cosmos.regions[m.region];
-  tipEl.innerHTML = `<b>${escapeHtml(m.name)}</b>
-    <span>${KIND_NAME[m.kind] || m.kind} · ${escapeHtml(m.file)}${m.line > 1 ? `:${m.line}` : ''}</span>
-    ${m.route ? `<span class="tag">${escapeHtml(m.route)}</span>` : ''}${m.table ? `<span class="tag">tabla ${escapeHtml(m.table)}</span>` : ''}
-    <span>${escapeHtml(R.name)} · ${m.deg} conexiones</span>`;
-  tipEl.style.setProperty('--c', rgb(R.color));
-  const x = Math.min(e.clientX + 16, window.innerWidth - 300);
-  const y = Math.min(e.clientY + 16, window.innerHeight - 110);
-  tipEl.style.transform = `translate(${x}px, ${y}px)`;
+  if (n === card.node) return (tipEl.hidden = true);
+  tipEl.innerHTML = nodeHtml(n, m);
+  tipEl.style.setProperty('--c', rgb(cosmos.regions[m.region].color));
   tipEl.hidden = false;
+  placeBox(tipEl, e.clientX, e.clientY);
 }
+
+const card = { node: -1, extra: {}, seq: 0 };
+function renderCard() {
+  const n = card.node, m = cosmos.meta[n];
+  cardEl.innerHTML = `${nodeHtml(n, m, card.extra)}<span class="actions"><button type="button" data-act="code">ver código <kbd>C</kbd></button><button type="button" data-act="close" aria-label="Cerrar la ficha">cerrar</button></span>`;
+  cardEl.style.setProperty('--c', rgb(cosmos.regions[m.region].color));
+}
+function pin(n) {
+  const m = cosmos.meta[n];
+  card.node = n;
+  card.extra = {};
+  cosmos.graph.setSelected(n);
+  renderCard();
+  cardEl.hidden = false;
+  tipEl.hidden = true;
+  updateCard();
+  const seq = ++card.seq;
+  getNodeInfo(project.name, keyOf(m)).then((r) => {
+    if (seq !== card.seq || !r.ok || card.node !== n) return;
+    const tests = (r.data.tested_by || []).length;
+    if (tests) (card.extra = { tests }), renderCard();
+  });
+}
+function unpin() {
+  if (card.node < 0) return;
+  card.node = -1;
+  card.seq++;
+  cosmos.graph.setSelected(-1);
+  cardEl.hidden = true;
+}
+cardEl.addEventListener('click', (e) => {
+  const act = e.target.closest('button')?.dataset.act;
+  if (act === 'code') openCode(card.node);
+  if (act === 'close') unpin();
+});
+cardEl.addEventListener('pointerdown', (e) => e.stopPropagation());
+const cardProj = new THREE.Vector3();
+function updateCard() {
+  if (card.node < 0) return;
+  const rect = canvas.getBoundingClientRect();
+  nodeVec(card.node, cardProj).project(camera);
+  const off = cardProj.z > 1 || Math.abs(cardProj.x) > 1.05 || Math.abs(cardProj.y) > 1.05;
+  cardEl.classList.toggle('off', off);
+  if (off) return;
+  placeBox(cardEl, (cardProj.x * 0.5 + 0.5) * rect.width + rect.left, (-cardProj.y * 0.5 + 0.5) * rect.height + rect.top);
+}
+
+const code = { node: -1, seq: 0 };
+const CODE_FAIL = {
+  0: 'no se pudo conectar con el analizador',
+  404: 'no encontré el código de este nodo en la copia analizada',
+  501: 'este analizador todavía no sirve el código fuente',
+};
+function codeHeader(m, where) {
+  document.querySelector('#code-title').textContent = m.name;
+  document.querySelector('#code-where').textContent = where;
+}
+async function openCode(n) {
+  const m = cosmos.meta[n];
+  if (!m) return;
+  const seq = ++code.seq;
+  code.node = n;
+  codeEl.hidden = false;
+  cardEl.classList.add('behind');
+  codeEl.style.setProperty('--c', rgb(cosmos.regions[m.region].color));
+  codeHeader(m, whereOf(m));
+  codeBody.innerHTML = '<p class="note">leyendo el código…</p>';
+  const r = await getSymbol(project.name, keyOf(m));
+  if (seq !== code.seq) return;
+  if (!r.ok || typeof r.data?.code !== 'string') {
+    const text = CODE_FAIL[r.status] || r.error || `el analizador respondió con un error (${r.status})`;
+    codeBody.innerHTML = `<p class="note">${escapeHtml(text)}</p>`;
+    return;
+  }
+  const d = r.data;
+  const start = Number(d.start ?? d.line) || 1;
+  codeHeader(m, whereOf({ file: d.file || m.file, line: start, end: d.symbol_end || d.end || m.end }));
+  let lines = d.code.replace(/\n$/, '').split('\n');
+  const notes = [d.note, d.redacted ? 'se ocultaron posibles secretos' : ''];
+  if (d.truncated && lines.length > 1) notes.push(lines.pop().replace(/^…\s*/, ''));
+  lines = lines.slice(0, 3000);
+  const width = String(start + lines.length).length;
+  const note = notes.filter(Boolean).map((t) => `<p class="note">${escapeHtml(t)}</p>`).join('');
+  codeBody.innerHTML = `<pre style="--w: ${width}ch">${lines.map((t, k) => `<span class="ln">${start + k}</span><span class="tx">${escapeHtml(t) || ' '}</span>`).join('')}</pre>${note}`;
+  codeBody.scrollTop = 0;
+  codeBody.focus({ preventScroll: true });
+}
+function closeCode() {
+  code.seq++;
+  code.node = -1;
+  codeEl.hidden = true;
+  cardEl.classList.remove('behind');
+}
+document.querySelector('#code-close').addEventListener('click', closeCode);
+codeEl.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    e.stopPropagation();
+    closeCode();
+  }
+});
 canvas.addEventListener('pointerleave', () => {
   tip.last = null;
   hideTip();
@@ -709,6 +857,7 @@ const openExporter = popover(exporterEl, exportBtn);
 const openUploader = popover(uploaderEl, uploadBtn);
 const openSettings = popover(settingsEl, speedBtn);
 const openComms = popover(commsEl, commsChip, () => communities.render());
+const openBridges = popover(bridgesEl, bridgesChip, () => communities.renderBridges());
 const openSearch = popover(searchEl, findBtn, () => {
   searchInput.value = '';
   resultsEl.innerHTML = '';
@@ -718,6 +867,7 @@ exportBtn.addEventListener('click', () => openExporter(exporterEl.hidden));
 uploadBtn.addEventListener('click', () => openUploader(uploaderEl.hidden));
 speedBtn.addEventListener('click', () => openSettings(settingsEl.hidden));
 commsChip.addEventListener('click', () => openComms(commsEl.hidden));
+bridgesChip.addEventListener('click', () => openBridges(bridgesEl.hidden));
 findBtn.addEventListener('click', () => openSearch(searchEl.hidden));
 
 function begin() {
@@ -967,31 +1117,57 @@ function goToNode(n) {
   cosmos.fire(n, 1.2);
   setStatus(`yendo a ${cosmos.meta[n]?.name || 'nodo'}`, 2.5);
 }
-searchInput.addEventListener('input', () => {
-  const q = searchInput.value.trim().toLowerCase();
-  resultsEl.innerHTML = '';
-  if (q.length < 2) return;
+const KIND_ALIAS = {
+  endpoint: 'endpoint', endpoints: 'endpoint', ruta: 'endpoint', rutas: 'endpoint', api: 'endpoint', route: 'endpoint',
+  dep: 'package', deps: 'package', pkg: 'package', paquete: 'package', paquetes: 'package', package: 'package',
+  var: 'variable', env: 'variable', variable: 'variable', variables: 'variable',
+  topic: 'topic', tópico: 'topic', topico: 'topic', evento: 'topic', cola: 'topic', queue: 'topic',
+  clase: 'class', class: 'class', fn: 'function', func: 'function', función: 'function', funcion: 'function', function: 'function',
+  método: 'method', metodo: 'method', method: 'method', archivo: 'module', file: 'module', mod: 'module', module: 'module', doc: 'doc', docs: 'doc',
+};
+function parseQuery(raw) {
+  const m = /^\s*([\p{L}]+)\s*:\s*(.*)$/u.exec(raw);
+  const kind = m && KIND_ALIAS[m[1].toLowerCase()];
+  return kind ? { kind, q: m[2].trim().toLowerCase() } : { kind: null, q: raw.trim().toLowerCase() };
+}
+function searchNodes(raw, limit = 10) {
+  const { kind, q } = parseQuery(raw);
+  if (!kind && q.length < 2) return { kind, hits: [] };
   const hits = [];
-  for (let i = 0; i < cosmos.meta.length && hits.length < 60; i++) {
+  for (let i = 0; i < cosmos.meta.length && hits.length < 400; i++) {
     const m = cosmos.meta[i];
-    if (!m) continue;
+    if (!m || (kind && m.kind !== kind)) continue;
+    if (!q) {
+      hits.push([i, 0, kind === 'endpoint' ? cosmos.callersOf(i) * 1000 + (m.deg || 0) : m.deg || 0]);
+      continue;
+    }
     const name = m.name.toLowerCase();
-    if (name.includes(q) || m.file.toLowerCase().includes(q)) hits.push([i, name.startsWith(q) ? 0 : name.includes(q) ? 1 : 2, m.deg]);
+    const rank = name.startsWith(q) ? 0 : name.includes(q) ? 1 : (m.route || '').toLowerCase().includes(q) || (m.sig || '').toLowerCase().includes(q) ? 2 : m.file.toLowerCase().includes(q) ? 3 : -1;
+    if (rank >= 0) hits.push([i, rank, m.deg || 0]);
   }
   hits.sort((a, b) => a[1] - b[1] || b[2] - a[2]);
-  for (const [i] of hits.slice(0, 8)) {
+  return { kind, hits: hits.slice(0, limit).map((h) => h[0]) };
+}
+searchInput.addEventListener('input', () => {
+  resultsEl.innerHTML = '';
+  const { kind, hits } = searchNodes(searchInput.value);
+  if (kind && !hits.length) resultsEl.innerHTML = `<li class="empty">sin ${escapeHtml(KIND_NAME[kind])}s que coincidan</li>`;
+  for (const i of hits) {
     const m = cosmos.meta[i];
     const li = document.createElement('li');
-    li.innerHTML = `<button type="button"><b>${escapeHtml(m.name)}</b><span>${KIND_NAME[m.kind] || m.kind} · ${escapeHtml(m.file)}</span></button>`;
+    const label = m.kind === 'endpoint' ? `endpoint ${isHttp(m) ? 'HTTP' : 'RPC'}` : KIND_NAME[m.kind] || m.kind;
+    const detail = m.kind === 'package' ? `${m.ecosystem || 'paquete'} ${m.version || ''}`.trim() : whereOf(m);
+    li.innerHTML = `<button type="button"><b>${escapeHtml(m.name)}</b><span><i class="kind">${escapeHtml(label)}</i> · ${escapeHtml(detail)}</span>${m.sig ? `<code>${escapeHtml(clip(m.sig, 110))}</code>` : ''}</button>`;
     li.querySelector('button').addEventListener('click', () => {
       openSearch(false);
       goToNode(i);
+      pin(i);
     });
     resultsEl.appendChild(li);
   }
 });
 searchInput.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape') openSearch(false);
+  if (e.key === 'Escape') openSearch(false), searchInput.blur();
   if (e.key === 'Enter') resultsEl.querySelector('button')?.click();
   e.stopPropagation();
 });
@@ -1075,6 +1251,8 @@ function weave() {
     },
     onMeta(o) {
       project.name = o.project;
+      const lod = cosmos.planCapacity(o.stats);
+      if (lod.on) toast(`proyecto grande · ${fmt(o.stats.nodes)} nodos: se tejen archivos, endpoints y los símbolos más conectados; el resto queda agregado en su archivo`, { kind: 'warn', ms: 9000 });
       const vEl = document.querySelector('#chip-version');
       const cEl = document.querySelector('#chip-changes');
       if (o.version) (vEl.hidden = false), (vEl.textContent = `v${o.version}`);
@@ -1148,6 +1326,13 @@ const communities = createCommunities({
   escapeHtml,
   rgb,
   kindName: KIND_NAME,
+  bridgesList: document.querySelector('#bridges-list'),
+  isHttp,
+  onBridge(n) {
+    openBridges(false);
+    goToNode(n);
+    pin(n);
+  },
   onRegion(r) {
     openComms(false);
     if (brain.mode === 'weave') return travelTo(r);
@@ -1191,9 +1376,11 @@ helpEl.addEventListener('click', (e) => {
 });
 
 function escape() {
+  if (!codeEl.hidden) return closeCode();
   if (!helpEl.hidden) return openHelp(false);
   if (cine.on) return setCine(false);
-  closePopovers();
+  if (popovers.some((p) => !p.el.hidden)) return closePopovers();
+  unpin();
 }
 
 const recorder = createRecorder(canvas);
@@ -1270,8 +1457,9 @@ const NEST_NODES = cosmos.count;
 const NEST_EDGES = cosmos.graph.edges;
 let chipsT = 0;
 let commsT = 0;
+let bridgesT = 0;
 function updateChips(dt) {
-  if (cosmos.graph.full && !project.fullWarned) {
+  if (cosmos.graph.full && !project.fullWarned && !cosmos.lod.on) {
     project.fullWarned = true;
     toast('el grafo superó la capacidad de la vista; el análisis completo sigue disponible en la exportación', { kind: 'warn', ms: 9000 });
   }
@@ -1285,6 +1473,10 @@ function updateChips(dt) {
   chip.nodes.textContent = fmt(Math.max(0, cosmos.count - NEST_NODES));
   chip.edges.textContent = fmt(Math.max(0, cosmos.graph.edges - NEST_EDGES));
   chip.comms.textContent = fmt(Math.max(0, cosmos.regions.length - 1));
+  const eps = cosmos.endpointCount;
+  bridgesChip.hidden = !eps;
+  if (eps) chip.bridges.textContent = fmt(eps);
+  if (!bridgesEl.hidden && (bridgesT -= 0.25) <= 0) (bridgesT = 1.5), communities.renderBridges();
   const R = cosmos.regions[brain.region];
   chip.here.textContent = project.current ? `${R ? R.name + ' · ' : ''}${project.current.split('/').pop()}` : R ? `en ${R.name}` : 'en el nido';
 }
@@ -1329,6 +1521,7 @@ function tick(dt) {
   sky.update(dt, time, camera, renderer.getPixelRatio());
   if (!cine.on) updateLabels();
   checkTip();
+  updateCard();
   renderer.render(scene, camera);
 }
 requestAnimationFrame(frame);
@@ -1375,6 +1568,19 @@ window.__cortex = {
   travelTo,
   jumpTo,
   goToNode,
+  pin,
+  unpin,
+  openCode,
+  closeCode,
+  searchNodes,
+  keyOf,
+  pickNode,
+  get card() {
+    return card.node;
+  },
+  get hovered() {
+    return tip.node;
+  },
   spawn: cosmos.spawn,
   setSpeed,
   setCine,

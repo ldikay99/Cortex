@@ -29,7 +29,7 @@ def test_nodes_have_expected_kinds_and_metadata(graph):
     for n in graph['nodes']:
         assert re.fullmatch(r'[0-9a-f]{12}', n['hash'])
         assert len(n['pos']) == 3
-    assert graph['stats']['kinds'] == {'doc': 2, 'module': 12, 'function': 9, 'class': 3, 'method': 6}
+    assert graph['stats']['kinds'] == {'doc': 2, 'module': 12, 'function': 9, 'class': 3, 'method': 6, 'endpoint': 1, 'package': 1}
     assert graph['stats']['warnings'] == [] and graph['stats']['warnings_total'] == 0
 
 
@@ -58,7 +58,7 @@ def test_edges_cover_imports_calls_inheritance_and_docs(graph):
         ('m:app/models.py', 'c:app/models.py:User', 'contains'),
     }
     assert expected <= edges
-    assert graph['stats']['edge_kinds'] == {'contains': 18, 'import': 9, 'call': 8, 'tests': 2, 'inherits': 1, 'loads': 1, 'ref': 4}
+    assert graph['stats']['edge_kinds'] == {'contains': 19, 'import': 9, 'call': 9, 'tests': 2, 'inherits': 1, 'loads': 1, 'ref': 4, 'depends': 1, 'handles': 1}
 
 
 def test_communities_and_visible_edges(graph):

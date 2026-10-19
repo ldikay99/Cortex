@@ -135,3 +135,19 @@ export function streamProject(hooks, { rate = 4000, retries = 6 } = {}) {
     },
   };
 }
+
+async function lookup(path, project, ref) {
+  const q = `project=${encodeURIComponent(project || '')}&ref=${encodeURIComponent(ref)}`;
+  let res;
+  try {
+    res = await fetch(`api/query/${path}?${q}`, { cache: 'no-store' });
+  } catch {
+    return { ok: false, status: 0, error: OFFLINE };
+  }
+  const out = await res.json().catch(() => null);
+  if (res.ok && out) return { ok: true, status: res.status, data: out };
+  return { ok: false, status: res.status, error: out?.error || '' };
+}
+
+export const getSymbol = (project, ref) => lookup('symbol', project, ref);
+export const getNodeInfo = (project, ref) => lookup('node', project, ref);

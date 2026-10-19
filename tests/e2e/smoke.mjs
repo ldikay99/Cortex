@@ -63,6 +63,17 @@ await step('la ayuda se abre y se cierra', async () => {
   assert(!(await visible(page, '#help')), 'el clic afuera no cerró la ayuda');
 });
 
+await step('la leyenda explica los tipos de nodo y los puentes', async () => {
+  await page.keyboard.press('?');
+  assert(await visible(page, '#help'), 'la ayuda no se abrió');
+  const text = await page.textContent('#help .card');
+  for (const word of ['endpoint HTTP', 'paquete', 'variable', 'tópico', 'Puentes', 'RPC', 'ver el código']) assert(text.includes(word), `la leyenda no menciona «${word}»`);
+  const shapes = await page.$$eval('#help .legend .shape, #help .legend .thread', (els) => els.length);
+  assert(shapes >= 8, `faltan símbolos en la leyenda (${shapes})`);
+  await page.keyboard.press('Escape');
+  assert(!(await visible(page, '#help')), 'Esc no cerró la ayuda');
+});
+
 await step('el selector de velocidad cambia y se recuerda', async () => {
   await page.click('#speed');
   assert(await visible(page, '#settings'), 'el panel de velocidad no se abrió');
@@ -142,6 +153,95 @@ await step('el buscador encuentra un nodo', async () => {
   await page.fill('#search input', query);
   const hits = await page.$$eval('#results li', (els) => els.length);
   assert(hits >= 1, `sin resultados para «${query}»`);
+});
+
+await step('el buscador filtra por tipo con prefijo', async () => {
+  if (!(await visible(page, '#search'))) {
+    await page.mouse.click(640, 600);
+    await page.keyboard.press('/');
+  }
+  await page.fill('#search input', 'archivo:');
+  const kinds = await page.$$eval('#results li .kind', (els) => els.map((el) => el.textContent));
+  assert(kinds.length >= 1, 'el prefijo archivo: no dio resultados');
+  assert(kinds.every((k) => k === 'archivo'), `el filtro dejó pasar otros tipos: ${[...new Set(kinds)].join(', ')}`);
+  const withSig = await page.evaluate(() => window.__cortex.cosmos.meta.find((m) => m && m.sig && m.name.length >= 3));
+  if (withSig) {
+    await page.fill('#search input', withSig.name);
+    const codes = await page.$$eval('#results li code', (els) => els.length);
+    assert(codes >= 1, 'los resultados no muestran la firma');
+  }
+  await page.keyboard.press('Escape');
+});
+
+await step('la ficha muestra firma, documentación y ver código', async () => {
+  const pick = await page.evaluate(() => {
+    const c = window.__cortex;
+    c.unpin();
+    c.closeCode();
+    c.film.start();
+    const v = { x: 0, y: 0, z: 0 };
+    const rect = document.querySelector('#stage').getBoundingClientRect();
+    const order = c.cosmos.meta.map((m, i) => [m, i]).filter(([m]) => m).sort((a, b) => (b[0].sig ? 1 : 0) - (a[0].sig ? 1 : 0) || (b[0].doc ? 1 : 0) - (a[0].doc ? 1 : 0));
+    for (const [m, i] of order) {
+      const p = c.cosmos.pos;
+      const P = new c.camera.position.constructor(p[i * 3], p[i * 3 + 1], p[i * 3 + 2]).project(c.camera);
+      if (P.z > 1) continue;
+      v.x = (P.x * 0.5 + 0.5) * rect.width + rect.left;
+      v.y = (-P.y * 0.5 + 0.5) * rect.height + rect.top;
+      if (v.x < 80 || v.x > rect.width - 420 || v.y < 120 || v.y > rect.height - 120) continue;
+      if (c.pickNode(v.x, v.y, 14) !== i) continue;
+      return { i, x: v.x, y: v.y, sig: m.sig || '', doc: m.doc || '', key: c.keyOf(m), project: c.project.name };
+    }
+    return null;
+  });
+  try {
+    assert(pick, 'no hay ningún nodo visible para pasar el ratón');
+    await page.mouse.move(pick.x + 40, pick.y + 40);
+    await page.mouse.move(pick.x, pick.y, { steps: 4 });
+    await waitFor(page, () => !document.querySelector('#tip').hidden, null, 5000, 'el tooltip no apareció');
+    const tip = await page.$eval('#tip', (el) => ({ text: el.textContent, sig: el.querySelector('.sig')?.textContent || '', where: el.querySelector('.where')?.textContent || '' }));
+    assert(tip.where.length > 0, 'el tooltip no muestra archivo:línea');
+    if (pick.sig) assert(tip.sig && pick.sig.startsWith(tip.sig.replace(/…$/, '')), 'el tooltip no muestra la firma');
+    else console.log('        (este grafo no trae firmas)');
+    if (pick.doc) assert(tip.text.includes(pick.doc.split(/\n|(?<=[.!?])\s/)[0].slice(0, 40)), 'el tooltip no muestra la documentación');
+    await page.mouse.click(pick.x, pick.y);
+    await waitFor(page, (i) => window.__cortex.card === i && !document.querySelector('#card').hidden, pick.i, 5000, 'el clic no fijó la ficha');
+    const status = await page.evaluate(async (p) => (await fetch(`api/query/symbol?project=${encodeURIComponent(p.project)}&ref=${encodeURIComponent(p.key)}`)).status, pick);
+    await page.click('#card [data-act=code]');
+    await waitFor(page, () => !document.querySelector('#code').hidden && !document.querySelector('#code-body').textContent.includes('leyendo'), null, 15000, 'el panel de código no terminó de cargar');
+    if (status === 200) {
+      const lines = await page.$$eval('#code-body .ln', (els) => els.length);
+      assert(lines >= 1, 'el panel no muestra líneas de código');
+      console.log(`        código: ${lines} líneas`);
+    } else {
+      const note = await page.textContent('#code-body .note');
+      assert(note && note.length > 5, `sin mensaje para el estado ${status}`);
+      console.log(`        /api/query/symbol respondió ${status}: «${note}»`);
+    }
+    await page.keyboard.press('Escape');
+    assert(!(await visible(page, '#code')), 'Esc no cerró el panel de código');
+    await page.keyboard.press('Escape');
+    assert(!(await visible(page, '#card')), 'Esc no cerró la ficha');
+  } finally {
+    await page.evaluate(() => window.__cortex.film.stop());
+  }
+});
+
+await step('los puentes listan endpoints y llevan a la araña', async () => {
+  const eps = await page.evaluate(() => window.__cortex.cosmos.endpointCount);
+  if (!eps) {
+    console.log('        (este grafo no tiene endpoints)');
+    return;
+  }
+  await waitFor(page, () => !document.querySelector('#bridges-chip').hidden, null, 5000, 'no aparece el chip de puentes');
+  await page.click('#bridges-chip');
+  assert(await visible(page, '#bridges'), 'el panel de puentes no se abrió');
+  const rows = await page.$$eval('#bridges-list li button', (els) => els.length);
+  assert(rows >= 1, 'el panel no lista endpoints');
+  await page.click('#bridges-list li button');
+  await waitFor(page, () => window.__cortex.card >= 0 && window.__cortex.cosmos.meta[window.__cortex.card].kind === 'endpoint', null, 5000, 'el clic no fijó el endpoint');
+  console.log(`        ${eps} endpoints · ${rows} en la lista`);
+  await page.keyboard.press('Escape');
 });
 
 await step('sin errores de página', async () => {

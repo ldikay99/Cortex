@@ -1,13 +1,25 @@
 import base64
+import contextlib
+import hashlib
+import json
 import os
 import re
 import shutil
 import subprocess
 import time
 
-from . import store
-from .analyze import analyze, export_json, export_markdown
+from . import __version__, config as project_config, store
+from .analyze import analyze, export_json, export_markdown, list_files
 from .errors import CortexError, InvalidInput, NotFound
+
+try:
+    import fcntl
+except ImportError:
+    fcntl = None
+try:
+    import msvcrt
+except ImportError:
+    msvcrt = None
 
 GITHUB_RE = re.compile(r'^https://github\.com/([\w.-]+)/([\w.-]+?)(?:\.git)?/?$')
 CLONE_TIMEOUT = 300
@@ -81,18 +93,105 @@ def clone_github(owner, repo, dest):
     return dest
 
 
-def analyze_and_save(root, project, origin, exclude=(), include_tests=False, still_wanted=None):
-    started = time.time()
-    graph = analyze(root, project, exclude, skip_tests=not include_tests)
-    graph['stats']['seconds'] = round(time.time() - started, 1)
-    if still_wanted is not None and not still_wanted():
+def code_signature():
+    folder = os.path.dirname(os.path.abspath(__file__))
+    out = [__version__]
+    for name in sorted(os.listdir(folder)):
+        if name.endswith('.py'):
+            st = os.stat(os.path.join(folder, name))
+            out.append(f'{name}:{st.st_size}:{st.st_mtime_ns}')
+    return out
+
+
+def source_files(root, exclude, include_tests, settings):
+    exclude = tuple(exclude) + tuple(settings.get('exclude') or ())
+    return [f for f in list_files(root, exclude, not include_tests) if not project_config.ignored(settings, f)]
+
+
+def fingerprint(root, exclude=(), include_tests=False, settings=None, commit=None, mtimes=True):
+    settings = settings if settings is not None else project_config.load(root)
+    head = {
+        'analyzer': code_signature(), 'exclude': sorted(exclude), 'tests': bool(include_tests), 'git': settings.get('git', True),
+        'ignore': settings.get('ignore_patterns') or [], 'config_exclude': settings.get('exclude') or [], 'roots': settings.get('roots') or [],
+        'commit': (commit or {}).get('sha') if settings.get('git', True) else None,
+    }
+    h = hashlib.sha256(json.dumps(head, sort_keys=True).encode())
+    for rel in sorted(source_files(root, exclude, include_tests, settings)):
+        try:
+            st = os.stat(os.path.join(root, rel))
+        except OSError:
+            continue
+        h.update(f'{rel}\0{st.st_size}\0{st.st_mtime_ns if mtimes else 0}\n'.encode('utf-8', 'surrogateescape'))
+    return h.hexdigest()
+
+
+@contextlib.contextmanager
+def project_lock(project):
+    path = os.path.join(store.project_dir(project), '.lock')
+    with open(path, 'a+b') as fh:
+        if fcntl:
+            fcntl.flock(fh.fileno(), fcntl.LOCK_EX)
+        elif msvcrt:
+            while True:
+                try:
+                    msvcrt.locking(fh.fileno(), msvcrt.LK_LOCK, 1)
+                    break
+                except OSError:
+                    continue
+        try:
+            yield
+        finally:
+            if fcntl:
+                fcntl.flock(fh.fileno(), fcntl.LOCK_UN)
+            elif msvcrt:
+                fh.seek(0)
+                msvcrt.locking(fh.fileno(), msvcrt.LK_UNLCK, 1)
+
+
+def previous_graph(project):
+    try:
+        return store.load_version(project)
+    except CortexError:
         return None
-    store.save_version(graph, origin, {'exclude': list(exclude), 'tests': include_tests}, git_commit(str(root)))
-    store.write_exports(graph, export_markdown, export_json)
+
+
+def analyze_and_save(root, project, origin, exclude=(), include_tests=None, still_wanted=None, scip=None):
+    started = time.perf_counter()
+    settings = project_config.load(root)
+    if include_tests is None:
+        include_tests = bool(settings.get('include_tests'))
+    git = settings.get('git', True)
+    commit = git_commit(str(root))
+    timings = {}
+    with project_lock(project):
+        hist = store.load_history(project)
+        last = hist['versions'][-1] if hist['versions'] else None
+        print_ = fingerprint(root, exclude, include_tests, settings, commit, mtimes=(origin or {}).get('type') != 'github')
+        timings['fingerprint'] = round(time.perf_counter() - started, 3)
+        previous = previous_graph(project) if last else None
+        if previous is not None and not scip and (last.get('options') or {}).get('fingerprint') == print_:
+            previous['unchanged'] = True
+            timings['total'] = round(time.perf_counter() - started, 3)
+            previous.setdefault('stats', {}).update(seconds=round(timings['total'], 2), timings=timings)
+            return previous
+        mark = time.perf_counter()
+        graph = analyze(root, project, exclude, skip_tests=not include_tests, git=git, previous=previous, scip=scip)
+        timings['analyze'] = round(time.perf_counter() - mark, 3)
+        if still_wanted is not None and not still_wanted():
+            return None
+        mark = time.perf_counter()
+        graph['stats']['seconds'] = round(time.perf_counter() - started, 1)
+        options = {'exclude': list(exclude), 'tests': include_tests, 'fingerprint': print_}
+        store.save_version(graph, origin, options, commit, previous=previous)
+        store.write_exports(graph, export_markdown, export_json)
+        timings['save'] = round(time.perf_counter() - mark, 3)
+    timings['total'] = round(time.perf_counter() - started, 3)
+    graph['unchanged'] = False
+    graph['stats'].update(seconds=round(timings['total'], 1), timings=timings)
     return graph
 
 
-def analyze_source(source, name=None, exclude=(), include_tests=False):
+def analyze_source(source, name=None, exclude=(), include_tests=None, scip=None):
     if not isinstance(source, str) or not source.strip():
         raise InvalidInput('indica una carpeta local o una URL https://github.com/usuario/repo')
     source = source.strip()
@@ -108,9 +207,11 @@ def analyze_source(source, name=None, exclude=(), include_tests=False):
         root = os.path.abspath(os.path.expanduser(source))
         if not os.path.isdir(root):
             raise NotFound(f'no existe la carpeta «{source}»')
-        project = store.slug(name or os.path.basename(root))
+        project = store.slug(name or project_config.load(root).get('name') or os.path.basename(root))
         origin = {'type': 'local', 'path': root}
-    return analyze_and_save(root, project, origin, exclude, include_tests)
+    if scip and not os.path.isfile(scip):
+        raise NotFound(f'no existe el índice SCIP «{scip}»')
+    return analyze_and_save(root, project, origin, exclude, include_tests, scip=os.path.abspath(scip) if scip else None)
 
 
 def summary(graph):
@@ -118,8 +219,10 @@ def summary(graph):
     return {
         'project': graph['project'],
         'version': graph.get('version'),
-        'stats': {k: stats.get(k) for k in ('files', 'nodes', 'edges', 'communities', 'languages', 'kinds', 'edge_kinds', 'seconds', 'warnings_total')},
-        'changes': {k: len(v) for k, v in (graph.get('changes') or {}).items()},
+        'unchanged': bool(graph.get('unchanged')),
+        'stats': {k: stats.get(k) for k in ('files', 'nodes', 'edges', 'communities', 'languages', 'kinds', 'edge_kinds', 'seconds', 'timings', 'warnings_total')},
+        'changes': ({'added': 0, 'modified': 0, 'removed': 0} if graph.get('unchanged')
+                    else {k: len(v) for k, v in (graph.get('changes') or {}).items()}),
         'communities': [{'id': c['id'], 'name': c['name'], 'size': c['size']} for c in graph['communities']],
         'warnings': (stats.get('warnings') or [])[:10],
         'report': os.path.join(store.project_dir(graph['project']), 'grafo.md'),
