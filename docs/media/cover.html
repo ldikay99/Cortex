@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<title>Córtex cover</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,500&family=Outfit:wght@300;400&display=swap" />
+<style>
+  :root { --bg: #020309; --fg: #e6eef8; --muted: #8794aa; --cyan: 140 220 245; --core: #ffe6c2; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1280px; height: 640px; background: var(--bg); overflow: hidden; }
+  body { position: relative; font-family: Outfit, system-ui, sans-serif; color: var(--fg); }
+  .sky { position: absolute; inset: 0;
+    background:
+      radial-gradient(520px 340px at 76% 46%, rgb(60 120 170 / 0.22), transparent 70%),
+      radial-gradient(380px 260px at 92% 86%, rgb(150 90 200 / 0.16), transparent 70%),
+      radial-gradient(420px 300px at 58% 12%, rgb(230 140 110 / 0.10), transparent 70%),
+      radial-gradient(500px 360px at 8% 92%, rgb(70 90 190 / 0.14), transparent 70%),
+      radial-gradient(900px 640px at 30% 50%, rgb(20 28 52 / 0.55), transparent 75%); }
+  svg { position: absolute; inset: 0; }
+  .copy { position: absolute; left: 92px; top: 0; bottom: 0; display: flex; flex-direction: column; justify-content: center; width: 560px; }
+  .eyebrow { font-size: 15px; letter-spacing: 0.32em; text-transform: uppercase; color: rgb(var(--cyan) / 0.78); font-weight: 400; margin-bottom: 22px; }
+  h1 { font-family: Fraunces, Georgia, serif; font-weight: 300; font-variation-settings: 'opsz' 144; font-size: 132px; line-height: 0.92; letter-spacing: -0.02em;
+    text-shadow: 0 0 38px rgb(var(--cyan) / 0.18); }
+  .tag { margin-top: 28px; font-family: Fraunces, Georgia, serif; font-weight: 300; font-size: 31px; line-height: 1.25; color: #d7e2ef; }
+  .sub { margin-top: 18px; font-size: 18px; font-weight: 300; color: var(--muted); line-height: 1.5; }
+  .credit { position: absolute; left: 92px; bottom: 44px; font-size: 15px; font-weight: 300; letter-spacing: 0.06em; color: rgb(135 148 170 / 0.85); }
+  .credit b { font-weight: 400; color: #b9c6d8; }
+</style>
+</head>
+<body>
+<div class="sky"></div>
+<svg id="art" width="1280" height="640" viewBox="0 0 1280 640" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="2.4" result="b" />
+      <feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge>
+    </filter>
+    <filter id="haze" x="-80%" y="-80%" width="260%" height="260%"><feGaussianBlur stdDeviation="16" /></filter>
+    <radialGradient id="core" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#fff4e2" stop-opacity="0.95" />
+      <stop offset="35%" stop-color="#ffe6c2" stop-opacity="0.45" />
+      <stop offset="100%" stop-color="#ffe6c2" stop-opacity="0" />
+    </radialGradient>
+  </defs>
+  <g id="stars"></g>
+  <g id="graph"></g>
+  <g id="web" fill="none" stroke="rgb(140 220 245)" stroke-linecap="round"></g>
+  <g id="spider" fill="none" stroke="rgb(160 230 250)" stroke-linecap="round" stroke-linejoin="round" filter="url(#glow)"></g>
+</svg>
+<div class="copy">
+  <p class="eyebrow">grafo de conocimiento · MCP</p>
+  <h1>Córtex</h1>
+  <p class="tag">Teje el grafo de conocimiento<br />de tu código</p>
+  <p class="sub">Una memoria viva que cualquier IA puede consultar,<br />y un universo 3D que la araña teje archivo por archivo.</p>
+</div>
+<p class="credit">por <b>Jonathan C</b> · ldikay99</p>
+<script>
+  const NS = 'http://www.w3.org/2000/svg';
+  let seed = 11;
+  const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+  const el = (parent, tag, attrs) => {
+    const n = document.createElementNS(NS, tag);
+    for (const k in attrs) n.setAttribute(k, attrs[k]);
+    document.getElementById(parent).appendChild(n);
+    return n;
+  };
+
+  for (let i = 0; i < 260; i++) {
+    const x = rnd() * 1280, y = rnd() * 640, r = rnd() < 0.92 ? 0.5 + rnd() * 0.6 : 1 + rnd() * 0.6;
+    el('stars', 'circle', { cx: x, cy: y, r, fill: '#dfe8f5', opacity: (0.12 + rnd() * 0.45).toFixed(2) });
+  }
+
+  const C = { x: 960, y: 318 };
+  const SPOKES = 18, RINGS = 11, R = 300;
+  const angles = Array.from({ length: SPOKES }, (_, i) => (i / SPOKES) * Math.PI * 2 + (rnd() - 0.5) * 0.12);
+  const reach = angles.map(() => R * (0.86 + rnd() * 0.22));
+  const pt = (i, f) => {
+    const a = angles[(i + SPOKES) % SPOKES], r = reach[(i + SPOKES) % SPOKES] * f;
+    return [C.x + Math.cos(a) * r, C.y + Math.sin(a) * r * 0.94];
+  };
+
+  angles.forEach((_, i) => {
+    const [x, y] = pt(i, 1.06);
+    el('web', 'line', { x1: C.x, y1: C.y, x2: x, y2: y, 'stroke-width': 0.7, 'stroke-opacity': 0.30 });
+  });
+  for (let k = 1; k <= RINGS; k++) {
+    const f = 0.07 + (k / RINGS) * 0.93 + (rnd() - 0.5) * 0.015;
+    let d = '';
+    for (let i = 0; i <= SPOKES; i++) {
+      const [x, y] = pt(i, f);
+      if (i === 0) { d += `M${x.toFixed(1)} ${y.toFixed(1)}`; continue; }
+      const [px, py] = pt(i - 1, f);
+      const mx = (x + px) / 2, my = (y + py) / 2;
+      const sag = 0.06 + rnd() * 0.04;
+      const cx = mx + (C.x - mx) * sag, cy = my + (C.y - my) * sag;
+      d += ` Q${cx.toFixed(1)} ${cy.toFixed(1)} ${x.toFixed(1)} ${y.toFixed(1)}`;
+    }
+    el('web', 'path', { d, 'stroke-width': 0.75, 'stroke-opacity': (0.16 + 0.22 * (1 - k / RINGS)).toFixed(2) });
+  }
+
+  const PAL = ['#ffb880', '#94b8ff', '#c299ff', '#ff94a8', '#8aebd6', '#80d6ff', '#e69efa', '#d6f594'];
+  const nodes = [];
+  for (let c = 0; c < 7; c++) {
+    const a = angles[(c * 3 + 1) % SPOKES] + 0.1, f = 0.45 + rnd() * 0.5;
+    const cx = C.x + Math.cos(a) * R * f, cy = C.y + Math.sin(a) * R * f * 0.94;
+    el('graph', 'circle', { cx, cy, r: 40 + rnd() * 22, fill: PAL[c], opacity: 0.075, filter: 'url(#haze)' });
+    for (let j = 0; j < 9; j++) {
+      const t = rnd() * Math.PI * 2, d = rnd() * 36;
+      const n = { x: cx + Math.cos(t) * d, y: cy + Math.sin(t) * d * 0.8, c: PAL[c] };
+      nodes.push(n);
+    }
+    const hub = nodes[nodes.length - 9];
+    for (let j = 1; j < 9; j++) {
+      const n = nodes[nodes.length - 9 + j];
+      el('graph', 'line', { x1: hub.x, y1: hub.y, x2: n.x, y2: n.y, stroke: PAL[c], 'stroke-width': 0.6, 'stroke-opacity': 0.35 });
+    }
+    el('graph', 'line', { x1: C.x, y1: C.y, x2: hub.x, y2: hub.y, stroke: 'rgb(140 220 245)', 'stroke-width': 0.8, 'stroke-opacity': 0.42, 'stroke-dasharray': '1 5' });
+  }
+  nodes.forEach((n, i) => el('graph', 'circle', { cx: n.x, cy: n.y, r: i % 9 === 0 ? 2.6 : 1.4, fill: n.c, opacity: i % 9 === 0 ? 0.95 : 0.75 }));
+
+  el('graph', 'circle', { cx: C.x, cy: C.y, r: 46, fill: 'url(#core)', opacity: 0.85 });
+  const nest = [];
+  for (let i = 0; i < 6; i++) {
+    const a = (i / 6) * Math.PI * 2 + Math.PI / 6;
+    nest.push([C.x + Math.cos(a) * 15, C.y + Math.sin(a) * 15]);
+  }
+  el('web', 'polygon', { points: nest.map((p) => p.join(',')).join(' '), stroke: '#ffe6c2', 'stroke-width': 0.8, 'stroke-opacity': 0.7 });
+  nest.forEach((p, i) => {
+    const q = nest[(i + 2) % 6];
+    el('web', 'line', { x1: p[0], y1: p[1], x2: q[0], y2: q[1], stroke: '#ffe6c2', 'stroke-width': 0.6, 'stroke-opacity': 0.45 });
+  });
+
+  const S = { x: 1086, y: 192, rot: -135, s: 1.08 };
+  const g = el('spider', 'g', { transform: `translate(${S.x} ${S.y}) rotate(${S.rot}) scale(${S.s})` });
+  const add = (tag, attrs) => { const n = document.createElementNS(NS, tag); for (const k in attrs) n.setAttribute(k, attrs[k]); g.appendChild(n); return n; };
+  add('ellipse', { cx: 0, cy: 32, rx: 19, ry: 26, 'stroke-width': 1.1, 'stroke-opacity': 0.95 });
+  add('path', { d: 'M-19 32 Q0 24 19 32 M-16 17 Q0 11 16 17 M-16 47 Q0 41 16 47 M0 6 L0 58', 'stroke-width': 0.6, 'stroke-opacity': 0.5 });
+  add('ellipse', { cx: 0, cy: -4, rx: 10.5, ry: 11.5, 'stroke-width': 1.1, 'stroke-opacity': 0.95 });
+  add('path', { d: 'M-10 -4 L10 -4 M0 -15 L0 7', 'stroke-width': 0.55, 'stroke-opacity': 0.45 });
+  add('path', { d: 'M-3.5 -15 Q-5 -21 -2 -24 M3.5 -15 Q5 -21 2 -24', 'stroke-width': 0.9 });
+  [[-2.6, -12], [2.6, -12], [-5.5, -10], [5.5, -10]].forEach(([x, y]) => add('circle', { cx: x, cy: y, r: 0.9, fill: 'rgb(200 245 255)', stroke: 'none' }));
+  const legs = [
+    [[-8, -9], [-30, -32], [-40, -64], [-37, -100]],
+    [[-10, -4], [-40, -18], [-64, -34], [-86, -42]],
+    [[-10, 2], [-40, 6], [-66, 22], [-86, 44]],
+    [[-8, 7], [-30, 24], [-44, 56], [-48, 96]],
+  ];
+  legs.forEach((leg) => {
+    [1, -1].forEach((m) => {
+      const ps = leg.map(([x, y]) => [x * m, y]);
+      add('polyline', { points: ps.map((p) => p.join(',')).join(' '), 'stroke-width': 1.05, 'stroke-opacity': 0.9 });
+      ps.slice(1, 3).forEach(([x, y]) => add('circle', { cx: x, cy: y, r: 1.4, 'stroke-width': 0.7, 'stroke-opacity': 0.8 }));
+    });
+  });
+  const k = (S.rot * Math.PI) / 180;
+  const sx = S.x - Math.sin(k) * 58 * S.s, sy = S.y + Math.cos(k) * 58 * S.s;
+  el('web', 'line', { x1: sx.toFixed(1), y1: sy.toFixed(1), x2: 1232, y2: 22, 'stroke-width': 0.9, 'stroke-opacity': 0.5 });
+  document.fonts.ready.then(() => document.body.setAttribute('data-ready', '1'));
+</script>
+</body>
+</html>

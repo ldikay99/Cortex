@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Córtex</title>
+  <meta name="description" content="Una araña de líneas teje en vivo el grafo de conocimiento de un repositorio de código." />
+  <meta name="author" content="Jonathan C (ldikay99)" />
+  <meta name="theme-color" content="#020309" />
+  <meta name="color-scheme" content="dark" />
+  <meta property="og:title" content="Córtex" />
+  <meta property="og:description" content="Una araña de líneas teje en vivo el grafo de conocimiento de un repositorio de código." />
+  <meta property="og:type" content="website" />
+  <meta name="apple-mobile-web-app-title" content="Córtex" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black" />
+  <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+  <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png" />
+  <link rel="apple-touch-icon" href="icon-192.png" />
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500&family=Outfit:wght@300;400;500&display=swap" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main>
+    <canvas id="stage" aria-label="Red de nebulosas con una araña de líneas"></canvas>
+    <div class="vignette" aria-hidden="true"></div>
+    <div id="labels"></div>
+
+    <header id="topbar">
+      <div class="brand">
+        <h1>Córtex</h1>
+        <p><span class="pulse" aria-hidden="true"></span><span id="status" aria-live="polite">despertando</span></p>
+      </div>
+      <div id="chips" hidden>
+        <span class="chip project" id="project" aria-live="polite"></span>
+        <span class="chip"><b id="chip-files">0</b> archivos</span>
+        <span class="chip"><b id="chip-nodes">0</b> nodos</span>
+        <span class="chip"><b id="chip-edges">0</b> relaciones</span>
+        <button type="button" class="chip comms" id="comms-chip" aria-expanded="false" aria-controls="comms" title="Ver comunidades y nodos más conectados"><b id="chip-comms">0</b> comunidades</button>
+        <span class="chip version" id="chip-version" hidden></span>
+        <span class="chip changes" id="chip-changes" hidden></span>
+        <span class="chip here"><i aria-hidden="true"></i><span id="chip-here">en el nido</span></span>
+      </div>
+      <div id="progress" hidden><i></i></div>
+    </header>
+
+    <nav id="tools" aria-label="Herramientas">
+      <span id="rec-chip" hidden><i aria-hidden="true"></i>REC <b id="rec-time">00:00</b></span>
+      <button id="speed" class="tool speed" type="button" aria-expanded="false" aria-controls="settings" title="Velocidad del tejido" aria-label="Velocidad del tejido">1×</button>
+      <button id="record" class="tool" type="button" aria-pressed="false" title="Grabar reel" aria-label="Grabar reel">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8" /><circle cx="12" cy="12" r="3.6" class="dot" /></svg>
+      </button>
+      <button id="cine" class="tool" type="button" aria-pressed="false" title="Modo cine (H)" aria-label="Modo cine">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="6" width="17" height="12" rx="2" /><path d="M3.5 9.5h17M3.5 14.5h17M8 6v3.5M12 6v3.5M16 6v3.5M8 14.5V18M12 14.5V18M16 14.5V18" /></svg>
+      </button>
+      <button id="help-btn" class="tool" type="button" aria-expanded="false" aria-controls="help" title="Ayuda (?)" aria-label="Ayuda">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5" /><path d="M9.6 9.6a2.5 2.5 0 1 1 3.6 2.2c-.8.4-1.2 1-1.2 1.8v.6" /><circle cx="12" cy="16.9" r=".6" class="fill" /></svg>
+      </button>
+      <button id="export" class="tool" type="button" hidden aria-expanded="false" title="Exportar el grafo" aria-label="Exportar el grafo">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11M7.5 10.5 12 15l4.5-4.5" /><path d="M4 14v4.5A1.5 1.5 0 0 0 5.5 20h13a1.5 1.5 0 0 0 1.5-1.5V14" /></svg>
+      </button>
+      <button id="upload" class="tool" type="button" hidden aria-expanded="false" title="Analizar un proyecto" aria-label="Analizar un proyecto">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V4M7.5 8.5 12 4l4.5 4.5" /><path d="M4 14v4.5A1.5 1.5 0 0 0 5.5 20h13a1.5 1.5 0 0 0 1.5-1.5V14" /></svg>
+      </button>
+      <button id="find" class="tool" type="button" hidden aria-expanded="false" title="Buscar en el proyecto (/)" aria-label="Buscar en el proyecto">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5" /><path d="M15.5 15.5 21 21" /></svg>
+      </button>
+    </nav>
+
+    <div id="settings" class="popover" hidden>
+      <p class="title">Velocidad del tejido</p>
+      <div class="seg" role="radiogroup" aria-label="Velocidad del tejido">
+        <button type="button" role="radio" data-speed="0.5" aria-checked="false">0.5×</button>
+        <button type="button" role="radio" data-speed="1" aria-checked="true">1×</button>
+        <button type="button" role="radio" data-speed="2" aria-checked="false">2×</button>
+        <button type="button" role="radio" data-speed="4" aria-checked="false">4×</button>
+      </div>
+      <label class="toggle"><input type="checkbox" id="rec-cine" />Entrar en modo cine al grabar</label>
+      <p class="note">El reel graba solo la escena 3D, sin la interfaz.</p>
+    </div>
+
+    <div id="exporter" class="popover" hidden>
+      <p class="title">Exportar el grafo</p>
+      <a class="pick" href="api/export.md" download>Contexto para tu IA (.md)</a>
+      <a class="pick" href="api/export.json" download>Grafo para asistentes (.json)</a>
+      <a class="pick" href="api/export.cortex" download>Grafo de Córtex para importar (.cortex.json)</a>
+      <p class="note">También quedan guardados en la carpeta <b>datos/</b> del proyecto, con todas sus versiones.</p>
+    </div>
+
+    <div id="uploader" class="popover" hidden>
+      <div id="pick-view">
+        <p class="title">¿Qué proyecto teje la araña?</p>
+        <p class="note">Se suben el código y los documentos (.py, .ts, .tsx, .js, .md). Antes de tejer eliges qué carpetas procesar.</p>
+        <label class="pick"><input type="file" id="pick-folder" webkitdirectory multiple />Elegir carpeta del proyecto</label>
+        <label class="pick"><input type="file" id="pick-zip" accept=".zip,application/zip" />Subir un .zip</label>
+        <form id="github" class="gh">
+          <input type="url" placeholder="https://github.com/usuario/repo" aria-label="URL del repositorio de GitHub" required />
+          <button type="submit">Clonar</button>
+        </form>
+        <label class="pick"><input type="file" id="pick-import" accept=".json,application/json" />Importar un grafo (.cortex.json)</label>
+        <button type="button" id="open-last" class="pick" hidden></button>
+        <div id="saved" hidden>
+          <p class="subtitle">Grafos guardados</p>
+          <ul id="saved-list"></ul>
+        </div>
+      </div>
+      <div id="review-view" hidden>
+        <p class="title">Revisa qué va a tejer</p>
+        <p class="note" id="review-summary"></p>
+        <label class="toggle"><input type="checkbox" id="review-tests" /><span id="review-tests-label">Incluir tests</span></label>
+        <ul id="review-tree" class="tree"></ul>
+        <div class="row">
+          <button type="button" id="review-cancel" class="ghost">Volver</button>
+          <button type="button" id="review-go" class="go">Tejer</button>
+        </div>
+      </div>
+      <p id="upload-status" aria-live="polite"></p>
+    </div>
+
+    <div id="search" class="popover bare" hidden>
+      <input type="search" placeholder="buscar archivo, clase o función…" autocomplete="off" spellcheck="false" aria-label="Buscar en el proyecto" />
+      <ul id="results"></ul>
+    </div>
+
+    <section id="comms" class="popover" hidden aria-label="Comunidades">
+      <p class="title">Comunidades</p>
+      <ul id="comms-list" class="rank"></ul>
+      <div id="top-nodes" hidden>
+        <p class="subtitle">Nodos más conectados</p>
+        <ol id="top-list" class="rank"></ol>
+      </div>
+    </section>
+
+    <div id="tip" hidden></div>
+
+    <p id="hint">
+      <span class="desk">clic en una nebulosa: la araña va o salta · clic izq. girar · clic der. mover · rueda acercar / alejar · ? ayuda</span>
+      <span class="touch">toca una nebulosa para que vaya o salte · un dedo gira · dos dedos mueven y acercan</span>
+    </p>
+
+    <button id="follow" type="button" aria-pressed="true" title="Seguir a la araña (F)" aria-label="Seguir a la araña">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <circle cx="12" cy="12" r="7.5" />
+        <circle cx="12" cy="12" r="1.6" class="fill" />
+        <path d="M12 1.5v4M12 18.5v4M1.5 12h4M18.5 12h4" />
+      </svg>
+    </button>
+
+    <div id="help" hidden>
+      <div class="card" role="dialog" aria-modal="true" aria-labelledby="help-title">
+        <button type="button" class="close" id="help-close" aria-label="Cerrar la ayuda">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" /></svg>
+        </button>
+        <h2 id="help-title">Cómo moverse por Córtex</h2>
+        <div class="cols">
+          <div>
+            <p class="subtitle">Controles</p>
+            <dl class="keys">
+              <dt>arrastrar con clic izq.</dt><dd>girar la cámara</dd>
+              <dt>arrastrar con clic der.</dt><dd>mover la cámara</dd>
+              <dt>rueda</dt><dd>acercar / alejar</dd>
+              <dt>clic en un nodo o nebulosa</dt><dd>la araña va hacia allí</dd>
+              <dt><kbd>/</kbd></dt><dd>buscar en el proyecto</dd>
+              <dt><kbd>F</kbd></dt><dd>seguir a la araña</dd>
+              <dt><kbd>H</kbd></dt><dd>modo cine</dd>
+              <dt><kbd>?</kbd></dt><dd>esta ayuda</dd>
+              <dt><kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd> <kbd>Q</kbd> <kbd>E</kbd></dt><dd>desplazar la cámara</dd>
+              <dt><kbd>Esc</kbd></dt><dd>cerrar paneles</dd>
+            </dl>
+          </div>
+          <div>
+            <p class="subtitle">Leyenda</p>
+            <ul class="legend">
+              <li><span class="sizes"><i style="--s: 13px"></i><i style="--s: 11px"></i><i style="--s: 9px"></i><i style="--s: 6px"></i></span><span>tamaño del nodo: archivo, documento, clase, función / método</span></li>
+              <li><i class="dot" style="--c: rgb(140 245 184)"></i><span>verde menta: nuevo desde la versión anterior</span></li>
+              <li><i class="dot" style="--c: rgb(250 190 92)"></i><span>ámbar: modificado</span></li>
+              <li><i class="cloud"></i><span>nebulosa: una comunidad de código</span></li>
+              <li><i class="core"></i><span>núcleo: el nido de la araña</span></li>
+              <li><i class="pulse-line"></i><span>pulsos: conocimiento tejido que viaja por el grafo</span></li>
+            </ul>
+          </div>
+        </div>
+        <p class="credits">Córtex — creado por <a href="https://github.com/ldikay99" target="_blank" rel="noopener">Jonathan C (ldikay99)</a> · Colombia</p>
+      </div>
+    </div>
+
+    <p id="cine-hint" aria-live="polite">modo cine · <kbd>H</kbd> o <kbd>Esc</kbd> para salir</p>
+    <div id="toasts" aria-live="polite"></div>
+    <div id="fallback" hidden>
+      <p>Córtex necesita WebGL 2 para dibujar la red.<br />Prueba con un navegador actualizado o activa la aceleración por hardware.</p>
+    </div>
+    <noscript><p class="fallback-static">Córtex necesita JavaScript y WebGL.</p></noscript>
+  </main>
+  <script src="app.js" defer></script>
+</body>
+</html>

@@ -1,0 +1,22 @@
+services:
+  cortex:
+    build: .
+    image: cortex:latest
+    container_name: cortex
+    ports:
+      - "8090:80"
+    depends_on:
+      - analyzer
+    restart: unless-stopped
+
+  analyzer:
+    build: ./analyzer
+    image: cortex-analyzer:latest
+    container_name: cortex-analyzer
+    environment:
+      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+      CORTEX_DATA: /data
+    volumes:
+      - ./datos:/data
+    user: "1000:1000"
+    restart: unless-stopped

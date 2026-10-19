@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cortex-graph"
+version = "1.0.0"
+description = "Córtex: analiza un repositorio de forma determinista (sin IA) y lo convierte en un grafo de conocimiento con comunidades, versiones, CLI, API HTTP y servidor MCP."
+readme = { text = "Córtex convierte un repositorio en un grafo de conocimiento determinista: módulos, clases, funciones y documentos unidos por imports, llamadas, herencia y referencias, agrupados en comunidades.", content-type = "text/plain" }
+authors = [{ name = "Jonathan C (ldikay99)" }]
+license = "MIT"
+requires-python = ">=3.11"
+keywords = ["knowledge-graph", "code-analysis", "mcp", "static-analysis", "leiden", "tree-sitter"]
+dependencies = [
+    "tree-sitter==0.26.0",
+    "tree-sitter-typescript==0.23.2",
+    "python-igraph==1.0.0",
+    "leidenalg==0.12.0",
+    "networkx==3.7",
+    "numpy==2.5.4",
+    "scipy==1.18.1",
+    "mcp==1.29.1",
+]
+
+[project.urls]
+Homepage = "https://github.com/ldikay99/Cortex"
+Repository = "https://github.com/ldikay99/Cortex"
+Issues = "https://github.com/ldikay99/Cortex/issues"
+
+[project.optional-dependencies]
+dev = ["pytest==9.1.1"]
+
+[project.scripts]
+cortex = "cortex_graph.cli:main"
+
+[tool.setuptools]
+packages = ["cortex_graph"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

@@ -1,0 +1,8 @@
+node_modules
+_original
+app.js
+*.map
+.git
+analyzer
+datos
+tests

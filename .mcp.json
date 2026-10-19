@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "cortex": {
+      "command": "docker",
+      "args": ["exec", "-i", "cortex-analyzer", "cortex", "mcp"]
+    }
+  }
+}
