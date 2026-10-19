@@ -10,7 +10,7 @@ import leidenalg
 import networkx as nx
 import numpy as np
 
-from . import generic, langs
+from . import bridges, config as project_config, deps, generic, gitinfo, langs
 from .common import MAX_FILE_BYTES, MAX_NOTEBOOK_BYTES, Graph, Issues, describe_failure, digest, read_source
 from .errors import CortexError
 from .pyast import analyze_python, py_module_name
@@ -35,8 +35,13 @@ DOCS = {'.md', '.mdx', '.rst'}
 CODE_EXTS = CODE_PY | CODE_TS | DOCS | langs.EXTS
 SKIP_SUFFIXES = ('.d.ts', '.min.js', '.bundle.js', '.min.css', '.map', '.pb.go', '_pb2.py', '.g.dart', '.designer.cs')
 
-EDGE_WEIGHT = {'contains': 3.0, 'import': 1.0, 'call': 1.0, 'inherits': 1.5, 'ref': 0.6, 'loads': 1.0}
-STRUCTURAL_RANK = {'contains': 3, 'inherits': 2, 'import': 1}
+EDGE_WEIGHT = {
+    'contains': 3.0, 'import': 1.0, 'call': 1.0, 'inherits': 1.5, 'ref': 0.6, 'loads': 1.0, 'tests': 0.4, 'http': 1.2,
+    'rpc': 1.2, 'handles': 2.0, 'env': 0.2, 'data': 0.6, 'event': 0.8, 'depends': 0.3, 'cochange': 0.3,
+}
+STRUCTURAL_RANK = {'contains': 3, 'handles': 2, 'inherits': 2, 'import': 1}
+BRIDGE_KINDS = {'http', 'rpc', 'handles', 'event', 'data'}
+NODE_EXTRA = ('route', 'table', 'sig', 'doc', 'end', 'vis', 'test', 'version', 'ecosystem', 'churn', 'last', 'authors')
 MAX_COMMUNITIES = 28
 MIN_COMMUNITY = 8
 MIN_NODES = 40
@@ -46,7 +51,8 @@ NEST = 14.0
 LAYOUT_BUDGET = 1.5e9
 ORBIT_MIN = 900
 
-KIND_ES = {'module': 'archivo', 'doc': 'documento', 'class': 'clase', 'function': 'función', 'method': 'método'}
+KIND_ES = {'module': 'archivo', 'doc': 'documento', 'class': 'clase', 'function': 'función', 'method': 'método',
+           'package': 'dependencia', 'variable': 'variable', 'endpoint': 'endpoint', 'topic': 'tema'}
 
 PALETTE = [
     [1.0, 0.72, 0.5], [0.58, 0.72, 1.0], [0.76, 0.6, 1.0], [1.0, 0.58, 0.66], [0.54, 0.92, 0.84],
@@ -607,11 +613,39 @@ def rounded(vector):
     return [round(float(x), 3) for x in vector]
 
 
-def analyze(root, project=None, exclude=(), skip_tests=False):
+def mark_tests(g):
+    tested = {nid for nid, m in g.nodes.items() if is_test(m['file'])}
+    for nid in tested:
+        g.nodes[nid]['test'] = True
+    for (a, b, kind), n in list(g.edges.items()):
+        if kind == 'call' and a in tested and b not in tested:
+            del g.edges[(a, b, kind)]
+            g.edges[(a, b, 'tests')] += n
+
+
+def apply_git(g, info):
+    if not info:
+        return
+    by_file = {}
+    for nid, m in g.nodes.items():
+        if m['kind'] in ('module', 'doc'):
+            by_file[m['file']] = nid
+    for rel, meta in (info.get('files') or {}).items():
+        nid = by_file.get(rel)
+        if nid:
+            g.nodes[nid].update({k: v for k, v in meta.items() if k in ('churn', 'last', 'authors')})
+    for a, b, w in info.get('cochange') or []:
+        if a in by_file and b in by_file:
+            g.edges[(by_file[a], by_file[b], 'cochange')] += int(w)
+
+
+def analyze(root, project=None, exclude=(), skip_tests=False, git=True):
     root = Path(root)
     if not root.is_dir():
         raise CortexError(f'no existe la carpeta «{root}»')
-    files = list_files(root, exclude, skip_tests)
+    settings = project_config.load(root)
+    exclude = tuple(exclude) + tuple(settings.get('exclude') or ())
+    files = [f for f in list_files(root, exclude, skip_tests) if not project_config.ignored(settings, f)]
     scripts = {f: script_route(read_head(root / f)) for f in files if maybe_script(f) and not langs.lang_of(f)}
     scripts = {f: r for f, r in scripts.items() if r}
     py = [f for f in files if os.path.splitext(f)[1] in CODE_PY or scripts.get(f) == 'py']
@@ -632,6 +666,12 @@ def analyze(root, project=None, exclude=(), skip_tests=False):
     sources.update({f'd:{rel}': (rel, text) for rel, text in texts.items()})
     link_docs(sources, g, files)
     generic.link_tables(g, tables)
+    deps.link_dependencies(root, files, g, issues, read_source)
+    bridges.link_bridges(root, files, g, issues, read_source)
+    if not skip_tests:
+        mark_tests(g)
+    if git:
+        apply_git(g, gitinfo.collect(root, files))
     if not g.nodes:
         raise CortexError('no hay archivos de código ni documentos para analizar en esa carpeta')
 
@@ -661,8 +701,7 @@ def analyze(root, project=None, exclude=(), skip_tests=False):
         nodes.append({
             'id': ids[nid], 'key': nid, 'c': community[nid], 'kind': meta['kind'], 'name': meta['name'],
             'file': meta['file'], 'line': meta['line'], 'deg': degree[nid], 'pos': rounded(node_pos[nid]),
-            **({'route': meta['route']} if meta.get('route') else {}),
-            **({'table': meta['table']} if meta.get('table') else {}),
+            **{k: meta[k] for k in NODE_EXTRA if meta.get(k) not in (None, '', False)},
             'hash': meta.get('hash', ''),
         })
     for (a, b, kind) in g.edges:
@@ -687,9 +726,15 @@ def visible_edges(g, community, ids):
     file_node = {m['file']: nid for nid, m in g.nodes.items() if m['kind'] in ('module', 'doc')}
     keep = {}
     cross = defaultdict(Counter)
+    bridges_out = []
     for (a, b, kind), n in g.edges.items():
         fa, fb = g.nodes[a]['file'], g.nodes[b]['file']
-        if kind == 'call':
+        if kind in BRIDGE_KINDS:
+            bridges_out.append({'a': ids[a], 'b': ids[b], 'kind': kind, 'w': n})
+            continue
+        if kind == 'cochange':
+            continue
+        if kind in ('call', 'tests', 'env', 'depends'):
             if fa == fb:
                 continue
             a, b, kind = file_node.get(fa, a), file_node.get(fb, b), 'import'
@@ -704,7 +749,7 @@ def visible_edges(g, community, ids):
     for links in cross.values():
         for (a, b), n in links.most_common(2):
             out.append({'a': ids[a], 'b': ids[b], 'kind': 'import', 'w': n})
-    return out
+    return bridges_out + out
 
 
 def cap_visible(edges, limit=MAX_VISIBLE):

@@ -7,7 +7,7 @@ services:
       - "8090:80"
     depends_on:
       - analyzer
-    restart: unless-stopped
+    restart: "no"
 
   analyzer:
     build: ./analyzer
@@ -19,4 +19,4 @@ services:
     volumes:
       - ./datos:/data
     user: "1000:1000"
-    restart: unless-stopped
+    restart: "no"

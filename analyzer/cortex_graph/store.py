@@ -10,7 +10,7 @@ import numpy as np
 from .errors import CortexError, InvalidInput
 
 FORMAT = 'cortex-grafo/1'
-NODE_KINDS = {'module', 'class', 'function', 'method', 'doc'}
+NODE_KINDS = {'module', 'class', 'function', 'method', 'doc', 'package', 'variable', 'endpoint', 'topic'}
 save_lock = threading.Lock()
 
 

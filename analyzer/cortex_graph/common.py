@@ -55,6 +55,14 @@ class Graph:
     def __init__(self):
         self.nodes = {}
         self.edges = Counter()
+        self.externals = []
+        self.seen_externals = set()
+
+    def external(self, mid, spec, lang):
+        key = (mid, spec, lang)
+        if spec and key not in self.seen_externals:
+            self.seen_externals.add(key)
+            self.externals.append(key)
 
     def node(self, nid, **meta):
         if nid not in self.nodes:

@@ -47,7 +47,8 @@ def test_node_resolution_and_context(project):
     assert n['node']['key'] == 'f:app/services.py:create_user'
     assert n['parent']['key'] == 'm:app/services.py'
     assert set(names(n['calls'])) == {'slugify', 'User'}
-    assert set(names(n['called_by'])) == {'UserService.helper', 'list_users', 'test_create_user'}
+    assert set(names(n['called_by'])) == {'UserService.helper', 'list_users'}
+    assert set(names(n['tested_by'])) == {'test_create_user'}
     assert n['status'] == 'unchanged' and n['community']['name']
     user = query.node('c:app/models.py:User')
     assert names(user['inherits']) == ['Base']
@@ -72,7 +73,7 @@ def test_file_context(project):
     assert f['imports'] == ['app/models.py', 'app/utils.py']
     assert set(f['imported_by']) == {'app/api.py', 'tests/test_services.py'}
     assert f['docs'] == ['docs/README.md']
-    assert {c['file'] for c in f['called_from']} == {'app/api.py', 'tests/test_services.py'}
+    assert {c['file'] for c in f['called_from']} == {'app/api.py'}
     assert query.file('./pages/Home.tsx')['file'] == 'web/src/pages/Home.tsx'
     assert query.file('Button')['file'] == 'web/src/components/Button.tsx'
     doc = query.file('docs/guide.md')

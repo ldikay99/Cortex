@@ -49,7 +49,7 @@ def test_edges_cover_imports_calls_inheritance_and_docs(graph):
         ('m:web/src/pages/Home.tsx', 'm:web/src/lib/format.ts', 'import'),
         ('f:web/src/pages/Home.tsx:Home', 'f:web/src/components/Button.tsx:Button', 'call'),
         ('f:web/src/pages/Home.tsx:Home', 'f:web/src/lib/format.ts:formatName', 'call'),
-        ('f:web/src/pages/Home.test.ts:testHome', 'f:web/src/pages/Home.tsx:Home', 'call'),
+        ('f:web/src/pages/Home.test.ts:testHome', 'f:web/src/pages/Home.tsx:Home', 'tests'),
         ('d:docs/README.md', 'm:app/services.py', 'ref'),
         ('d:docs/README.md', 'm:web/src/pages/Home.tsx', 'ref'),
         ('d:docs/README.md', 'd:docs/guide.md', 'ref'),
@@ -58,7 +58,7 @@ def test_edges_cover_imports_calls_inheritance_and_docs(graph):
         ('m:app/models.py', 'c:app/models.py:User', 'contains'),
     }
     assert expected <= edges
-    assert graph['stats']['edge_kinds'] == {'contains': 18, 'import': 9, 'call': 10, 'inherits': 1, 'loads': 1, 'ref': 4}
+    assert graph['stats']['edge_kinds'] == {'contains': 18, 'import': 9, 'call': 8, 'tests': 2, 'inherits': 1, 'loads': 1, 'ref': 4}
 
 
 def test_communities_and_visible_edges(graph):

@@ -6,14 +6,15 @@ from . import store
 from .analyze import export_markdown
 from .errors import InvalidInput, NotFound
 
-KINDS = ('module', 'class', 'function', 'method', 'doc')
-DEPENDENCY_KINDS = ('import', 'call', 'inherits', 'ref')
+KINDS = ('module', 'class', 'function', 'method', 'doc', 'package', 'variable', 'endpoint', 'topic')
+DEPENDENCY_KINDS = ('import', 'call', 'inherits', 'ref', 'tests', 'http', 'rpc', 'handles', 'env', 'data', 'event', 'depends')
 RELATIONS = (
     ('imports', 'import', 'out'), ('imported_by', 'import', 'in'),
     ('calls', 'call', 'out'), ('called_by', 'call', 'in'),
     ('inherits', 'inherits', 'out'), ('inherited_by', 'inherits', 'in'),
     ('refs', 'ref', 'out'), ('referenced_by', 'ref', 'in'),
     ('loads', 'loads', 'out'), ('loaded_by', 'loads', 'in'),
+    ('tests', 'tests', 'out'), ('tested_by', 'tests', 'in'),
 )
 MAX_PATH = 12
 MAX_LIST = 100
