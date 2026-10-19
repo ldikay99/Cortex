@@ -949,7 +949,7 @@ def read_text(root, rel, limit):
         if os.path.getsize(path) > limit:
             return None
         with open(path, 'rb') as f:
-            return f.read().decode('utf-8', errors='replace')
+            return f.read().replace(b'\r\n', b'\n').decode('utf-8', errors='replace')
     except OSError:
         return None
 

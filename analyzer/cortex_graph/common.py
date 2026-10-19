@@ -45,7 +45,7 @@ def read_source(root, rel, issues):
         if path.stat().st_size > limit:
             issues.add(rel, f'archivo de más de {limit // (1024 * 1024)} MB: se omitió')
             return None
-        return path.read_bytes()
+        return path.read_bytes().replace(b'\r\n', b'\n')
     except OSError as exc:
         issues.add(rel, describe_failure(exc))
         return None

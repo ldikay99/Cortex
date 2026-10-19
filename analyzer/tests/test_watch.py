@@ -105,7 +105,7 @@ def test_hook_install_is_idempotent_and_preserves_content(tmp_path):
     merge = (hooks / 'post-merge').read_text(encoding='utf-8')
     assert merge.startswith('#!/bin/sh\necho previo\n# >>> cortex\n') and merge.endswith('# <<< cortex\nexit 0\n')
     for hook in watch.HOOKS:
-        assert os.stat(hooks / hook).st_mode & stat.S_IXUSR
+        assert os.name == 'nt' or os.stat(hooks / hook).st_mode & stat.S_IXUSR
 
     watch.install_hook(str(repo), 'Mi App')
     assert (hooks / 'post-commit').read_text(encoding='utf-8') == commit

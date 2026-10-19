@@ -551,7 +551,7 @@ MIXED = {
             public Order Get(int id) { return null; }
         }
     """,
-    'Web/CatalogClient.cs': """
+    'client/CatalogClient.cs': """
         public class CatalogClient
         {
             private HttpClient http;
@@ -582,7 +582,7 @@ def test_nextjs_django_aspnet_and_nest(tmp_path):
     assert ('e:blog/urls.py:ANY /blog/:pk', 'f:blog/views.py:detail') in handles
     item = 'e:Catalog/CatalogApi.cs:GET /api/catalog/items/:id'
     assert (item, 'f:Catalog/CatalogApi.cs:CatalogApi.GetItem') in handles
-    assert ('f:Web/CatalogClient.cs:CatalogClient.Load', item) in http
+    assert ('f:client/CatalogClient.cs:CatalogClient.Load', item) in http
     assert ('e:Ordering/OrdersController.cs:GET /api/Orders/:id', 'f:Ordering/OrdersController.cs:OrdersController.Get') in handles
     assert ('e:nest/cats.controller.ts:GET /cats/:id', 'f:nest/cats.controller.ts:CatsController.findOne') in handles
 

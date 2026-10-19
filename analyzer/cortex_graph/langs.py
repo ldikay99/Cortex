@@ -1,5 +1,7 @@
+import ctypes
 import importlib
 import os
+import posixpath
 import re
 import warnings
 from collections import defaultdict
@@ -1711,12 +1713,21 @@ def lang_of(rel):
 _PARSERS = {}
 
 
+def capsule(pointer):
+    if not isinstance(pointer, int):
+        return pointer
+    new = ctypes.pythonapi.PyCapsule_New
+    new.restype = ctypes.py_object
+    new.argtypes = (ctypes.c_void_p, ctypes.c_char_p, ctypes.c_void_p)
+    return new(pointer, b'tree_sitter.Language', None)
+
+
 def parser_for(lang):
     if lang not in _PARSERS:
         module, attr = LANGS[lang]['grammar']
         with warnings.catch_warnings():
             warnings.simplefilter('ignore', DeprecationWarning)
-            _PARSERS[lang] = Parser(Language(getattr(importlib.import_module(module), attr)()))
+            _PARSERS[lang] = Parser(Language(capsule(getattr(importlib.import_module(module), attr)())))
     return _PARSERS[lang]
 
 
@@ -2041,7 +2052,7 @@ class Linker:
         for d, module in self.gomods.items():
             if module and (value == module or value.startswith(module + '/')) and (best is None or len(module) > len(best[1])):
                 best = (d, module)
-        return os.path.join(best[0], value[len(best[1]):].strip('/')).strip('/') if best else None
+        return posixpath.join(best[0], value[len(best[1]):].strip('/')).strip('/') if best else None
 
     def representative(self, rels):
         key = tuple(rels)
@@ -2050,7 +2061,7 @@ class Linker:
             plain = [r for r in pool if not r.endswith('_test.go')] or pool
             d = os.path.dirname(plain[0])
             names = [p for r in plain if r in self.f.units for p in self.f.units[r].packages] + [os.path.basename(d), 'doc']
-            hit = next((c for c in (os.path.join(d, n + '.go') for n in names) if c in plain), None)
+            hit = next((c for c in (posixpath.join(d, n + '.go') for n in names) if c in plain), None)
             if hit is None:
                 hit = min(plain, key=lambda r: (-len(self.f.units[r].top) if r in self.f.units else 0, r))
             self.reps[key] = hit
@@ -2234,7 +2245,7 @@ class Linker:
                     self.pubs = self.find_markers('pubspec.yaml', r'^name:\s*([\w-]+)')
                 pkg, path = value
                 roots = sorted(d for d, name in self.pubs.items() if name == pkg)
-                hit = next((c for c in (os.path.join(d, 'lib', path).lstrip('/') for d in roots) if c in self.files), None)
+                hit = next((c for c in (posixpath.join(d, 'lib', path).lstrip('/') for d in roots) if c in self.files), None)
                 self.add_explicit(u, hit)
                 if hit and alias:
                     u.aliases[alias] = ('files', [hit])
