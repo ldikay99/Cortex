@@ -60,12 +60,12 @@ def clone_github(owner, repo, dest):
     staging = dest + '.clonando'
     shutil.rmtree(staging, ignore_errors=True)
     os.makedirs(os.path.dirname(dest), exist_ok=True)
-    cmd = ['git']
+    cmd = ['git', 'clone', '--depth', '1', '--quiet', f'{github_url(owner, repo)}.git', staging]
+    env = {**os.environ, 'GIT_TERMINAL_PROMPT': '0'}
     if token:
         basic = base64.b64encode(f'x-access-token:{token}'.encode()).decode()
-        cmd += ['-c', f'http.https://github.com/.extraheader=AUTHORIZATION: basic {basic}']
-    cmd += ['clone', '--depth', '1', '--quiet', f'{github_url(owner, repo)}.git', staging]
-    env = {**os.environ, 'GIT_TERMINAL_PROMPT': '0'}
+        env.update(GIT_CONFIG_COUNT='1', GIT_CONFIG_KEY_0='http.https://github.com/.extraheader',
+                   GIT_CONFIG_VALUE_0=f'AUTHORIZATION: basic {basic}')
     try:
         res = subprocess.run(cmd, capture_output=True, text=True, timeout=CLONE_TIMEOUT, env=env)
     except FileNotFoundError as exc:

@@ -1,6 +1,9 @@
+import base64
 import http.client
 import io
 import json
+import os
+import subprocess
 import threading
 import time
 import zipfile
@@ -342,3 +345,27 @@ def test_local_origin_update(api, tmp_path):
     assert final['state'] == 'ready' and final['version'] == 2
     status, ch = api.get('/api/query/changes?project=local-demo')
     assert [n['name'] for n in ch['added']] == ['extra.py', 'extra']
+
+
+def test_clone_keeps_token_out_of_args_and_repo(tmp_path, monkeypatch):
+    from cortex_graph import pipeline
+    secret = 'ghp_' + 'x' * 36
+    monkeypatch.setenv('GITHUB_TOKEN', secret)
+    seen = {}
+
+    def fake_run(cmd, env=None, **kw):
+        seen['cmd'], seen['env'] = cmd, env
+        staging = cmd[-1]
+        os.makedirs(os.path.join(staging, '.git'))
+        with open(os.path.join(staging, '.git', 'config'), 'w') as fh:
+            fh.write('[remote "origin"]\n\turl = https://github.com/o/r.git\n')
+        return subprocess.CompletedProcess(cmd, 0, '', '')
+
+    monkeypatch.setattr(pipeline.subprocess, 'run', fake_run)
+    dest = str(tmp_path / 'fuente')
+    pipeline.clone_github('o', 'r', dest)
+    encoded = base64.b64encode(f'x-access-token:{secret}'.encode()).decode()
+    assert not any(secret in a or encoded in a for a in seen['cmd'])
+    assert encoded in seen['env']['GIT_CONFIG_VALUE_0']
+    config = open(os.path.join(dest, '.git', 'config')).read()
+    assert secret not in config and encoded not in config
