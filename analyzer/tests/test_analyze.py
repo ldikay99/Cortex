@@ -29,7 +29,7 @@ def test_nodes_have_expected_kinds_and_metadata(graph):
     for n in graph['nodes']:
         assert re.fullmatch(r'[0-9a-f]{12}', n['hash'])
         assert len(n['pos']) == 3
-    assert graph['stats']['kinds'] == {'doc': 2, 'module': 11, 'function': 9, 'class': 3, 'method': 6}
+    assert graph['stats']['kinds'] == {'doc': 2, 'module': 12, 'function': 9, 'class': 3, 'method': 6}
     assert graph['stats']['warnings'] == [] and graph['stats']['warnings_total'] == 0
 
 
@@ -112,7 +112,7 @@ def test_is_test_and_list_files(repo):
     assert is_test('tests/test_services.py') and is_test('web/src/pages/Home.test.ts') and is_test('pkg/conftest.py')
     assert is_test('a/b_test.py') and is_test('spec/x.ts') and not is_test('app/services.py')
     files = list_files(repo)
-    assert 'app/services.py' in files and 'docs/README.md' in files and 'web/tsconfig.json' not in files
+    assert 'app/services.py' in files and 'docs/README.md' in files and 'web/tsconfig.json' in files
     assert not any(f.startswith('node_modules/') for f in files)
     no_tests = list_files(repo, skip_tests=True)
     assert 'tests/test_services.py' not in no_tests and 'web/src/pages/Home.test.ts' not in no_tests

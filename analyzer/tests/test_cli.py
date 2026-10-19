@@ -14,7 +14,7 @@ def test_cli_end_to_end(repo, tmp_path):
     res = run(['analyze', str(repo), '--name', 'demo', '--exclude', 'docs/guide.md', '--json'], data, tmp_path)
     assert res.returncode == 0, res.stderr
     summary = json.loads(res.stdout)
-    assert summary['project'] == 'demo' and summary['version'] == 1 and summary['stats']['files'] == 10
+    assert summary['project'] == 'demo' and summary['version'] == 1 and summary['stats']['files'] == 11
 
     res = run(['analyze', str(repo), '--name', 'demo', '--tests'], data, tmp_path)
     assert res.returncode == 0 and 'demo v2:' in res.stdout and 'cambios:' in res.stdout

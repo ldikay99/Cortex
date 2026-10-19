@@ -15,7 +15,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
 from . import pipeline, query, store
-from .analyze import export_json, export_markdown, is_test, list_files
+from .analyze import (MAX_NOTEBOOK_BYTES, MAX_SCRIPT_BYTES, SKIP_DIRS, export_json, export_markdown, formats, is_test,
+                      list_files, maybe_script, script_route, wanted)
 from .errors import Conflict, CortexError, InvalidInput, NotFound, TooLarge
 
 log = logging.getLogger('cortex.server')
@@ -27,8 +28,7 @@ MAX_FILES = 20000
 MAX_ZIP_ENTRIES = 200000
 MAX_JSON = 1_000_000
 MAX_PARAM = 1000
-KEEP_EXT = ('.py', '.ts', '.tsx', '.js', '.jsx', '.mjs', '.md')
-SKIP_PARTS = {'node_modules', '.git', '.next', '__pycache__', '.venv', 'venv', 'dist', 'build'}
+SKIP_PARTS = SKIP_DIRS
 TICK = 0.05
 DISCONNECTS = (BrokenPipeError, ConnectionResetError, ConnectionAbortedError, socket.timeout)
 
@@ -189,8 +189,14 @@ def clean_parts(raw):
     return parts
 
 
+def file_limit(rel):
+    if rel.endswith('.ipynb'):
+        return MAX_NOTEBOOK_BYTES
+    return MAX_FILE if wanted(rel) else MAX_SCRIPT_BYTES
+
+
 def kept(parts):
-    if not parts or SKIP_PARTS.intersection(parts) or not parts[-1].endswith(KEEP_EXT):
+    if not parts or SKIP_PARTS.intersection(parts) or not (wanted('/'.join(parts)) or maybe_script('/'.join(parts))):
         return None
     return '/'.join(parts)
 
@@ -202,14 +208,16 @@ class Extraction:
         self.bytes = 0
 
     def add(self, rel, data):
-        if len(data) > MAX_FILE:
+        if len(data) > file_limit(rel):
+            return
+        if not wanted(rel) and not script_route(data[:160]):
             return
         self.files += 1
         self.bytes += len(data)
         if self.files > MAX_FILES:
-            raise TooLarge(f'el proyecto tiene más de {MAX_FILES} archivos de código y documentos')
+            raise TooLarge(f'el proyecto tiene más de {MAX_FILES} archivos para analizar')
         if self.bytes > MAX_EXTRACTED:
-            raise TooLarge('el proyecto supera 200 MB de código y documentos')
+            raise TooLarge('el proyecto supera 200 MB de archivos para analizar')
         path = os.path.join(self.dest, rel)
         if not os.path.abspath(path).startswith(os.path.abspath(self.dest) + os.sep):
             raise InvalidInput(f'ruta no permitida (fuera del proyecto): {rel[:200]}')
@@ -232,11 +240,11 @@ def extract_zip(body, out):
     with archive:
         for info, parts in zip(entries, names):
             rel = kept(parts[1:] if strip else parts)
-            if not rel or info.file_size > MAX_FILE:
+            if not rel or info.file_size > file_limit(rel):
                 continue
             try:
                 with archive.open(info) as f:
-                    data = f.read(MAX_FILE + 1)
+                    data = f.read(file_limit(rel) + 1)
             except RuntimeError as exc:
                 raise InvalidInput('el .zip está protegido con contraseña') from exc
             except NotImplementedError as exc:
@@ -395,6 +403,9 @@ class Handler(BaseHTTPRequestHandler):
         g = s['graph']
         self.send_json({'state': s['state'], 'project': s['project'], 'error': s['error'],
                         'stats': g['stats'] if g else None, 'version': g.get('version') if g else None})
+
+    def get_formats(self, params):
+        self.send_json(formats())
 
     def get_projects(self, params):
         self.send_json({'projects': store.list_projects()})
@@ -587,9 +598,9 @@ class Handler(BaseHTTPRequestHandler):
 
     def post_upload(self, params):
         name = store.slug(params.get('name') or 'proyecto')
-        body = self.read_body(MAX_UPLOAD, 'el proyecto debe pesar entre 1 byte y 80 MB (solo código y documentos)')
+        body = self.read_body(MAX_UPLOAD, 'el proyecto debe pesar entre 1 byte y 80 MB (solo código, configuración y documentos)')
         if not body:
-            raise TooLarge('el proyecto debe pesar entre 1 byte y 80 MB (solo código y documentos)')
+            raise TooLarge('el proyecto debe pesar entre 1 byte y 80 MB (solo código, configuración y documentos)')
         dest = store.source_dir(name)
         staging = f'{dest}.subiendo-{threading.get_ident()}'
         shutil.rmtree(staging, ignore_errors=True)
@@ -600,7 +611,7 @@ class Handler(BaseHTTPRequestHandler):
             else:
                 extract_ndjson(body, out)
             if not out.files:
-                raise InvalidInput('no encontré archivos de código ni documentos (.py, .ts, .tsx, .js, .md)')
+                raise InvalidInput('no encontré archivos de código, configuración ni documentos en lo que subiste')
             shutil.rmtree(dest, ignore_errors=True)
             os.replace(staging, dest)
         finally:
@@ -612,6 +623,7 @@ class Handler(BaseHTTPRequestHandler):
 GET_ROUTES = {
     '/api/status': Handler.get_status,
     '/api/projects': Handler.get_projects,
+    '/api/formatos': Handler.get_formats,
     '/api/tree': Handler.get_tree,
     '/api/graph': Handler.get_graph,
     '/api/stream': Handler.get_stream,

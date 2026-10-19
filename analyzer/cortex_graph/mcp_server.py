@@ -7,8 +7,10 @@ from . import pipeline, store
 from . import query as graph_query
 
 INSTRUCTIONS = (
-    'Córtex is a deterministic knowledge graph of a code repository (no AI): modules, classes, functions, methods and '
-    'Markdown docs, linked by contains/import/call/inherits/ref/loads edges and grouped into communities (subsystems). '
+    'Córtex is a deterministic knowledge graph of a code repository in any language (no AI): files, classes, functions, '
+    'methods and docs from 26 languages parsed with real syntax trees, plus config and infrastructure (Docker, compose '
+    'services, CI jobs, SQL tables, protobuf, Terraform, Kubernetes), linked by contains/import/call/inherits/ref/loads '
+    'edges and grouped into communities (subsystems). project_overview reports stats.languages. '
     'Typical flow: list_projects or project_overview to orient, search_code to find symbols, node_context and '
     'file_context to read relationships, impact_analysis before editing, changes to see what moved between versions. '
     'Node references accept a node key (e.g. "f:app/services.py:create_user"), a symbol name, a file path or a substring. '

@@ -5,7 +5,7 @@
 <h3 align="center">Tu código, convertido en una memoria viva que cualquier IA puede consultar.</h3>
 
 <p align="center">
-  <em><b>TL;DR</b>: Córtex turns any repository into a living, versioned knowledge graph that AI agents query through MCP, a CLI or HTTP,<br />
+  <em><b>TL;DR</b>: Córtex turns any repository, in any language, into a living, versioned knowledge graph that AI agents query through MCP, a CLI or HTTP,<br />
   and renders it as a 3D universe woven file by file by a wireframe spider. Deterministic, local, one <code>docker compose up</code> away.</em>
 </p>
 
@@ -13,6 +13,7 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/licencia-MIT-8cdcf5?style=flat-square" alt="Licencia MIT" /></a>
   <img src="https://img.shields.io/badge/Python-3.11%2B-8cdcf5?style=flat-square&logo=python&logoColor=white" alt="Python 3.11+" />
   <img src="https://img.shields.io/badge/Three.js-r170-8cdcf5?style=flat-square&logo=threedotjs&logoColor=white" alt="Three.js" />
+  <img src="https://img.shields.io/badge/lenguajes-26%2B-8cdcf5?style=flat-square" alt="26+ lenguajes" />
   <img src="https://img.shields.io/badge/MCP-11%20herramientas-8cdcf5?style=flat-square" alt="MCP" />
   <img src="https://img.shields.io/badge/Docker-compose-8cdcf5?style=flat-square&logo=docker&logoColor=white" alt="Docker" />
 </p>
@@ -37,6 +38,7 @@ Toda IA que entra a un repositorio llega sin memoria. Abre archivos, adivina, vu
 
 - **Memoria, no búsqueda.** Cada archivo, clase y función con su lugar exacto y sus vínculos. Tu IA deja de adivinar.
 - **Recuerda lo que cambió.** Cada análisis es una versión; lo nuevo, lo modificado y lo que desapareció quedan registrados.
+- **Cualquier stack.** Go, Rust, Java, C#, PHP, Ruby, Swift, Kotlin, C/C++, Python, TypeScript y quince más, junto con su Docker, su CI, su SQL y su Terraform.
 - **Siempre lo mismo.** Sin modelos ni tokens en el análisis: el mismo código, el mismo mapa.
 - **Un espectáculo.** Tu arquitectura convertida en universo, lista para grabar.
 
@@ -122,7 +124,10 @@ La web necesita el proxy de nginx hacia el analizador: para el universo 3D, usa 
 
 ## Por dentro
 
-- Python, TypeScript, TSX, JavaScript y Markdown, unidos por imports, llamadas, herencia, rutas y tablas.
+- **Más de 25 lenguajes leídos con su árbol de sintaxis real:** Python (y notebooks), TypeScript, JavaScript, Vue, Svelte, Go, Rust, Java, Kotlin, Scala, Groovy, C#, F#, PHP, Ruby, C, C++, Objective-C, Swift, Dart, Elixir, Haskell, OCaml, Julia, Lua, Perl, Zig, Solidity, Bash, PowerShell y Terraform.
+- **La infraestructura también es código:** servicios de compose, jobs de CI, targets de Make, tablas SQL con sus llaves foráneas, protobuf, GraphQL, Prisma, manifiestos de Kubernetes y proyectos .NET.
+- **Lo demás no se pierde:** Clojure, Erlang, Nim, R, shaders… entran con lectura heurística.
+- Monorepos, alias de tsconfig, workspaces, `go.mod`, crates de Cargo y paquetes de Java se resuelven solos.
 - Comunidades descubiertas solas, con nombre propio.
 - Versiones con diff por contenido y un mapa que no se reacomoda.
 - Todo vive en `datos/<proyecto>/`, legible sin abrir el navegador.

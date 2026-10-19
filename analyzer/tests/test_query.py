@@ -17,7 +17,7 @@ def names(items):
 def test_overview(project):
     o = query.overview()
     assert o['project'] == 'demo' and o['version'] == 1 and o['versions'] == 1
-    assert o['stats']['nodes'] == 31 and o['communities'][0]['files'] == 13
+    assert o['stats']['nodes'] == 32 and o['communities'][0]['files'] == 14
     assert len(o['top_nodes']) == 20
     assert o['top_nodes'][0]['deg'] >= o['top_nodes'][-1]['deg']
     assert [r['route'] for r in o['routes']] == ['GET /users']
@@ -82,7 +82,7 @@ def test_file_context(project):
 def test_community(project):
     c = query.community(0)
     assert c['community']['id'] == 0 and c['files'][0]['deg'] >= c['files'][-1]['deg']
-    assert len(c['files']) == 13 and c['hubs']
+    assert len(c['files']) == 14 and c['hubs']
     assert query.community(c['community']['name'])['community']['id'] == 0
     with pytest.raises(NotFound):
         query.community('99')

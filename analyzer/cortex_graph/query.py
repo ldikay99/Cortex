@@ -180,7 +180,7 @@ class GraphIndex:
             'origin': entry.get('origin'),
             'commit': entry.get('commit'),
             'versions': len(self.history),
-            'stats': {k: self.graph['stats'].get(k) for k in ('files', 'nodes', 'edges', 'communities', 'kinds', 'edge_kinds', 'tests', 'excluded', 'warnings_total')},
+            'stats': {k: self.graph['stats'].get(k) for k in ('files', 'nodes', 'edges', 'communities', 'languages', 'kinds', 'edge_kinds', 'tests', 'excluded', 'warnings_total')},
             'communities': communities,
             'top_nodes': [self.brief(n) for n in sorted(self.nodes, key=lambda n: (-n['deg'], n['id']))[:20]],
             'routes': [self.brief(n) for n in sorted((n for n in self.nodes if n.get('route')), key=lambda n: n['route'].split(' ', 1)[-1])],

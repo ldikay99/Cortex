@@ -1,9 +1,7 @@
-import ast
-import hashlib
 import math
 import os
+import random
 import re
-import warnings
 from collections import Counter, defaultdict
 from pathlib import Path
 
@@ -11,22 +9,31 @@ import igraph as ig
 import leidenalg
 import networkx as nx
 import numpy as np
-import tree_sitter_typescript as tsts
-from tree_sitter import Language, Parser
 
+from . import generic, langs
+from .common import MAX_FILE_BYTES, MAX_NOTEBOOK_BYTES, Graph, Issues, describe_failure, digest, read_source
 from .errors import CortexError
+from .pyast import analyze_python, py_module_name
+from .tsjs import analyze_ts
 
 SKIP_DIRS = {
     '.git', 'node_modules', '.next', '__pycache__', '.venv', 'venv', 'dist', 'build',
-    '.mypy_cache', '.pytest_cache', '.ruff_cache', 'coverage', '.turbo',
+    '.mypy_cache', '.pytest_cache', '.ruff_cache', 'coverage', '.turbo', 'vendor', 'target', 'obj',
+    '.gradle', 'Pods', '.build', 'DerivedData', '.dart_tool', '.svelte-kit', '.nuxt', '.output', '.cache',
+    '.parcel-cache', 'bower_components', '.tox', '.nox', 'site-packages', '.eggs', 'htmlcov', 'vendored',
+    'third_party', 'third-party', 'thirdparty',
 }
-TEST_DIRS = {'tests', 'test', '__tests__', 'e2e', 'spec'}
-CODE_PY = {'.py'}
-CODE_TS = {'.ts', '.tsx', '.js', '.jsx', '.mjs'}
-DOCS = {'.md'}
-TS_SUFFIXES = ['', '.ts', '.tsx', '.js', '.jsx', '.mjs', '/index.ts', '/index.tsx', '/index.js']
-TS_PACKAGE_FILES = ('tsconfig.json', 'jsconfig.json', 'package.json')
-TS_ALIAS_RE = re.compile(r'"@/\*"\s*:\s*\[\s*"([^"]*)"')
+SKIP_DIR_SUFFIXES = ('.docset', '.xcassets', '.framework', '.bundle', '.egg-info')
+MINIFIED_EXTS = {'.js', '.mjs', '.cjs', '.css'}
+TEST_DIRS = {'tests', 'test', '__tests__', 'e2e', 'spec', 'specs', 'tst', '__testfixtures__', '__fixtures__', '__mocks__', 'testdata'}
+TEST_NAME_RE = re.compile(
+    r'(\.(test|spec)\.\w+$)|(_test\.(go|py|rs|lua|c|cc|cpp|rb|ex|exs|dart|ts|js)$)|(_spec\.(rb|lua)$)|(\.(tests?|ts)\.ps1$)'
+    r'|((Test|Tests|Spec|(?<=[a-z0-9])IT)\.(java|kt|kts|scala|cs|swift|php|groovy|dart)$)')
+CODE_PY = {'.py', '.ipynb'}
+CODE_TS = {'.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.mts', '.cts', '.vue', '.svelte'}
+DOCS = {'.md', '.mdx', '.rst'}
+CODE_EXTS = CODE_PY | CODE_TS | DOCS | langs.EXTS
+SKIP_SUFFIXES = ('.d.ts', '.min.js', '.bundle.js', '.min.css', '.map', '.pb.go', '_pb2.py', '.g.dart', '.designer.cs')
 
 EDGE_WEIGHT = {'contains': 3.0, 'import': 1.0, 'call': 1.0, 'inherits': 1.5, 'ref': 0.6, 'loads': 1.0}
 STRUCTURAL_RANK = {'contains': 3, 'inherits': 2, 'import': 1}
@@ -34,10 +41,10 @@ MAX_COMMUNITIES = 28
 MIN_COMMUNITY = 8
 MIN_NODES = 40
 RESOLUTION = 1.6
-MAX_FILE_BYTES = 2 * 1024 * 1024
 MAX_VISIBLE = 70000
-MAX_WARNINGS = 50
 NEST = 14.0
+LAYOUT_BUDGET = 1.5e9
+ORBIT_MIN = 900
 
 KIND_ES = {'module': 'archivo', 'doc': 'documento', 'class': 'clase', 'function': 'función', 'method': 'método'}
 
@@ -48,30 +55,131 @@ PALETTE = [
 ]
 
 
-def digest(text):
-    if isinstance(text, str):
-        text = text.encode('utf-8', errors='replace')
-    return hashlib.sha1(text).hexdigest()[:12]
-
-
 def is_test(rel):
     parts = rel.split('/')
     name = parts[-1]
     return (
-        bool(TEST_DIRS.intersection(parts[:-1]))
-        or name.startswith('test_') or name == 'conftest.py' or name.endswith('_test.py')
-        or re.search(r'\.(test|spec)\.[jt]sx?$', name) is not None
+        bool(TEST_DIRS.intersection(p.lower() for p in parts[:-1]))
+        or any(p.endswith(('.Tests', '.Test', '.UnitTests', '.IntegrationTests', 'Tests')) and p[:1].isupper() for p in parts[:-1])
+        or name.startswith('test_') or name == 'conftest.py' or TEST_NAME_RE.search(name) is not None
     )
+
+
+SHEBANG_RE = re.compile(rb'^#![ \t]*(\S+)(?:[ \t]+(?:-\S+[ \t]+)*(\S+))?')
+MAX_SCRIPT_BYTES = 256 * 1024
+
+
+def interpreter(head):
+    match = SHEBANG_RE.match(head or b'')
+    if not match:
+        return None
+    prog = match.group(1).decode('utf-8', 'replace').rsplit('/', 1)[-1]
+    if prog == 'env' and match.group(2):
+        prog = match.group(2).decode('utf-8', 'replace').rsplit('/', 1)[-1]
+    return re.sub(r'[\d.]+$', '', prog) or None
+
+
+def script_route(head):
+    prog = interpreter(head)
+    if prog in ('python', 'pypy', 'ipython'):
+        return 'py'
+    if prog in ('node', 'nodejs', 'deno', 'bun', 'ts-node', 'tsx'):
+        return 'ts'
+    return langs.SHEBANG_LANG.get(prog)
+
+
+def maybe_script(rel):
+    name = rel.rsplit('/', 1)[-1]
+    return name not in WRAPPERS and '.' not in name and not name.isupper() and name not in generic.CONFIG_NAMES
+
+
+def read_head(path):
+    try:
+        if path.stat().st_size > MAX_SCRIPT_BYTES:
+            return b''
+        with open(path, 'rb') as fh:
+            return fh.read(160)
+    except OSError:
+        return b''
+
+
+def minified(path):
+    try:
+        with open(path, 'rb') as fh:
+            head = fh.read(4096)
+    except OSError:
+        return False
+    return any(len(line) > 1000 for line in head.split(b'\n')[:-1]) or (len(head) == 4096 and b'\n' not in head)
+
+
+WRAPPERS = {'gradlew', 'gradlew.bat', 'mvnw', 'mvnw.cmd', 'sbt', 'sbtw'}
+
+
+def wanted(rel):
+    name = rel.rsplit('/', 1)[-1]
+    if name.endswith(SKIP_SUFFIXES) or name in WRAPPERS:
+        return False
+    return os.path.splitext(name)[1] in CODE_EXTS or name in langs.NAME_LANG or generic.kind_of(rel) is not None
+
+
+LANGUAGE_NAMES = {
+    '.py': 'Python', '.ipynb': 'Jupyter', '.ts': 'TypeScript', '.tsx': 'TypeScript', '.mts': 'TypeScript',
+    '.cts': 'TypeScript', '.js': 'JavaScript', '.jsx': 'JavaScript', '.mjs': 'JavaScript', '.cjs': 'JavaScript',
+    '.vue': 'Vue', '.svelte': 'Svelte', '.md': 'Markdown', '.mdx': 'MDX', '.rst': 'reStructuredText', '.go': 'Go',
+    '.rs': 'Rust', '.java': 'Java', '.kt': 'Kotlin', '.kts': 'Kotlin', '.scala': 'Scala', '.sc': 'Scala', '.cs': 'C#',
+    '.php': 'PHP', '.rb': 'Ruby', '.c': 'C', '.h': 'C/C++', '.cc': 'C++', '.cpp': 'C++', '.cxx': 'C++', '.c++': 'C++',
+    '.hh': 'C++', '.hpp': 'C++', '.hxx': 'C++', '.ipp': 'C++', '.swift': 'Swift', '.lua': 'Lua', '.sh': 'Shell',
+    '.bash': 'Shell', '.zsh': 'Shell', '.fish': 'Shell', '.dart': 'Dart', '.ex': 'Elixir', '.exs': 'Elixir',
+    '.hs': 'Haskell', '.zig': 'Zig', '.ml': 'OCaml', '.mli': 'OCaml', '.jl': 'Julia', '.m': 'Objective-C',
+    '.mm': 'Objective-C', '.tf': 'Terraform', '.hcl': 'HCL', '.groovy': 'Groovy', '.gradle': 'Gradle', '.pl': 'Perl',
+    '.pm': 'Perl', '.fs': 'F#', '.fsx': 'F#', '.sol': 'Solidity', '.ps1': 'PowerShell', '.psm1': 'PowerShell',
+    '.clj': 'Clojure', '.cljs': 'Clojure', '.cljc': 'Clojure', '.erl': 'Erlang', '.hrl': 'Erlang', '.nim': 'Nim',
+    '.cr': 'Crystal', '.r': 'R', '.R': 'R', '.elm': 'Elm', '.gleam': 'Gleam', '.cu': 'CUDA', '.cuh': 'CUDA',
+    '.yml': 'YAML', '.yaml': 'YAML', '.toml': 'TOML', '.json': 'JSON', '.sql': 'SQL', '.proto': 'Protobuf',
+    '.graphql': 'GraphQL', '.gql': 'GraphQL', '.prisma': 'Prisma', '.html': 'HTML', '.htm': 'HTML', '.css': 'CSS',
+    '.scss': 'CSS', '.sass': 'CSS', '.less': 'CSS', '.styl': 'CSS', '.xml': 'XML', '.csproj': 'MSBuild',
+    '.fsproj': 'MSBuild', '.vbproj': 'MSBuild', '.sln': 'MSBuild', '.ini': 'INI', '.cfg': 'INI', '.conf': 'Config',
+    '.properties': 'Properties', '.cmake': 'CMake', '.mk': 'Make', '.bzl': 'Bazel', '.nix': 'Nix',
+}
+FILE_LANGUAGES = {
+    'Dockerfile': 'Docker', 'Containerfile': 'Docker', 'Makefile': 'Make', 'GNUmakefile': 'Make', 'makefile': 'Make',
+    'CMakeLists.txt': 'CMake', 'Jenkinsfile': 'Groovy', 'BUILD': 'Bazel', 'BUILD.bazel': 'Bazel', 'WORKSPACE': 'Bazel',
+    'Gemfile': 'Ruby', 'Rakefile': 'Ruby', 'Vagrantfile': 'Ruby', 'Podfile': 'Ruby', 'Brewfile': 'Ruby',
+    'go.mod': 'Go', 'Cargo.toml': 'TOML', 'requirements.txt': 'Python', 'Pipfile': 'TOML', 'Justfile': 'Make',
+}
+
+
+def language_of(rel):
+    name = rel.rsplit('/', 1)[-1]
+    if name in FILE_LANGUAGES:
+        return FILE_LANGUAGES[name]
+    if name.startswith(('Dockerfile', 'Containerfile')) or name.endswith('.dockerfile'):
+        return 'Docker'
+    ext = os.path.splitext(name)[1]
+    lang = langs.lang_of(rel)
+    family = LANGUAGE_NAMES.get(langs.LANGS[lang]['exts'][0]) if lang else None
+    return LANGUAGE_NAMES.get(ext) or LANGUAGE_NAMES.get(ext.lower()) or family or (ext.lstrip('.').upper() if ext else name)
+
+
+def formats():
+    return {
+        'exts': sorted(CODE_EXTS | generic.CODE | generic.CONFIG | {'.json'}),
+        'names': sorted(generic.CONFIG_NAMES | set(langs.NAME_LANG)), 'max_script_bytes': MAX_SCRIPT_BYTES,
+        'prefixes': list(generic.CONFIG_PREFIXES), 'skip_dirs': sorted(SKIP_DIRS), 'skip_suffixes': list(SKIP_SUFFIXES),
+        'locks': sorted(generic.LOCKS), 'max_bytes': MAX_FILE_BYTES, 'max_notebook_bytes': MAX_NOTEBOOK_BYTES,
+    }
 
 
 def list_files(root, exclude=(), skip_tests=False):
     exclude = tuple(e.strip('/') for e in exclude if e.strip('/'))
     out = []
     for dirpath, dirnames, filenames in os.walk(root):
-        dirnames[:] = sorted(d for d in dirnames if d not in SKIP_DIRS)
+        dirnames[:] = sorted(d for d in dirnames if d not in SKIP_DIRS and not d.endswith(SKIP_DIR_SUFFIXES))
         for name in sorted(filenames):
             rel = os.path.relpath(os.path.join(dirpath, name), root).replace(os.sep, '/')
-            if os.path.splitext(name)[1] not in CODE_PY | CODE_TS | DOCS or name.endswith('.d.ts'):
+            if not wanted(rel) and not (maybe_script(rel) and script_route(read_head(Path(dirpath) / name))):
+                continue
+            if os.path.splitext(name)[1] in MINIFIED_EXTS and minified(Path(dirpath) / name):
                 continue
             if any(rel == e or rel.startswith(e + '/') for e in exclude):
                 continue
@@ -81,467 +189,10 @@ def list_files(root, exclude=(), skip_tests=False):
     return out
 
 
-class Issues:
-    def __init__(self):
-        self.items = []
-        self.total = 0
-
-    def add(self, rel, message):
-        self.total += 1
-        if len(self.items) < MAX_WARNINGS:
-            self.items.append({'file': rel, 'error': message})
-
-
-def describe_failure(exc):
-    if isinstance(exc, SyntaxError):
-        return f'sintaxis inválida en la línea {exc.lineno}' if exc.lineno else 'sintaxis inválida'
-    if isinstance(exc, RecursionError):
-        return 'el código está anidado demasiado profundo para analizarlo'
-    if isinstance(exc, OSError):
-        return 'no se pudo leer el archivo'
-    if isinstance(exc, ValueError):
-        return 'el archivo contiene bytes que no son texto'
-    return f'no se pudo analizar ({type(exc).__name__})'
-
-
-def read_source(root, rel, issues):
-    path = root / rel
-    try:
-        if path.stat().st_size > MAX_FILE_BYTES:
-            issues.add(rel, 'archivo de más de 2 MB: se omitió')
-            return None
-        return path.read_bytes()
-    except OSError as exc:
-        issues.add(rel, describe_failure(exc))
-        return None
-
-
-class Graph:
-    def __init__(self):
-        self.nodes = {}
-        self.edges = Counter()
-
-    def node(self, nid, **meta):
-        if nid not in self.nodes:
-            self.nodes[nid] = meta
-        return nid
-
-    def edge(self, a, b, kind):
-        if a != b and a in self.nodes and b in self.nodes:
-            self.edges[(a, b, kind)] += 1
-
-
-def py_module_name(rel):
-    mod = rel[:-3].replace('/', '.')
-    return mod[: -len('.__init__')] if mod.endswith('.__init__') else mod
-
-
-def is_function(node):
-    return isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
-
-
-class PyModule:
-    def __init__(self, rel, src):
-        self.rel = rel
-        self.src = src
-        self.name = py_module_name(rel)
-        self.is_pkg = rel.endswith('__init__.py')
-        with warnings.catch_warnings():
-            warnings.simplefilter('ignore', SyntaxWarning)
-            self.tree = ast.parse(src)
-        self.defs = {}
-        self.imports = {}
-        self.classes = {}
-
-    def resolve_relative(self, level, module):
-        parts = self.name.split('.')
-        if not self.is_pkg:
-            parts = parts[:-1]
-        if level > 1:
-            parts = parts[: len(parts) - (level - 1)]
-        return '.'.join(parts + ([module] if module else []))
-
-    def segment_hash(self, node):
-        return digest(ast.get_source_segment(self.src, node) or '')
-
-
-class PyProject:
-    def __init__(self, g, modules):
-        self.g = g
-        self.mods = modules
-
-    def resolve(self, fq, depth=0):
-        if depth > 4 or not fq:
-            return None
-        if fq in self.mods:
-            return f'm:{self.mods[fq].rel}'
-        if '.' not in fq:
-            return None
-        mod, name = fq.rsplit('.', 1)
-        if mod in self.mods:
-            m = self.mods[mod]
-            if name in m.defs:
-                return m.defs[name]
-            if name in m.imports:
-                return self.resolve(m.imports[name], depth + 1)
-            return None
-        if '.' in mod:
-            parent, cls = mod.rsplit('.', 1)
-            if parent in self.mods and cls in self.mods[parent].classes:
-                return self.mods[parent].classes[cls].get(name)
-        return None
-
-    def resolve_name(self, m, name):
-        return m.defs.get(name) or (self.resolve(m.imports[name]) if name in m.imports else None)
-
-    def callee(self, m, fn, cls):
-        if isinstance(fn, ast.Name):
-            return self.resolve_name(m, fn.id)
-        if not isinstance(fn, ast.Attribute):
-            return None
-        chain = []
-        cur = fn
-        while isinstance(cur, ast.Attribute):
-            chain.append(cur.attr)
-            cur = cur.value
-        if not isinstance(cur, ast.Name):
-            return None
-        chain.reverse()
-        head = cur.id
-        if head in ('self', 'cls') and cls and len(chain) == 1:
-            return m.classes.get(cls, {}).get(chain[0])
-        if head in m.classes and len(chain) == 1:
-            return m.classes[head].get(chain[0])
-        if head in m.imports:
-            return self.resolve('.'.join([m.imports[head]] + chain))
-        return None
-
-    def link_calls(self, m, node, owner, cls):
-        for n in ast.walk(node):
-            if isinstance(n, ast.Call):
-                target = self.callee(m, n.func, cls)
-                if target and target != owner:
-                    self.g.edge(owner, target, 'call')
-
-    def declare(self, m):
-        g = self.g
-        mid = g.node(f'm:{m.rel}', kind='module', name=m.rel.rsplit('/', 1)[-1], file=m.rel, line=1, lang='py', hash=digest(m.src))
-        for node in m.tree.body:
-            if is_function(node):
-                fid = g.node(f'f:{m.rel}:{node.name}', kind='function', name=node.name, file=m.rel, line=node.lineno, lang='py',
-                             route=route_of(node), hash=m.segment_hash(node))
-                m.defs[node.name] = fid
-                g.edge(mid, fid, 'contains')
-            elif isinstance(node, ast.ClassDef):
-                cid = g.node(f'c:{m.rel}:{node.name}', kind='class', name=node.name, file=m.rel, line=node.lineno, lang='py',
-                             table=table_of(node), hash=m.segment_hash(node))
-                m.defs[node.name] = cid
-                m.classes[node.name] = {}
-                g.edge(mid, cid, 'contains')
-                for sub in node.body:
-                    if is_function(sub):
-                        fid = g.node(f'f:{m.rel}:{node.name}.{sub.name}', kind='method', name=f'{node.name}.{sub.name}',
-                                     file=m.rel, line=sub.lineno, lang='py', route=route_of(sub), hash=m.segment_hash(sub))
-                        m.classes[node.name][sub.name] = fid
-                        g.edge(cid, fid, 'contains')
-
-    @staticmethod
-    def collect_imports(m):
-        for node in ast.walk(m.tree):
-            if isinstance(node, ast.Import):
-                for alias in node.names:
-                    if alias.asname:
-                        m.imports[alias.asname] = alias.name
-                    else:
-                        head = alias.name.split('.')[0]
-                        m.imports[head] = head
-                        m.imports[alias.name] = alias.name
-            elif isinstance(node, ast.ImportFrom):
-                base = m.resolve_relative(node.level, node.module) if node.level else (node.module or '')
-                for alias in node.names:
-                    if alias.name != '*':
-                        m.imports[alias.asname or alias.name] = f'{base}.{alias.name}' if base else alias.name
-
-    def link(self, m, doc_names):
-        g = self.g
-        mid = f'm:{m.rel}'
-        for target in set(m.imports.values()):
-            resolved = self.resolve(target)
-            if resolved:
-                g.edge(mid, resolved if resolved.startswith('m:') else 'm:' + g.nodes[resolved]['file'], 'import')
-        for node in m.tree.body:
-            if isinstance(node, ast.ClassDef):
-                cid = m.defs[node.name]
-                for base in node.bases:
-                    target = self.callee(m, base, None)
-                    if target:
-                        g.edge(cid, target, 'inherits')
-                for sub in node.body:
-                    if is_function(sub):
-                        self.link_calls(m, sub, m.classes[node.name][sub.name], node.name)
-            elif is_function(node):
-                self.link_calls(m, node, m.defs[node.name], None)
-            else:
-                self.link_calls(m, node, mid, None)
-        for node in ast.walk(m.tree):
-            if isinstance(node, ast.Constant) and isinstance(node.value, str) and node.value.endswith('.md'):
-                doc = doc_names.get(node.value.rsplit('/', 1)[-1])
-                if doc:
-                    g.edge(mid, doc, 'loads')
-
-
-def analyze_python(root, files, g, issues):
-    modules = {}
-    for rel in files:
-        raw = read_source(root, rel, issues)
-        if raw is None:
-            continue
-        try:
-            modules[py_module_name(rel)] = PyModule(rel, raw.decode('utf-8', errors='replace'))
-        except (SyntaxError, ValueError, RecursionError, MemoryError) as exc:
-            issues.add(rel, describe_failure(exc))
-    doc_names = {}
-    for nid, meta in g.nodes.items():
-        if meta['kind'] == 'doc':
-            doc_names.setdefault(meta['file'].rsplit('/', 1)[-1], nid)
-    project = PyProject(g, modules)
-    for m in list(modules.values()):
-        try:
-            project.declare(m)
-            project.collect_imports(m)
-        except RecursionError as exc:
-            issues.add(m.rel, describe_failure(exc))
-            del modules[m.name]
-    for m in modules.values():
-        try:
-            project.link(m, doc_names)
-        except RecursionError as exc:
-            issues.add(m.rel, describe_failure(exc))
-
-
-def route_of(fn):
-    for d in fn.decorator_list:
-        if isinstance(d, ast.Call) and isinstance(d.func, ast.Attribute) and d.func.attr in {'get', 'post', 'put', 'patch', 'delete'}:
-            if d.args and isinstance(d.args[0], ast.Constant) and isinstance(d.args[0].value, str):
-                return f'{d.func.attr.upper()} {d.args[0].value}'
-    return None
-
-
-def table_of(cls):
-    for n in cls.body:
-        if isinstance(n, ast.Assign) and any(isinstance(t, ast.Name) and t.id == '__tablename__' for t in n.targets):
-            if isinstance(n.value, ast.Constant) and isinstance(n.value.value, str):
-                return n.value.value
-    return None
-
-
-TS_LANG = Language(tsts.language_typescript())
-TSX_LANG = Language(tsts.language_tsx())
-
-
-def ts_text(node, src):
-    return src[node.start_byte:node.end_byte].decode('utf-8', errors='replace')
-
-
-class TsResolver:
-    def __init__(self, root, files):
-        self.root = root
-        self.files = set(files)
-        self.alias_cache = {}
-
-    def package_alias(self, directory):
-        if directory not in self.alias_cache:
-            found = None
-            for name in TS_PACKAGE_FILES:
-                path = self.root / directory / name
-                if path.is_file():
-                    found = found or []
-                    try:
-                        match = TS_ALIAS_RE.search(path.read_text(encoding='utf-8', errors='replace'))
-                    except OSError:
-                        match = None
-                    if match:
-                        target = match.group(1).rstrip('*').strip('/')
-                        found.insert(0, os.path.normpath(os.path.join(directory, target)).replace(os.sep, '/'))
-            self.alias_cache[directory] = found
-        return self.alias_cache[directory]
-
-    def alias_bases(self, rel):
-        bases = []
-        directory = os.path.dirname(rel)
-        while True:
-            aliases = self.package_alias(directory)
-            if aliases is not None:
-                bases += aliases + [directory, os.path.join(directory, 'src')]
-            if not directory:
-                break
-            directory = os.path.dirname(directory)
-        if not bases:
-            bases = ['', 'src']
-        seen = []
-        for b in bases:
-            b = '' if b in ('', '.') else b.strip('/') + '/'
-            if b not in seen:
-                seen.append(b)
-        return seen
-
-    def resolve(self, rel, spec):
-        if spec.startswith('@/'):
-            bases = [b + spec[2:] for b in self.alias_bases(rel)]
-        elif spec.startswith('.'):
-            bases = [os.path.normpath(os.path.join(os.path.dirname(rel), spec)).replace(os.sep, '/')]
-        else:
-            return None
-        for base in list(bases):
-            stem, ext = os.path.splitext(base)
-            if ext in ('.js', '.jsx', '.mjs'):
-                bases.append(stem)
-        for base in bases:
-            for suffix in TS_SUFFIXES:
-                if base + suffix in self.files:
-                    return base + suffix
-        return None
-
-
-class TsModule:
-    def __init__(self, g, rel, src, resolver):
-        self.g = g
-        self.rel = rel
-        self.src = src
-        self.mid = g.node(f'm:{rel}', kind='module', name=rel.rsplit('/', 1)[-1], file=rel, line=1, lang='ts', hash=digest(src))
-        self.defs = {}
-        self.default = None
-        self.imports = {}
-        self.bodies = []
-        parser = Parser(TSX_LANG if rel.endswith(('.tsx', '.jsx', '.js', '.mjs')) else TS_LANG)
-        self.read_top_level(parser.parse(src).root_node, resolver)
-
-    def declare(self, name_node, kind, body, line):
-        name = ts_text(name_node, self.src)
-        sid = self.g.node(f'f:{self.rel}:{name}', kind=kind, name=name, file=self.rel, line=line, lang='ts',
-                          hash=digest(self.src[body.start_byte:body.end_byte]))
-        self.defs[name] = sid
-        self.g.edge(self.mid, sid, 'contains')
-        self.bodies.append((sid, body))
-        return sid
-
-    def read_top_level(self, tree_root, resolver):
-        src = self.src
-        for top in tree_root.children:
-            node, exported_default = top, False
-            if top.type == 'export_statement':
-                exported_default = any(c.type == 'default' for c in top.children)
-                inner = [c for c in top.children if c.is_named and c.type not in ('comment', 'decorator')]
-                node = inner[0] if inner else top
-                if exported_default and node.type == 'identifier':
-                    self.default = ('name', ts_text(node, src))
-                    continue
-            if node.type in ('function_declaration', 'generator_function_declaration') and node.child_by_field_name('name'):
-                sid = self.declare(node.child_by_field_name('name'), 'function', node, node.start_point[0] + 1)
-                if exported_default:
-                    self.default = ('id', sid)
-            elif node.type in ('class_declaration', 'abstract_class_declaration') and node.child_by_field_name('name'):
-                sid = self.declare(node.child_by_field_name('name'), 'class', node, node.start_point[0] + 1)
-                if exported_default:
-                    self.default = ('id', sid)
-            elif node.type in ('lexical_declaration', 'variable_declaration'):
-                for d in node.children:
-                    if d.type == 'variable_declarator':
-                        value, name = d.child_by_field_name('value'), d.child_by_field_name('name')
-                        if (name is not None and name.type == 'identifier' and value is not None
-                                and value.type in ('arrow_function', 'function_expression', 'function', 'call_expression')):
-                            self.declare(name, 'function', value, d.start_point[0] + 1)
-            elif node.type == 'import_statement':
-                self.read_import(node, resolver)
-
-    def read_import(self, node, resolver):
-        src = self.src
-        source = node.child_by_field_name('source')
-        if source is None:
-            return
-        target = resolver.resolve(self.rel, ts_text(source, src).strip('\'"'))
-        if not target:
-            return
-        for clause in node.children:
-            if clause.type != 'import_clause':
-                continue
-            for part in clause.children:
-                if part.type == 'identifier':
-                    self.imports[ts_text(part, src)] = (target, 'default')
-                elif part.type == 'namespace_import':
-                    ids = [x for x in part.children if x.type == 'identifier']
-                    if ids:
-                        self.imports[ts_text(ids[0], src)] = (target, '*')
-                elif part.type == 'named_imports':
-                    for spec in part.children:
-                        if spec.type == 'import_specifier':
-                            name = spec.child_by_field_name('name')
-                            alias = spec.child_by_field_name('alias') or name
-                            self.imports[ts_text(alias, src)] = (target, ts_text(name, src))
-        self.imports.setdefault(f'__side__{target}', (target, '*'))
-
-
-def analyze_ts(root, files, g, issues):
-    resolver = TsResolver(root, files)
-    modules = {}
-    for rel in files:
-        src = read_source(root, rel, issues)
-        if src is None:
-            continue
-        try:
-            modules[rel] = TsModule(g, rel, src, resolver)
-        except (RecursionError, ValueError, MemoryError) as exc:
-            issues.add(rel, describe_failure(exc))
-
-    def resolve_import(target, name):
-        t = modules.get(target)
-        if not t:
-            return None
-        if name == 'default':
-            if t.default is None:
-                return t.mid
-            kind, value = t.default
-            return value if kind == 'id' else t.defs.get(value, t.mid)
-        if name == '*':
-            return t.mid
-        return t.defs.get(name, t.mid)
-
-    for t in modules.values():
-        for target, _ in t.imports.values():
-            g.edge(t.mid, f'm:{target}', 'import')
-        src = t.src
-        for sid, body in t.bodies:
-            stack = [body]
-            while stack:
-                n = stack.pop()
-                stack.extend(n.children)
-                name = None
-                if n.type == 'call_expression':
-                    fn = n.child_by_field_name('function')
-                    if fn is not None and fn.type == 'identifier':
-                        name = ts_text(fn, src)
-                    elif fn is not None and fn.type == 'member_expression':
-                        obj, prop = fn.child_by_field_name('object'), fn.child_by_field_name('property')
-                        if obj is not None and prop is not None and obj.type == 'identifier':
-                            alias = ts_text(obj, src)
-                            if alias in t.imports and t.imports[alias][1] == '*':
-                                target = resolve_import(t.imports[alias][0], ts_text(prop, src))
-                                if target:
-                                    g.edge(sid, target, 'call')
-                elif n.type in ('jsx_opening_element', 'jsx_self_closing_element'):
-                    tag = n.child_by_field_name('name')
-                    if tag is not None and tag.type == 'identifier':
-                        name = ts_text(tag, src)
-                if name:
-                    target = t.defs.get(name)
-                    if not target and name in t.imports:
-                        target = resolve_import(*t.imports[name])
-                    if target and target != sid:
-                        g.edge(sid, target, 'call')
-
-
-PATH_RE = re.compile(r'[\w@.\-/]+\.(?:py|tsx?|jsx?|mjs|md|ya?ml|sh|sql|toml)\b')
-DOTTED_RE = re.compile(r'\bsrc(?:\.\w+)+\b')
+PATH_RE = re.compile(r'[\w@.\-/+]+\.(?:' + '|'.join(sorted({re.escape(e[1:]) for e in CODE_EXTS | generic.CODE | generic.CONFIG | {'.json', '.sh'}},
+                                                         key=len, reverse=True)) + r')\b')
+DOTTED_RE = re.compile(r'\b[A-Za-z_]\w*(?:\.\w+)+\b')
+KNOWN_EXTS = {e.lower() for e in CODE_EXTS | generic.CODE | generic.CONFIG} | {'.json', '.sh', '.txt', '.lock', '.xml', '.csv'}
 
 
 def declare_docs(root, files, g, issues):
@@ -555,14 +206,21 @@ def declare_docs(root, files, g, issues):
     return texts
 
 
-def link_docs(texts, g, all_files):
+def link_docs(sources, g, all_files):
     by_base = defaultdict(list)
     for f in all_files:
         by_base[f.rsplit('/', 1)[-1]].append(f)
     known = {meta['file'] for meta in g.nodes.values()}
-    for rel, text in texts.items():
-        did = f'd:{rel}'
-        mentions = set(PATH_RE.findall(text)) | {h.replace('.', '/') + '.py' for h in DOTTED_RE.findall(text)}
+    py_modules = {py_module_name(f): f for f in all_files if f.endswith(('.py', '.ipynb'))}
+    for did, (rel, text) in sources.items():
+        mentions = set(PATH_RE.findall(text))
+        for hit in set(DOTTED_RE.findall(text)):
+            if '.' + hit.rsplit('.', 1)[-1] in KNOWN_EXTS:
+                continue
+            while '.' in hit and hit not in py_modules:
+                hit = hit.rsplit('.', 1)[0]
+            if hit in py_modules:
+                mentions.add(py_modules[hit])
         for hit in mentions:
             hit = hit.lstrip('./')
             nearby = os.path.normpath(os.path.join(os.path.dirname(rel), hit)).replace(os.sep, '/')
@@ -570,36 +228,100 @@ def link_docs(texts, g, all_files):
                 targets = [hit]
             elif nearby in known:
                 targets = [nearby]
-            else:
+            elif os.path.splitext(hit)[1] in CODE_EXTS and os.path.splitext(hit)[1] not in DOCS:
                 same_name = by_base.get(hit.rsplit('/', 1)[-1], [])
                 targets = same_name if len(same_name) == 1 else []
+            else:
+                targets = []
             for target in targets:
-                g.edge(did, f'd:{target}' if target.endswith('.md') else f'm:{target}', 'ref')
+                if target != rel:
+                    g.edge(did, f'd:{target}' if os.path.splitext(target)[1] in DOCS else f'm:{target}', 'ref')
 
 
-def community_name(members_files):
-    tops = Counter(f.split('/', 1)[0] for f in members_files if '/' in f)
+GENERIC_SEGMENTS = {
+    'src', 'lib', 'libs', 'main', 'java', 'kotlin', 'scala', 'groovy', 'app', 'apps', 'internal', 'pkg', 'source',
+    'sources', 'crates', 'packages', 'modules', 'code', 'js', 'ts', 'python', 'go', 'csharp', 'dotnet', 'php', 'ruby',
+}
+DOMAIN_ROOTS = {'com', 'org', 'net', 'io', 'dev', 'me', 'co', 'edu', 'gov'}
+CAP_SHARE = 0.25
+
+
+def meaningful(directory):
+    parts = [p for p in directory.split('/') if p]
+    out, skip = [], False
+    for i, p in enumerate(parts):
+        if skip:
+            skip = False
+            continue
+        if p.lower() in DOMAIN_ROOTS and i < len(parts) - 1:
+            skip = True
+            continue
+        if p.lower() not in GENERIC_SEGMENTS:
+            out.append(p)
+    return out
+
+
+def covering_dir(files):
+    dirs = Counter()
+    for f in files:
+        parts = f.split('/')[:-1]
+        for k in range(1, len(parts) + 1):
+            dirs['/'.join(parts[:k])] += 1
+    need = len(files) / 2
+    found = [d for d, n in dirs.items() if n >= need]
+    return max(found, key=lambda d: (d.count('/'), dirs[d], d)) if found else ''
+
+
+def community_name(members_files, project='(raíz)'):
+    files = sorted(set(members_files))
+    tops = Counter(f.split('/', 1)[0] for f in files if '/' in f)
     if tops:
         top, n = tops.most_common(1)[0]
-        if top.startswith('.') and n * 2 >= len(members_files):
+        if top.startswith('.') and n * 2 >= len(files):
             return top.lstrip('.')
-    dirs = Counter()
-    for f in members_files:
-        parts = f.split('/')[:-1]
-        dirs['/'.join(parts[:3]) if parts else '(raíz)'] += 1
-    top = dirs.most_common(1)[0][0]
-    label = top.split('/')[-1] or top
-    return label.lstrip('.').replace('_', ' ') or top
+    code = [f for f in files if os.path.splitext(f)[1] not in DOCS and not generic.kind_of(f)] or files
+    directory = covering_dir(code)
+    words = meaningful(directory)
+    if not words:
+        below = Counter()
+        for f in code:
+            inner = meaningful(os.path.dirname(f[len(directory):].strip('/')))
+            if inner:
+                below[inner[0]] += 1
+        if below and below.most_common(1)[0][1] * 3 >= len(code):
+            words = [min(below, key=lambda k: (-below[k], k))]
+    label = words[-1] if words else project
+    return label.strip('._-').replace('_', ' ').strip() or project
 
 
-def neighbour_weights(w, comm, c):
-    links = Counter()
-    for (a, b), wt in w.items():
-        if comm[a] == c and comm[b] != c:
-            links[comm[b]] += wt
-        elif comm[b] == c and comm[a] != c:
-            links[comm[a]] += wt
-    return links
+def distinguish(communities, members, g, degree):
+    groups = defaultdict(list)
+    for c in communities:
+        groups[c['name']].append(c)
+    for name, same in groups.items():
+        if len(same) < 2:
+            continue
+        dirs = {c['id']: covering_dir(sorted({g.nodes[n]['file'] for n in members[c['id']]})) for c in same}
+        shared = os.path.commonpath(list(dirs.values())) if all(dirs.values()) else ''
+        taken = set()
+        for c in same:
+            words = [w for w in meaningful(dirs[c['id']][len(shared):]) if w != name]
+            if not words or words[0] in taken:
+                hubs = sorted((n for n in members[c['id']] if g.nodes[n]['kind'] == 'module'), key=lambda n: (-degree[n], n))
+                stems = [os.path.splitext(g.nodes[n]['name'])[0] for n in hubs]
+                words = [x for x in stems if x != name and x not in taken and x.lower() not in ('index', 'mod', 'main', '__init__')]
+            extra = words[0] if words else c['hub'].rsplit('.', 1)[0]
+            taken.add(extra)
+            c['name'] = f'{name} · {extra}'
+
+
+def common_prefix_len(a, b):
+    n = 0
+    for x, y in zip(a.split('/'), b.split('/')):
+        if x != y or not x:
+            break
+        n += 1
+    return n
 
 
 def detect_communities(g):
@@ -607,7 +329,7 @@ def detect_communities(g):
     files = sorted(set(file_of.values()))
     index = {f: i for i, f in enumerate(files)}
     w = Counter()
-    for (a, b, kind), n in g.edges.items():
+    for (a, b, kind), n in sorted(g.edges.items()):
         fa, fb = file_of[a], file_of[b]
         if fa != fb:
             w[(min(index[fa], index[fb]), max(index[fa], index[fb]))] += EDGE_WEIGHT[kind] * n
@@ -628,74 +350,112 @@ def detect_communities(g):
             while d and not folder.get(d):
                 d = os.path.dirname(d)
             if folder.get(d):
-                comm[i] = folder[d].most_common(1)[0][0]
+                comm[i] = min(folder[d], key=lambda c: (-folder[d][c], c))
 
-    def merge_small():
-        initial = Counter(comm)
-        for c in sorted(initial, key=lambda x: initial[x]):
-            sizes = Counter(comm)
-            if sizes[c] >= MIN_COMMUNITY and len(sizes) <= MAX_COMMUNITIES:
-                continue
-            links = neighbour_weights(w, comm, c)
-            if links:
-                target = links.most_common(1)[0][0]
-            elif sizes[c] >= MIN_COMMUNITY or len(sizes) <= MAX_COMMUNITIES:
-                continue
-            else:
-                target = max((x for x in sizes if x != c), key=lambda x: sizes[x])
-            comm[:] = [target if x == c else x for x in comm]
-
-    def folder_key(f):
-        parts = f[2:].split('/')[:-1]
-        return '/'.join(parts[:2]) if parts else '(raíz)'
-
-    sizes = Counter(comm)
-    linked = set()
-    for (a, b) in w:
-        if comm[a] != comm[b]:
-            linked.update((comm[a], comm[b]))
+    file_nodes = Counter(file_of[nid] for nid in g.nodes)
+    groups = defaultdict(list)
+    for i, c in enumerate(comm):
+        groups[c].append(i)
+    nb = defaultdict(Counter)
+    for (a, b), wt in w.items():
+        ca, cb = comm[a], comm[b]
+        if ca != cb:
+            nb[ca][cb] += wt
+            nb[cb][ca] += wt
+    nodes_of = {c: sum(file_nodes[files[i]] for i in idx) for c, idx in groups.items()}
     home = {}
-    for c in sorted(sizes, key=lambda x: -sizes[x]):
-        if sizes[c] >= MIN_COMMUNITY or c in linked:
-            continue
-        key = Counter(folder_key(f) for f, x in zip(files, comm) if x == c).most_common(1)[0][0]
-        if key in home:
-            comm[:] = [home[key] if x == c else x for x in comm]
+
+    def home_dir(c):
+        if c not in home:
+            home[c] = covering_dir([files[i][2:] for i in groups[c]])
+        return home[c]
+
+    cap = max(MIN_COMMUNITY * 2, int(len(files) * CAP_SHARE))
+
+    def merge(keep, gone):
+        groups[keep].extend(groups.pop(gone))
+        nodes_of[keep] += nodes_of.pop(gone)
+        for other, wt in nb.pop(gone, Counter()).items():
+            nb[other].pop(gone, None)
+            if other != keep:
+                nb[keep][other] += wt
+                nb[other][keep] += wt
+        nb[keep].pop(gone, None)
+        home.pop(keep, None)
+        home.pop(gone, None)
+
+    def nearest_folder(c):
+        mine = home_dir(c)
+        others = [x for x in groups if x != c]
+        return min(others, key=lambda x: (-common_prefix_len(mine, home_dir(x)), len(groups[x]) + len(groups[c]) > cap,
+                                          nodes_of[x], x)) if others else None
+
+    def best_neighbour(c):
+        links = nb.get(c)
+        if not links:
+            return None
+        fits = [x for x in links if len(groups[x]) + len(groups[c]) <= cap] or list(links)
+        return max(fits, key=lambda x: (links[x] / max(1, nodes_of[x]), -x))
+
+    def small(c):
+        return len(groups[c]) < MIN_COMMUNITY or nodes_of[c] < MIN_NODES
+
+    lonely = defaultdict(list)
+    for c in sorted(groups):
+        if not nb.get(c):
+            lonely[home_dir(c)].append(c)
+    for same in lonely.values():
+        for c in same[1:]:
+            merge(same[0], c)
+
+    changed = True
+    while changed and len(groups) > 1:
+        changed = False
+        for c in sorted(groups, key=lambda x: (nodes_of[x], x)):
+            if c not in groups or not small(c) or len(groups) == 1:
+                continue
+            target = best_neighbour(c)
+            if target is None:
+                target = nearest_folder(c)
+                if target is not None and len(groups[c]) >= MIN_COMMUNITY:
+                    shared = '/'.join(home_dir(c).split('/')[:common_prefix_len(home_dir(c), home_dir(target))])
+                    if not meaningful(shared):
+                        continue
+            if target is None:
+                continue
+            merge(target, c)
+            changed = True
+    while len(groups) > MAX_COMMUNITIES:
+        best = None
+        for a in sorted(nb):
+            for b, wt in nb[a].items():
+                if a < b and len(groups[a]) + len(groups[b]) <= cap:
+                    score = wt / (nodes_of[a] * nodes_of[b])
+                    if best is None or score > best[0]:
+                        best = (score, a, b)
+        if best is None:
+            c = min(groups, key=lambda x: (nodes_of[x], x))
+            target = nearest_folder(c)
+            merge(target, c)
         else:
-            home[key] = c
-    for _ in range(3):
-        merge_small()
+            merge(best[1], best[2])
+    for c, idx in groups.items():
+        for i in idx:
+            comm[i] = c
 
     hidden = defaultdict(set)
     for f, c in zip(files, comm):
         top = f[2:].split('/', 1)[0]
         if top.startswith('.') and '/' in f[2:]:
             hidden[top].add(c)
-    for top, cs in hidden.items():
-        owned = [c for c in cs
-                 if sum(1 for f, x in zip(files, comm) if x == c and f[2:].startswith(top + '/')) * 2 >= Counter(comm)[c]]
+    for top, cs in sorted(hidden.items()):
+        owned = sorted(c for c in cs
+                       if sum(1 for f, x in zip(files, comm) if x == c and f[2:].startswith(top + '/')) * 2 >= Counter(comm)[c])
         for c in owned[1:]:
             comm[:] = [owned[0] if x == c else x for x in comm]
 
-    file_nodes = Counter(file_of[nid] for nid in g.nodes)
-    for _ in range(3):
-        weight = Counter()
-        for f, c in zip(files, comm):
-            weight[c] += file_nodes[f]
-        for c in sorted(weight, key=lambda x: weight[x]):
-            if weight[c] >= MIN_NODES:
-                continue
-            links = neighbour_weights(w, comm, c)
-            if not links:
-                top = Counter(f[2:].split('/', 1)[0] for f, x in zip(files, comm) if x == c).most_common(1)[0][0]
-                for f, x in zip(files, comm):
-                    if x != c and f[2:].split('/', 1)[0] == top:
-                        links[x] += 1
-            if links:
-                target = links.most_common(1)[0][0]
-                comm[:] = [target if x == c else x for x in comm]
-
-    remap = {c: k for k, (c, _) in enumerate(Counter(comm).most_common())}
+    order = sorted(Counter(comm).items(), key=lambda kv: (-kv[1], kv[0]))
+    remap = {c: k for k, (c, _) in enumerate(order)}
     file_comm = {f: remap[c] for f, c in zip(files, comm)}
     return {nid: file_comm[file_of[nid]] for nid in g.nodes}
 
@@ -747,6 +507,68 @@ def pack_centers(dirs, radius, rng):
     return centers
 
 
+def force_layout(count, pairs, rng, niter):
+    if count == 1:
+        return np.zeros((1, 3))
+    graph = ig.Graph(n=count, edges=list(pairs))
+    start = rng.uniform(-1, 1, size=(count, 3)) * math.sqrt(count)
+    ig.set_random_number_generator(random.Random(int(rng.integers(1 << 30))))
+    try:
+        coords = graph.layout_fruchterman_reingold_3d(weights=list(pairs.values()) or None, niter=niter, seed=start.tolist())
+    finally:
+        ig.set_random_number_generator(random)
+    return np.array(coords.coords, dtype=float)
+
+
+def sphere_points(count):
+    i = np.arange(count) + 0.5
+    phi = np.arccos(1 - 2 * i / count)
+    theta = math.pi * (1 + 5 ** 0.5) * i
+    return np.stack([np.cos(theta) * np.sin(phi), np.sin(theta) * np.sin(phi), np.cos(phi)], axis=1)
+
+
+def layout_sizes(nodes, file_of):
+    return len(nodes) if len(nodes) <= ORBIT_MIN else len({file_of[n] for n in nodes})
+
+
+def local_layout(nodes, adj, rng, file_of, niter):
+    if len(nodes) <= ORBIT_MIN:
+        index = {n: i for i, n in enumerate(nodes)}
+        pairs = Counter()
+        for a in nodes:
+            for b, wt in adj[a].items():
+                if b in index and a != b:
+                    pairs[(min(index[a], index[b]), max(index[a], index[b]))] += wt
+        return force_layout(len(nodes), pairs, rng, niter)
+    groups = defaultdict(list)
+    for i, n in enumerate(nodes):
+        groups[file_of[n]].append(i)
+    keys = sorted(groups)
+    findex = {f: i for i, f in enumerate(keys)}
+    pairs = Counter()
+    for a in nodes:
+        for b, wt in adj[a].items():
+            fa, fb = findex[file_of[a]], findex.get(file_of.get(b))
+            if fb is not None and fa != fb:
+                pairs[(min(fa, fb), max(fa, fb))] += wt
+    centers = force_layout(len(keys), pairs, rng, niter)
+    spread = np.linalg.norm(centers - centers.mean(axis=0), axis=1)
+    step = (np.percentile(spread, 90) or 1) / max(1.0, len(keys) ** (1 / 3))
+    biggest = max(len(v) for v in groups.values())
+    out = np.zeros((len(nodes), 3))
+    for f, idx in groups.items():
+        center = centers[findex[f]]
+        heads = [i for i in idx if nodes[i][:2] in ('m:', 'd:')]
+        rest = [i for i in idx if i not in heads]
+        for i in heads:
+            out[i] = center
+        if rest:
+            radius = step * (0.25 + 0.55 * (len(rest) / biggest) ** (1 / 3))
+            shell = sphere_points(len(rest)) * radius * rng.uniform(0.75, 1.0, size=(len(rest), 1))
+            out[rest] = center + shell
+    return out
+
+
 def layout(g, community, seed=7):
     rng = np.random.default_rng(seed)
     members = defaultdict(list)
@@ -767,18 +589,12 @@ def layout(g, community, seed=7):
     for (a, b, kind), n in g.edges.items():
         if community[a] == community[b]:
             adj[a][b] += EDGE_WEIGHT[kind] * n
+    file_of = {nid: ('d:' if m['kind'] == 'doc' else 'm:') + m['file'] for nid, m in g.nodes.items()}
+    work = sum(layout_sizes(nodes, file_of) ** 2 for nodes in members.values())
+    niter = int(min(600, max(40, LAYOUT_BUDGET / max(1, work))))
     node_pos = {}
     for c, nodes in members.items():
-        sub = nx.Graph()
-        sub.add_nodes_from(nodes)
-        for a in nodes:
-            for b, wt in adj[a].items():
-                sub.add_edge(a, b, weight=wt)
-        if len(nodes) == 1:
-            local = {nodes[0]: np.zeros(3)}
-        else:
-            local = nx.spring_layout(sub, dim=3, seed=seed + c, iterations=80, k=1.4 / math.sqrt(len(nodes)))
-        arr = np.array([local[n] for n in nodes], dtype=float)
+        arr = local_layout(nodes, adj, np.random.default_rng(seed + c), file_of, niter)
         arr -= arr.mean(axis=0)
         r90 = np.percentile(np.linalg.norm(arr, axis=1), 90) or 1
         arr = arr / r90 * radius[c] + rng.normal(scale=0.15, size=arr.shape)
@@ -796,18 +612,30 @@ def analyze(root, project=None, exclude=(), skip_tests=False):
     if not root.is_dir():
         raise CortexError(f'no existe la carpeta «{root}»')
     files = list_files(root, exclude, skip_tests)
-    py = [f for f in files if os.path.splitext(f)[1] in CODE_PY]
-    ts = [f for f in files if os.path.splitext(f)[1] in CODE_TS]
+    scripts = {f: script_route(read_head(root / f)) for f in files if maybe_script(f) and not langs.lang_of(f)}
+    scripts = {f: r for f, r in scripts.items() if r}
+    py = [f for f in files if os.path.splitext(f)[1] in CODE_PY or scripts.get(f) == 'py']
+    ts = [f for f in files if os.path.splitext(f)[1] in CODE_TS or scripts.get(f) == 'ts']
     md = [f for f in files if os.path.splitext(f)[1] in DOCS]
+    overrides = {f: r for f, r in scripts.items() if r not in ('py', 'ts')}
+    script_names = {f: {'py': 'Python', 'ts': 'JavaScript'}.get(r) or LANGUAGE_NAMES.get(langs.LANGS[r]['exts'][0], r)
+                    for f, r in scripts.items()}
+    other = [f for f in files if langs.lang_of(f) or f in overrides]
+    rest = [f for f in files if os.path.splitext(f)[1] not in CODE_EXTS and not langs.lang_of(f) and f not in scripts]
     issues = Issues()
     g = Graph()
     texts = declare_docs(root, md, g, issues)
     analyze_python(root, py, g, issues)
     analyze_ts(root, ts, g, issues)
-    link_docs(texts, g, files)
+    langs.analyze_languages(root, other, g, issues, read_source, describe_failure, digest, overrides, skip_tests=skip_tests)
+    sources, tables = generic.analyze_generic(root, rest, g, issues, read_source, digest)
+    sources.update({f'd:{rel}': (rel, text) for rel, text in texts.items()})
+    link_docs(sources, g, files)
+    generic.link_tables(g, tables)
     if not g.nodes:
-        raise CortexError('no hay archivos de código ni documentos para analizar (.py, .ts, .tsx, .js, .jsx, .mjs, .md)')
+        raise CortexError('no hay archivos de código ni documentos para analizar en esa carpeta')
 
+    g.edges = Counter(dict(sorted(g.edges.items())))
     community = detect_communities(g)
     centers, radius, node_pos, members = layout(g, community)
 
@@ -817,18 +645,16 @@ def analyze(root, project=None, exclude=(), skip_tests=False):
         degree[b] += n
 
     ids = {nid: i for i, nid in enumerate(g.nodes)}
+    project_name = project or root.resolve().name
     communities = []
     for c in range(len(centers)):
-        hub = max((n for n in members[c] if g.nodes[n]['kind'] in ('module', 'doc')), key=lambda n: degree[n], default=members[c][0])
+        hub = max((n for n in members[c] if g.nodes[n]['kind'] in ('module', 'doc')), key=lambda n: (degree[n], n), default=members[c][0])
         communities.append({
-            'id': c, 'name': community_name([g.nodes[n]['file'] for n in members[c]]), 'hub': g.nodes[hub]['name'],
+            'id': c, 'name': community_name([g.nodes[n]['file'] for n in members[c]], project_name), 'hub': g.nodes[hub]['name'],
             'size': len(members[c]), 'center': rounded(centers[c]), 'radius': round(float(radius[c]), 3),
             'color': PALETTE[c % len(PALETTE)],
         })
-    repeated = Counter(c['name'] for c in communities)
-    for c in communities:
-        if repeated[c['name']] > 1:
-            c['name'] = f"{c['name']} · {c['hub'].rsplit('.', 1)[0]}"
+    distinguish(communities, members, g, degree)
 
     nodes = []
     for nid, meta in g.nodes.items():
@@ -849,6 +675,8 @@ def analyze(root, project=None, exclude=(), skip_tests=False):
         'stats': {
             'files': len(files), 'nodes': len(nodes), 'edges': len(edges), 'communities': len(communities),
             'kinds': dict(Counter(n['kind'] for n in nodes)), 'edge_kinds': dict(Counter(e['kind'] for e in edges)),
+            'languages': dict(Counter(script_names.get(n['file']) or language_of(n['file'])
+                                      for n in nodes if n['kind'] in ('module', 'doc')).most_common()),
             'tests': not skip_tests, 'excluded': list(exclude), 'warnings': issues.items, 'warnings_total': issues.total,
         },
         'communities': communities, 'nodes': nodes, 'edges': edges, 'visible': visible,
@@ -936,8 +764,10 @@ def export_markdown(out):
     lines = []
     add = lines.append
     add(f"# Grafo de conocimiento · {out['project']}\n")
-    add(f"> Generado por Córtex: análisis estático determinista (AST de Python y TypeScript, comunidades con Leiden), sin IA. "
+    langs_line = ', '.join(f'{k} ({v})' for k, v in list((st.get('languages') or {}).items())[:12])
+    add(f"> Generado por Córtex: análisis estático determinista (árboles de sintaxis de cada lenguaje, comunidades con Leiden), sin IA. "
         f"{st['files']} archivos · {st['nodes']} nodos · {st['edges']} relaciones · {st['communities']} comunidades."
+        f"{' Lenguajes: ' + langs_line + '.' if langs_line else ''}"
         f"{' Tests excluidos.' if not st.get('tests', True) else ''}"
         f"{' Carpetas omitidas: ' + ', '.join(f'`{e}`' for e in st['excluded']) + '.' if st.get('excluded') else ''}\n")
     add('## Cómo usar este archivo\n')

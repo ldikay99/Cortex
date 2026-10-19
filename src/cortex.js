@@ -660,8 +660,35 @@ document.addEventListener('selectstart', (e) => {
   if (!e.target.closest?.('input, textarea')) e.preventDefault();
 });
 
-const SKIP_PATH = /(^|\/)(node_modules|\.git|\.next|__pycache__|\.venv|venv|dist|build)(\/|$)/;
-const KEEP_FILE = /\.(py|tsx?|jsx?|mjs|md)$/i;
+const FALLBACK_FORMATS = {
+  exts: ['.py', '.ipynb', '.ts', '.tsx', '.js', '.jsx', '.mjs', '.md', '.go', '.rs', '.java', '.kt', '.cs', '.php', '.rb', '.c', '.h', '.cpp', '.swift', '.yml', '.yaml', '.toml', '.json', '.sql'],
+  names: ['Dockerfile', 'Makefile'], prefixes: ['Dockerfile.', 'docker-compose'],
+  skip_dirs: ['node_modules', '.git', '.next', '__pycache__', '.venv', 'venv', 'dist', 'build', 'vendor', 'target'],
+  skip_suffixes: ['.min.js', '.map', '.d.ts'], locks: ['package-lock.json', 'yarn.lock', 'pnpm-lock.yaml'],
+  max_bytes: 2 * 1024 * 1024, max_notebook_bytes: 40 * 1024 * 1024,
+};
+let formatsPromise = null;
+function loadFormats() {
+  formatsPromise ||= fetch('/api/formatos').then((r) => (r.ok ? r.json() : FALLBACK_FORMATS)).catch(() => FALLBACK_FORMATS);
+  return formatsPromise;
+}
+function fileFilter(fm) {
+  const exts = new Set(fm.exts);
+  const names = new Set(fm.names);
+  const locks = new Set(fm.locks);
+  const skipDirs = new Set(fm.skip_dirs);
+  return (f) => {
+    const parts = f.webkitRelativePath.split('/');
+    const name = parts[parts.length - 1];
+    if (parts.slice(0, -1).some((p) => skipDirs.has(p)) || locks.has(name) || name.startsWith('.env')) return false;
+    if (fm.skip_suffixes.some((s) => name.endsWith(s))) return false;
+    const dot = name.lastIndexOf('.');
+    const ext = dot > 0 ? name.slice(dot) : '';
+    if (!name.includes('.') && !names.has(name) && name !== name.toUpperCase()) return f.size <= (fm.max_script_bytes || 262144);
+    if (!(exts.has(ext) || names.has(name) || fm.prefixes.some((p) => name.startsWith(p)))) return false;
+    return f.size <= (ext === '.ipynb' ? fm.max_notebook_bytes : fm.max_bytes);
+  };
+}
 const OPEN_FLAG = 'cortex-abrir';
 const popovers = [];
 function popover(el, btn, onOpen) {
@@ -842,8 +869,9 @@ document.querySelector('#pick-folder').addEventListener('change', async (e) => {
   e.target.value = '';
   if (!files.length) return;
   const root = files[0].webkitRelativePath.split('/')[0] || 'proyecto';
-  const keep = files.filter((f) => KEEP_FILE.test(f.name) && !SKIP_PATH.test(f.webkitRelativePath) && f.size < 2 * 1024 * 1024);
-  if (!keep.length) return (uploadStatus.textContent = 'esa carpeta no tiene código ni documentos para analizar');
+  uploadStatus.textContent = 'revisando la carpeta…';
+  const keep = files.filter(fileFilter(await loadFormats()));
+  if (!keep.length) return (uploadStatus.textContent = 'esa carpeta no tiene código, configuración ni documentos para analizar');
   uploadStatus.textContent = `leyendo ${fmt(keep.length)} archivos…`;
   const lines = await Promise.all(keep.map(async (f) => JSON.stringify({ path: f.webkitRelativePath.split('/').slice(1).join('/'), content: await f.text() })));
   uploadStatus.textContent = 'subiendo…';

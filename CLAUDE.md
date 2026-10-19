@@ -1,11 +1,12 @@
 # Córtex
 
-Convierte un repositorio en un grafo de conocimiento versionado que los agentes consultan (MCP, CLI, HTTP) y lo muestra como un universo 3D que una araña teje archivo por archivo.
+Convierte un repositorio en cualquier lenguaje en un grafo de conocimiento versionado que los agentes consultan (MCP, CLI, HTTP) y lo muestra como un universo 3D que una araña teje archivo por archivo.
 
 ## Dónde está cada cosa
 
 - `src/`: web Three.js, empaquetada con esbuild en `app.js`. `index.html` y `style.css` en la raíz.
-- `analyzer/cortex_graph/`: analizador Python (`analyze`, `store`, `pipeline`, `query`, `server`, `mcp_server`, `cli`). Tests en `analyzer/tests/`.
+- `analyzer/cortex_graph/`: analizador (`analyze` orquesta, comunidades y layout; `pyast` Python; `tsjs` TS/JS; `langs` otros 26 lenguajes; `generic` configuración y respaldo; `common`, `store`, `pipeline`, `query`, `server`, `mcp_server`, `cli`). Tests en `analyzer/tests/`.
+- Nuevo lenguaje: una entrada en `LANGS` de `langs.py`, su gramática fijada en `analyzer/pyproject.toml` y un test en `tests/test_langs_extra.py`.
 - `tests/e2e/smoke.mjs`: prueba de humo con Playwright contra la app levantada.
 - `datos/<proyecto>/`: versiones, `historial.json`, `grafo.md`, `grafo.json`. Generado, no se versiona.
 - `.mcp.json`: servidor MCP `cortex` vía `docker exec -i cortex-analyzer cortex mcp`.

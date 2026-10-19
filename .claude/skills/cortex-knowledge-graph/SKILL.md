@@ -5,7 +5,7 @@ description: Build and query a deterministic knowledge graph of any code reposit
 
 # Córtex: grafo de conocimiento para agentes
 
-Córtex analiza un repositorio sin IA (Python con `ast`, TS/TSX/JS con tree-sitter, Markdown) y guarda un grafo de módulos, clases, funciones, métodos y documentos unidos por `contains`, `import`, `call`, `inherits`, `ref` y `loads`, agrupados en comunidades (Leiden). Cada análisis es una versión con diff por hash de contenido. Todo resultado cita `archivo:línea`.
+Córtex analiza cualquier repositorio sin IA (26 lenguajes con árboles de sintaxis, configuración e infraestructura como Docker, CI, SQL o Terraform, y un respaldo heurístico para el resto) y guarda un grafo de módulos, clases, funciones, métodos y documentos unidos por `contains`, `import`, `call`, `inherits`, `ref` y `loads`, agrupados en comunidades (Leiden). Cada análisis es una versión con diff por hash de contenido. Todo resultado cita `archivo:línea`.
 
 ## Cuándo analizar
 

@@ -111,7 +111,7 @@ def groups(lines):
 
 def test_upload_review_tree_and_analyze(api):
     status, body = api.post('/api/upload?name=demo', ndjson(FILES))
-    assert status == 200 and body['state'] == 'review' and body['project'] == 'demo' and body['files'] == 13
+    assert status == 200 and body['state'] == 'review' and body['project'] == 'demo' and body['files'] == 14
     assert not (api.data / 'demo' / 'fuente' / 'node_modules').exists()
     status, tree = api.get('/api/tree')
     assert status == 200 and 'app/services.py' in tree['files']
@@ -131,7 +131,7 @@ def test_upload_review_tree_and_analyze(api):
 
 def test_zip_upload_strips_root_folder(api):
     status, body = api.post('/api/upload?name=zipped', zipped(FILES))
-    assert status == 200 and body['files'] == 13
+    assert status == 200 and body['files'] == 14
     assert (api.data / 'zipped' / 'fuente' / 'app' / 'services.py').is_file()
 
 

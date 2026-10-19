@@ -31,7 +31,12 @@ description: Develop Córtex itself (the 3D web in src/ and the Python analyzer 
 
 | Archivo | Rol |
 | --- | --- |
-| `analyze.py` | Análisis Python/TS/Markdown, comunidades Leiden, layout, exportaciones `grafo.md` / `grafo.json` |
+| `analyze.py` | Orquesta el análisis (rutas por lenguaje, scripts con shebang, docs), comunidades Leiden con tope por tamaño y nombres por carpeta, layout, exportaciones `grafo.md` / `grafo.json` |
+| `pyast.py` | Python con `ast`: notebooks, raíces de código, herencia en llamadas a `self`, rutas |
+| `tsjs.py` | TS/JS con tree-sitter: alias de tsconfig, workspaces, barrels, `import()`/`require`, clases con métodos y herencia, Vue/Svelte |
+| `common.py` | `Graph`, `Issues`, lectura de archivos, `digest` |
+| `langs.py` | Motor tree-sitter genérico: tabla `LANGS` con una especificación por lenguaje (definiciones, llamadas, imports, herencia) y `Linker` para resolver nombres |
+| `generic.py` | Configuración e infraestructura (Docker, compose, CI, Make, SQL, proto, GraphQL, Prisma, K8s, `.csproj`) y respaldo heurístico para lenguajes sin gramática |
 | `store.py` | Persistencia en `datos/`, versiones, diff por hash, estabilización del layout, validación de `.cortex.json` |
 | `pipeline.py` | Fuente local o GitHub (clon superficial), análisis y guardado |
 | `query.py` | Índice y consultas: overview, search, node, file, community, path, impact, changes, report |

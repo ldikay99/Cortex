@@ -1,6 +1,6 @@
 # Córtex · guía para agentes
 
-Córtex convierte un repositorio en un grafo de conocimiento determinista y versionado (Python `ast`, TS/TSX/JS con tree-sitter, Markdown, comunidades Leiden) y lo muestra como un universo 3D. Los agentes lo consultan por MCP, CLI o HTTP.
+Córtex convierte un repositorio en un grafo de conocimiento determinista y versionado (26 lenguajes con árboles de sintaxis tree-sitter (Python con `ast`), más configuración e infraestructura y un respaldo heurístico para el resto; comunidades Leiden) y lo muestra como un universo 3D. Los agentes lo consultan por MCP, CLI o HTTP.
 
 ## Estructura
 

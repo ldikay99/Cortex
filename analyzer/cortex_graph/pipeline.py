@@ -118,7 +118,7 @@ def summary(graph):
     return {
         'project': graph['project'],
         'version': graph.get('version'),
-        'stats': {k: stats.get(k) for k in ('files', 'nodes', 'edges', 'communities', 'kinds', 'edge_kinds', 'seconds', 'warnings_total')},
+        'stats': {k: stats.get(k) for k in ('files', 'nodes', 'edges', 'communities', 'languages', 'kinds', 'edge_kinds', 'seconds', 'warnings_total')},
         'changes': {k: len(v) for k, v in (graph.get('changes') or {}).items()},
         'communities': [{'id': c['id'], 'name': c['name'], 'size': c['size']} for c in graph['communities']],
         'warnings': (stats.get('warnings') or [])[:10],

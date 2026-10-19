@@ -21,7 +21,7 @@ def analyzed(repo, data_dir):
 
 
 def test_tool_functions(repo, analyzed):
-    assert analyzed['project'] == 'demo' and analyzed['version'] == 1 and analyzed['stats']['files'] == 10
+    assert analyzed['project'] == 'demo' and analyzed['version'] == 1 and analyzed['stats']['files'] == 11
     assert analyzed['changes'] == {'added': 0, 'modified': 0, 'removed': 0} and analyzed['report'].endswith('grafo.md')
     again = mcp_server.analyze_project(str(repo), name='demo', include_tests=True)
     assert again['version'] == 2 and again['changes']['added'] >= 1
