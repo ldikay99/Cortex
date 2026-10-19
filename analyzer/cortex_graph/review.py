@@ -440,9 +440,9 @@ def detect_sides(index, root, base, head, diff, diff_text, graph_files, warnings
     stale = []
     for p, (rel, h) in sorted(specs.items()):
         new, old = contents.get((p, 'new')), contents.get((p, 'old'))
-        if new is not None and digest(new) == h:
+        if new is not None and digest(new.replace(b'\r\n', b'\n')) == h:
             sides[p] = 'new'
-        elif old is not None and digest(old) == h:
+        elif old is not None and digest(old.replace(b'\r\n', b'\n')) == h:
             sides[p] = 'old'
         elif new is not None or old is not None:
             stale.append(rel)
