@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { createCosmos, isHttp } from './cosmos.js';
+import { EDGE } from './graph.js';
 import { createSpider } from './spider.js';
 import { createSky } from './sky.js';
 import { checkAnalyzer, streamProject, uploadProject, cloneGithub, getTree, analyzeProject, openSaved, updateSaved, importGraph, listSaved, getSymbol, getNodeInfo } from './project.js';
@@ -52,6 +53,8 @@ const helpEl = document.querySelector('#help');
 const commsChip = document.querySelector('#comms-chip');
 const commsEl = document.querySelector('#comms');
 const bridgesChip = document.querySelector('#bridges-chip');
+const memoriesChip = document.querySelector('#memories-chip');
+const memoriesEl = document.querySelector('#memories');
 const bridgesEl = document.querySelector('#bridges');
 const cardEl = document.querySelector('#card');
 const codeEl = document.querySelector('#code');
@@ -581,7 +584,7 @@ window.addEventListener('keydown', (e) => {
     return openHelp(helpEl.hidden);
   }
   if (!helpEl.hidden) return;
-  if (k === 'c' && card.node >= 0) return openCode(card.node);
+  if (k === 'c' && card.node >= 0) return hasCode(cosmos.meta[card.node]) ? openCode(card.node) : undefined;
   if (k === 'h') return setCine(!cine.on);
   if (k === 'f') return setFollow(true);
   if (k === '/' && project.active) {
@@ -614,7 +617,11 @@ spider.place(nodeVec(cosmos.regionNodes[0][0]));
 pickWander();
 setStatus('en el nido');
 
-const KIND_NAME = { module: 'archivo', doc: 'documento', class: 'clase', function: 'función', method: 'método', package: 'paquete', variable: 'variable', endpoint: 'endpoint', topic: 'tópico' };
+const KIND_NAME = { module: 'archivo', doc: 'documento', class: 'clase', function: 'función', method: 'método', package: 'paquete', variable: 'variable', endpoint: 'endpoint', topic: 'tópico', person: 'persona', concept: 'tema', conversation: 'conversación', memory: 'recuerdo', section: 'sección', event: 'evento', component: 'componente', flow: 'flujo' };
+const CATEGORY_NAME = { identity: 'identidad', preference: 'preferencia', goal: 'meta', decision: 'decisión', event: 'evento', relationship: 'relación', skill: 'habilidad', habit: 'hábito', project: 'proyecto', fact: 'dato', instruction: 'instrucción' };
+const ORIGIN_NAME = { manual: 'guardado', rule: 'detectado', ai: 'extraído con IA', import: 'importado' };
+const CATEGORY_RGB = { identity: [255, 204, 153], preference: [230, 179, 217], goal: [153, 230, 191], decision: [242, 217, 140], event: [153, 217, 242], relationship: [255, 179, 168], skill: [179, 204, 255], habit: [191, 230, 153], project: [166, 199, 242], fact: [209, 214, 230], instruction: [217, 191, 255] };
+const categoryColor = (c) => `rgb(${(CATEGORY_RGB[c] || CATEGORY_RGB.fact).join(' ')})`;
 const VIS_NAME = { public: 'público', private: 'privado', protected: 'protegido', internal: 'interno' };
 const clip = (t, n) => {
   const s = String(t);
@@ -622,15 +629,88 @@ const clip = (t, n) => {
 };
 const firstLine = (doc) => clip(String(doc).split(/\n|(?<=[.!?])\s/)[0], 160);
 const lineRange = (m) => (m.end && m.end > m.line ? `${m.line}–${m.end}` : m.line > 1 ? `${m.line}` : '');
-const whereOf = (m) => (lineRange(m) ? `${m.file}:${lineRange(m)}` : m.file);
+const whereOf = (m) => (m.file ? (lineRange(m) ? `${m.file}:${lineRange(m)}` : m.file) : '');
 const KEY_PREFIX = { module: 'm', doc: 'd', class: 'c', function: 'f', method: 'f', endpoint: 'e' };
+const NEW_KINDS = new Set(['person', 'concept', 'conversation', 'memory', 'section', 'event']);
+const hasCode = (m) => !!m?.file && (!NEW_KINDS.has(m.kind) || m.kind === 'section');
+const dayOf = (v) => (v ? String(v).slice(0, 10) : '');
+const span = (a, b) => (a && b && dayOf(a) !== dayOf(b) ? `${dayOf(a)} – ${dayOf(b)}` : dayOf(a || b));
 function keyOf(m) {
   if (m.key) return m.key;
   if (m.kind === 'package') return `p:${m.ecosystem || ''}:${m.name}`;
   if (m.kind === 'variable') return `v:${m.name}`;
   if (m.kind === 'topic') return `t:${m.name}`;
+  if (m.id && NEW_KINDS.has(m.kind)) return m.id;
   if (m.kind === 'module' || m.kind === 'doc') return `${KEY_PREFIX[m.kind]}:${m.file}`;
   return KEY_PREFIX[m.kind] ? `${KEY_PREFIX[m.kind]}:${m.file}:${m.name}` : m.name;
+}
+function linked(n, kinds, kind) {
+  const out = [];
+  for (const x of cosmos.graph.neighbors(n, kinds)) {
+    const t = cosmos.meta[x.node];
+    if (t && (!kind || t.kind === kind)) out.push({ ...x, id: x.node, m: t });
+  }
+  return out;
+}
+function sourceNode(n, m) {
+  const id = m.source ? cosmos.nodeOf(m.source) : -1;
+  if (id >= 0) return id;
+  const f = linked(n, [EDGE.from]).find((x) => x.out);
+  return f ? f.id : -1;
+}
+function richHtml(n, m) {
+  if (m.kind === 'memory') {
+    const tags = [];
+    const old = !!m.valid_to;
+    const when = m.when ? `ocurrió ${dayOf(m.when)}` : '';
+    const valid = m.valid_from || m.valid_to ? `${old ? 'vigente' : 'desde'} ${old ? span(m.valid_from, m.valid_to) : dayOf(m.valid_from)}` : '';
+    if (CATEGORY_NAME[m.category]) tags.push(escapeHtml(CATEGORY_NAME[m.category]));
+    if (when) tags.push(escapeHtml(when));
+    if (valid) tags.push(escapeHtml(valid));
+    if (m.confidence !== undefined && m.confidence !== null) tags.push(`confianza ${Math.round(Number(m.confidence) * 100)}%`);
+    if (m.origin) tags.push(escapeHtml(ORIGIN_NAME[m.origin] || m.origin));
+    if (m.sensitive) tags.push('sensible');
+    const src = sourceNode(n, m);
+    const sm = src >= 0 ? cosmos.meta[src] : null;
+    const link = sm ? `<button type="button" class="link" data-act="goto" data-node="${src}">de ${escapeHtml(KIND_NAME[sm.kind] || sm.kind)}: ${escapeHtml(clip(sm.name, 60))}</button>` : '';
+    return { tags, badges: old ? '<i class="badge">reemplazado</i>' : '', body: link, noDoc: true };
+  }
+  if (m.kind === 'conversation') {
+    const tags = [];
+    if (m.source) tags.push(escapeHtml(m.source));
+    const dates = span(m.started, m.ended);
+    if (dates) tags.push(escapeHtml(dates));
+    if (m.count) tags.push(`${fmt(m.count)} ${m.count === 1 ? 'mensaje' : 'mensajes'}`);
+    const who = linked(n, [EDGE.participant]).map((x) => x.m.name);
+    if (who.length) tags.push(`con ${escapeHtml(clip(who.slice(0, 6).join(', '), 120))}${who.length > 6 ? ` +${who.length - 6}` : ''}`);
+    return { tags, badges: '', body: m.doc ? `<span class="quote">${escapeHtml(clip(m.doc, 200))}</span>` : '', noDoc: true };
+  }
+  if (m.kind === 'person') {
+    const tags = [];
+    const names = (m.aliases || []).filter((a) => a !== m.name);
+    if (names.length) tags.push(`también: ${escapeHtml(clip(names.slice(0, 5).join(', '), 120))}`);
+    if (m.email) tags.push(escapeHtml(m.email));
+    const mentions = linked(n, [EDGE.mentions, EDGE.participant, EDGE.attends]).length;
+    const memories = linked(n, [EDGE.about], 'memory').length;
+    if (mentions) tags.push(`${fmt(mentions)} ${mentions === 1 ? 'mención' : 'menciones'}`);
+    if (memories) tags.push(`${fmt(memories)} ${memories === 1 ? 'recuerdo' : 'recuerdos'}`);
+    return { tags, badges: m.owner ? '<i class="badge">tú</i>' : '' };
+  }
+  if (m.kind === 'concept' || m.kind === 'event' || m.kind === 'section') {
+    const tags = [];
+    if (m.kind === 'event') {
+      const dates = span(m.when, m.until);
+      if (dates) tags.push(escapeHtml(dates));
+    }
+    if (m.kind === 'concept') {
+      const memories = linked(n, [EDGE.about], 'memory').length;
+      const mentions = linked(n, [EDGE.mentions]).length;
+      if (mentions) tags.push(`${fmt(mentions)} ${mentions === 1 ? 'mención' : 'menciones'}`);
+      if (memories) tags.push(`${fmt(memories)} ${memories === 1 ? 'recuerdo' : 'recuerdos'}`);
+    }
+    return { tags, badges: m.tag ? '<i class="badge">#</i>' : '' };
+  }
+  return null;
 }
 function nodeHtml(n, m, extra = {}) {
   const R = cosmos.regions[m.region];
@@ -645,11 +725,21 @@ function nodeHtml(n, m, extra = {}) {
   const calls = cosmos.callersOf(n);
   if (m.kind === 'endpoint') tags.push(calls ? `${fmt(calls)} ${calls === 1 ? 'llamada entrante' : 'llamadas entrantes'}` : 'sin llamadas conocidas');
   if (m.hidden) tags.push(`+${fmt(m.hidden)} símbolos agregados`);
-  return `<b>${escapeHtml(m.name)}</b>
-    <span class="kind">${kind}${badges}</span>
+  const rich = richHtml(n, m);
+  if (rich) tags.push(...rich.tags);
+  const agent = m.by || m.noted;
+  if (agent && Array.isArray(m.tags)) tags.push(...m.tags.slice(0, 8).map((t) => `#${escapeHtml(t)}`));
+  if (m.steps?.length) tags.push(`${fmt(m.steps.length)} ${m.steps.length === 1 ? 'paso' : 'pasos'}`);
+  for (const r of (m.rels || []).slice(0, 4)) tags.push(`${escapeHtml(clip(r.label, 40))} → ${escapeHtml(clip(r.name, 40))}`);
+  const agentBadge = agent ? `<i class="badge agent" title="${m.by ? 'creado' : 'anotado'} por ${agent === 'ai' ? 'la IA (--ai)' : 'un agente'}">${agent === 'ai' ? 'IA' : 'agente'}</i>` : '';
+  const where = whereOf(m);
+  return `<b>${escapeHtml(m.kind === 'memory' ? clip(m.text || m.name, 200) : m.name)}</b>
+    <span class="kind">${kind}${badges}${rich ? rich.badges : ''}${agentBadge}</span>
+    ${rich ? rich.body : ''}
     ${m.sig ? `<code class="sig">${escapeHtml(clip(m.sig, 240))}</code>` : ''}
-    ${m.doc ? `<span class="doc">${escapeHtml(firstLine(m.doc))}</span>` : ''}
-    <span class="where">${escapeHtml(whereOf(m))}</span>
+    ${m.doc && !rich?.noDoc ? `<span class="doc">${escapeHtml(firstLine(m.doc))}</span>` : ''}
+    ${m.summary ? `<span class="doc summary">${escapeHtml(clip(m.summary, 280))}</span>` : ''}
+    ${where ? `<span class="where">${escapeHtml(where)}</span>` : ''}
     ${tags.map((t) => `<span class="tag">${t}</span>`).join('')}
     <span class="meta">${escapeHtml(R ? R.name : '')} · ${fmt(m.deg || 0)} conexiones</span>`;
 }
@@ -692,7 +782,7 @@ function showTip(e) {
 const card = { node: -1, extra: {}, seq: 0 };
 function renderCard() {
   const n = card.node, m = cosmos.meta[n];
-  cardEl.innerHTML = `${nodeHtml(n, m, card.extra)}<span class="actions"><button type="button" data-act="code">ver código <kbd>C</kbd></button><button type="button" data-act="close" aria-label="Cerrar la ficha">cerrar</button></span>`;
+  cardEl.innerHTML = `${nodeHtml(n, m, card.extra)}<span class="actions">${hasCode(m) ? '<button type="button" data-act="code">ver código <kbd>C</kbd></button>' : ''}<button type="button" data-act="close" aria-label="Cerrar la ficha">cerrar</button></span>`;
   cardEl.style.setProperty('--c', rgb(cosmos.regions[m.region].color));
 }
 function pin(n) {
@@ -721,6 +811,10 @@ function unpin() {
 cardEl.addEventListener('click', (e) => {
   const act = e.target.closest('button')?.dataset.act;
   if (act === 'code') openCode(card.node);
+  if (act === 'goto') {
+    const t = Number(e.target.closest('button').dataset.node);
+    if (cosmos.meta[t]) goToNode(t), pin(t);
+  }
   if (act === 'close') unpin();
 });
 cardEl.addEventListener('pointerdown', (e) => e.stopPropagation());
@@ -747,7 +841,7 @@ function codeHeader(m, where) {
 }
 async function openCode(n) {
   const m = cosmos.meta[n];
-  if (!m) return;
+  if (!m || !hasCode(m)) return;
   const seq = ++code.seq;
   code.node = n;
   codeEl.hidden = false;
@@ -778,6 +872,7 @@ async function openCode(n) {
 function closeCode() {
   code.seq++;
   code.node = -1;
+  if (codeEl.contains(document.activeElement)) document.activeElement.blur();
   codeEl.hidden = true;
   cardEl.classList.remove('behind');
 }
@@ -858,6 +953,7 @@ const openUploader = popover(uploaderEl, uploadBtn);
 const openSettings = popover(settingsEl, speedBtn);
 const openComms = popover(commsEl, commsChip, () => communities.render());
 const openBridges = popover(bridgesEl, bridgesChip, () => communities.renderBridges());
+const openMemories = popover(memoriesEl, memoriesChip, () => communities.renderMemories());
 const openSearch = popover(searchEl, findBtn, () => {
   searchInput.value = '';
   resultsEl.innerHTML = '';
@@ -868,15 +964,16 @@ uploadBtn.addEventListener('click', () => openUploader(uploaderEl.hidden));
 speedBtn.addEventListener('click', () => openSettings(settingsEl.hidden));
 commsChip.addEventListener('click', () => openComms(commsEl.hidden));
 bridgesChip.addEventListener('click', () => openBridges(bridgesEl.hidden));
+memoriesChip.addEventListener('click', () => openMemories(memoriesEl.hidden));
 findBtn.addEventListener('click', () => openSearch(searchEl.hidden));
 
-function begin() {
+function begin(mode = 'weave') {
   if (project.active) {
-    save(OPEN_FLAG, '1', 'session');
+    save(OPEN_FLAG, mode, 'session');
     return location.reload();
   }
   openUploader(false);
-  weave();
+  weave(mode === 'instant');
 }
 async function choose(job) {
   try {
@@ -1041,7 +1138,7 @@ githubForm.addEventListener('submit', (e) => {
   uploadStatus.textContent = 'pidiendo el repo…';
   choose(() => cloneGithub(url));
 });
-openLastBtn.addEventListener('click', () => begin());
+openLastBtn.addEventListener('click', () => begin('instant'));
 
 const savedEl = document.querySelector('#saved');
 const savedList = document.querySelector('#saved-list');
@@ -1073,7 +1170,7 @@ async function renderSaved() {
       uploadStatus.textContent = `abriendo ${p.project}…`;
       try {
         await openSaved(p.project);
-        begin();
+        begin('instant');
       } catch (err) {
         fail(err);
       }
@@ -1102,7 +1199,7 @@ document.querySelector('#pick-import').addEventListener('change', async (e) => {
   uploadStatus.textContent = 'importando…';
   try {
     await importGraph(file);
-    begin();
+    begin('instant');
   } catch (err) {
     fail(err);
   }
@@ -1121,10 +1218,15 @@ const KIND_ALIAS = {
   endpoint: 'endpoint', endpoints: 'endpoint', ruta: 'endpoint', rutas: 'endpoint', api: 'endpoint', route: 'endpoint',
   dep: 'package', deps: 'package', pkg: 'package', paquete: 'package', paquetes: 'package', package: 'package',
   var: 'variable', env: 'variable', variable: 'variable', variables: 'variable',
-  topic: 'topic', tópico: 'topic', topico: 'topic', evento: 'topic', cola: 'topic', queue: 'topic',
+  topic: 'topic', tópico: 'topic', topico: 'topic', cola: 'topic', queue: 'topic',
+  persona: 'person', personas: 'person', person: 'person', people: 'person', tema: 'concept', temas: 'concept', concepto: 'concept', concept: 'concept',
+  recuerdo: 'memory', recuerdos: 'memory', memoria: 'memory', memory: 'memory', conversación: 'conversation', conversacion: 'conversation', conversaciones: 'conversation', chat: 'conversation', conversation: 'conversation',
+  sección: 'section', seccion: 'section', section: 'section', evento: 'event', eventos: 'event', event: 'event',
+  componente: 'component', componentes: 'component', component: 'component', flujo: 'flow', flujos: 'flow', flow: 'flow', proceso: 'flow', procesos: 'flow',
   clase: 'class', class: 'class', fn: 'function', func: 'function', función: 'function', funcion: 'function', function: 'function',
   método: 'method', metodo: 'method', method: 'method', archivo: 'module', file: 'module', mod: 'module', module: 'module', doc: 'doc', docs: 'doc',
 };
+const R0 = (m) => cosmos.regions[m.region];
 function parseQuery(raw) {
   const m = /^\s*([\p{L}]+)\s*:\s*(.*)$/u.exec(raw);
   const kind = m && KIND_ALIAS[m[1].toLowerCase()];
@@ -1142,7 +1244,7 @@ function searchNodes(raw, limit = 10) {
       continue;
     }
     const name = m.name.toLowerCase();
-    const rank = name.startsWith(q) ? 0 : name.includes(q) ? 1 : (m.route || '').toLowerCase().includes(q) || (m.sig || '').toLowerCase().includes(q) ? 2 : m.file.toLowerCase().includes(q) ? 3 : -1;
+    const rank = name.startsWith(q) ? 0 : name.includes(q) ? 1 : (m.route || '').toLowerCase().includes(q) || (m.sig || '').toLowerCase().includes(q) ? 2 : (m.file || '').toLowerCase().includes(q) || (m.text || '').toLowerCase().includes(q) || (m.summary || '').toLowerCase().includes(q) ? 3 : -1;
     if (rank >= 0) hits.push([i, rank, m.deg || 0]);
   }
   hits.sort((a, b) => a[1] - b[1] || b[2] - a[2]);
@@ -1156,8 +1258,8 @@ searchInput.addEventListener('input', () => {
     const m = cosmos.meta[i];
     const li = document.createElement('li');
     const label = m.kind === 'endpoint' ? `endpoint ${isHttp(m) ? 'HTTP' : 'RPC'}` : KIND_NAME[m.kind] || m.kind;
-    const detail = m.kind === 'package' ? `${m.ecosystem || 'paquete'} ${m.version || ''}`.trim() : whereOf(m);
-    li.innerHTML = `<button type="button"><b>${escapeHtml(m.name)}</b><span><i class="kind">${escapeHtml(label)}</i> · ${escapeHtml(detail)}</span>${m.sig ? `<code>${escapeHtml(clip(m.sig, 110))}</code>` : ''}</button>`;
+    const detail = m.kind === 'package' ? `${m.ecosystem || 'paquete'} ${m.version || ''}`.trim() : m.kind === 'memory' ? [CATEGORY_NAME[m.category], dayOf(m.valid_from || m.when)].filter(Boolean).join(' · ') : whereOf(m) || (R0(m) ? R0(m).name : '');
+    li.innerHTML = `<button type="button"><b>${escapeHtml(m.kind === 'memory' ? clip(m.text || m.name, 90) : m.name)}</b><span><i class="kind">${escapeHtml(label)}</i>${detail ? ` · ${escapeHtml(detail)}` : ''}</span>${m.sig ? `<code>${escapeHtml(clip(m.sig, 110))}</code>` : ''}</button>`;
     li.querySelector('button').addEventListener('click', () => {
       openSearch(false);
       goToNode(i);
@@ -1202,7 +1304,7 @@ function fail(err) {
   toast(text, { kind: 'error', ms: 5200 });
 }
 
-function weave() {
+function weave(instant = false) {
   project.active = true;
   findBtn.hidden = false;
   chipsEl.hidden = false;
@@ -1214,13 +1316,14 @@ function weave() {
     cosmos,
     spider,
     speed: weaveSpeed,
+    instant,
     onHop(region, head, far) {
       nest.pulse(region);
       spider.beat();
       brain.mode = 'weave';
       brain.region = region;
       spider.dropSilk();
-      project.current = head.file;
+      project.current = head.file || head.name;
       setStatus(far ? `saltando a ${cosmos.regions[region].name}` : `tejiendo ${head.name}`);
     },
     onProgress(done, total, streamDone) {
@@ -1252,14 +1355,15 @@ function weave() {
     onMeta(o) {
       project.name = o.project;
       const lod = cosmos.planCapacity(o.stats);
+      weaver.onlyChanges = o.version > 1;
       if (lod.on) toast(`proyecto grande · ${fmt(o.stats.nodes)} nodos: se tejen archivos, endpoints y los símbolos más conectados; el resto queda agregado en su archivo`, { kind: 'warn', ms: 9000 });
       const vEl = document.querySelector('#chip-version');
       const cEl = document.querySelector('#chip-changes');
       if (o.version) (vEl.hidden = false), (vEl.textContent = `v${o.version}`);
       const c = o.changes || {};
-      if (o.version > 1 && (c.added || c.modified || c.removed)) {
+      if (o.version > 1 && (c.added || c.modified || c.removed || c.annotated)) {
         cEl.hidden = false;
-        cEl.textContent = `+${fmt(c.added || 0)} nuevos · ${fmt(c.modified || 0)} modificados · ${fmt(c.removed || 0)} eliminados`;
+        cEl.textContent = `+${fmt(c.added || 0)} nuevos · ${fmt(c.modified || 0)} modificados · ${fmt(c.removed || 0)} eliminados${c.annotated ? ` · ${fmt(c.annotated)} anotados` : ''}`;
       }
     },
     onItems(items) {
@@ -1300,10 +1404,11 @@ checkAnalyzer().then((status) => {
     return;
   }
   uploadBtn.hidden = false;
-  if (load(OPEN_FLAG, null, 'session')) {
+  const reopen = load(OPEN_FLAG, null, 'session');
+  if (reopen) {
     forget(OPEN_FLAG, 'session');
     project.name = status.project;
-    return weave();
+    return weave(reopen === 'instant');
   }
   if (status.state === 'ready') exportBtn.hidden = false;
   if (status.state === 'review') return showReview();
@@ -1327,7 +1432,15 @@ const communities = createCommunities({
   rgb,
   kindName: KIND_NAME,
   bridgesList: document.querySelector('#bridges-list'),
+  memoriesList: document.querySelector('#memories-list'),
+  categoryName: CATEGORY_NAME,
+  memoryColor: categoryColor,
   isHttp,
+  onMemory(n) {
+    openMemories(false);
+    goToNode(n);
+    pin(n);
+  },
   onBridge(n) {
     openBridges(false);
     goToNode(n);
@@ -1458,6 +1571,7 @@ const NEST_EDGES = cosmos.graph.edges;
 let chipsT = 0;
 let commsT = 0;
 let bridgesT = 0;
+let memoriesT = 0;
 function updateChips(dt) {
   if (cosmos.graph.full && !project.fullWarned && !cosmos.lod.on) {
     project.fullWarned = true;
@@ -1476,6 +1590,10 @@ function updateChips(dt) {
   const eps = cosmos.endpointCount;
   bridgesChip.hidden = !eps;
   if (eps) chip.bridges.textContent = fmt(eps);
+  const mem = cosmos.memoryCount;
+  memoriesChip.hidden = !mem;
+  if (mem) document.querySelector('#chip-memories').textContent = fmt(mem);
+  if (!memoriesEl.hidden && (memoriesT -= 0.25) <= 0) (memoriesT = 3), communities.renderMemories();
   if (!bridgesEl.hidden && (bridgesT -= 0.25) <= 0) (bridgesT = 1.5), communities.renderBridges();
   const R = cosmos.regions[brain.region];
   chip.here.textContent = project.current ? `${R ? R.name + ' · ' : ''}${project.current.split('/').pop()}` : R ? `en ${R.name}` : 'en el nido';

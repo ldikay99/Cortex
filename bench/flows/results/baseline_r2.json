@@ -1,0 +1,435 @@
+{
+ "meta": {
+  "date": "2026-10-20",
+  "note": "Ejecución al empezar la ronda 2 (Córtex al final de la ronda 1)."
+ },
+ "results": {
+  "aspire-samples": {
+   "found": 46,
+   "recall": {
+    "data": {
+     "found": 14,
+     "total": 21
+    },
+    "env": {
+     "found": 0,
+     "total": 14
+    },
+    "event": {
+     "found": 0,
+     "total": 11
+    },
+    "http": {
+     "found": 10,
+     "total": 16
+    },
+    "route": {
+     "found": 16,
+     "total": 18
+    },
+    "rpc": {
+     "found": 6,
+     "total": 10
+    },
+    "service": {
+     "found": 0,
+     "total": 27
+    }
+   },
+   "seconds": 7.1,
+   "total": 117
+  },
+  "django-react-blog": {
+   "found": 41,
+   "recall": {
+    "data": {
+     "found": 17,
+     "total": 29
+    },
+    "env": {
+     "found": 0,
+     "total": 4
+    },
+    "http": {
+     "found": 7,
+     "total": 8
+    },
+    "route": {
+     "found": 16,
+     "total": 22
+    },
+    "service": {
+     "found": 1,
+     "total": 12
+    }
+   },
+   "seconds": 0.9,
+   "total": 75
+  },
+  "eShop": {
+   "found": 106,
+   "recall": {
+    "data": {
+     "found": 18,
+     "total": 18
+    },
+    "event": {
+     "found": 36,
+     "total": 36
+    },
+    "http": {
+     "found": 17,
+     "total": 17
+    },
+    "route": {
+     "found": 29,
+     "total": 30
+    },
+    "rpc": {
+     "found": 6,
+     "total": 6
+    }
+   },
+   "seconds": 11.4,
+   "total": 107
+  },
+  "full-stack-fastapi-template": {
+   "found": 114,
+   "recall": {
+    "data": {
+     "found": 20,
+     "total": 21
+    },
+    "env": {
+     "found": 21,
+     "total": 21
+    },
+    "http": {
+     "found": 40,
+     "total": 40
+    },
+    "route": {
+     "found": 29,
+     "total": 29
+    },
+    "service": {
+     "found": 4,
+     "total": 4
+    }
+   },
+   "seconds": 2.4,
+   "total": 115
+  },
+  "full-stack-flutter-app": {
+   "found": 0,
+   "recall": {
+    "data": {
+     "found": 0,
+     "total": 52
+    },
+    "http": {
+     "found": 0,
+     "total": 17
+    },
+    "route": {
+     "found": 0,
+     "total": 26
+    }
+   },
+   "seconds": 3.7,
+   "total": 95
+  },
+  "ghostfolio": {
+   "found": 53,
+   "recall": {
+    "data": {
+     "found": 0,
+     "total": 165
+    },
+    "env": {
+     "found": 7,
+     "total": 19
+    },
+    "event": {
+     "found": 0,
+     "total": 36
+    },
+    "http": {
+     "found": 0,
+     "total": 108
+    },
+    "route": {
+     "found": 44,
+     "total": 120
+    },
+    "service": {
+     "found": 2,
+     "total": 4
+    }
+   },
+   "seconds": 17.8,
+   "total": 452
+  },
+  "go-coffeeshop": {
+   "found": 30,
+   "recall": {
+    "data": {
+     "found": 0,
+     "total": 21
+    },
+    "env": {
+     "found": 2,
+     "total": 14
+    },
+    "event": {
+     "found": 0,
+     "total": 12
+    },
+    "http": {
+     "found": 1,
+     "total": 4
+    },
+    "route": {
+     "found": 7,
+     "total": 7
+    },
+    "rpc": {
+     "found": 1,
+     "total": 9
+    },
+    "service": {
+     "found": 19,
+     "total": 19
+    }
+   },
+   "seconds": 1.1,
+   "total": 86
+  },
+  "koel": {
+   "found": 301,
+   "recall": {
+    "http": {
+     "found": 142,
+     "total": 142
+    },
+    "route": {
+     "found": 159,
+     "total": 159
+    }
+   },
+   "seconds": 22.6,
+   "total": 301
+  },
+  "kotlinconf-app": {
+   "found": 72,
+   "recall": {
+    "data": {
+     "found": 18,
+     "total": 18
+    },
+    "env": {
+     "found": 6,
+     "total": 6
+    },
+    "http": {
+     "found": 13,
+     "total": 13
+    },
+    "route": {
+     "found": 31,
+     "total": 31
+    },
+    "service": {
+     "found": 4,
+     "total": 4
+    }
+   },
+   "seconds": 5.4,
+   "total": 72
+  },
+  "microservices-demo": {
+   "found": 92,
+   "recall": {
+    "env": {
+     "found": 29,
+     "total": 29
+    },
+    "http": {
+     "found": 10,
+     "total": 11
+    },
+    "route": {
+     "found": 12,
+     "total": 12
+    },
+    "rpc": {
+     "found": 25,
+     "total": 25
+    },
+    "service": {
+     "found": 16,
+     "total": 16
+    }
+   },
+   "seconds": 2.9,
+   "total": 93
+  },
+  "phoenix-realworld": {
+   "found": 56,
+   "recall": {
+    "data": {
+     "found": 32,
+     "total": 32
+    },
+    "route": {
+     "found": 24,
+     "total": 24
+    }
+   },
+   "seconds": 0.5,
+   "total": 56
+  },
+  "proshop_mern": {
+   "found": 82,
+   "recall": {
+    "data": {
+     "found": 32,
+     "total": 32
+    },
+    "http": {
+     "found": 23,
+     "total": 23
+    },
+    "route": {
+     "found": 27,
+     "total": 27
+    }
+   },
+   "seconds": 0.6,
+   "total": 82
+  },
+  "rails-realworld": {
+   "found": 41,
+   "recall": {
+    "data": {
+     "found": 23,
+     "total": 28
+    },
+    "route": {
+     "found": 18,
+     "total": 18
+    }
+   },
+   "seconds": 0.4,
+   "total": 46
+  },
+  "realworld-axum-sqlx": {
+   "found": 73,
+   "recall": {
+    "data": {
+     "found": 47,
+     "total": 47
+    },
+    "env": {
+     "found": 3,
+     "total": 3
+    },
+    "route": {
+     "found": 23,
+     "total": 23
+    }
+   },
+   "seconds": 0.3,
+   "total": 73
+  },
+  "sb3-course": {
+   "found": 23,
+   "recall": {
+    "data": {
+     "found": 6,
+     "total": 10
+    },
+    "env": {
+     "found": 4,
+     "total": 41
+    },
+    "event": {
+     "found": 2,
+     "total": 2
+    },
+    "http": {
+     "found": 3,
+     "total": 5
+    },
+    "route": {
+     "found": 4,
+     "total": 8
+    },
+    "service": {
+     "found": 4,
+     "total": 24
+    }
+   },
+   "seconds": 1.2,
+   "total": 90
+  },
+  "spring-petclinic-microservices": {
+   "found": 82,
+   "recall": {
+    "data": {
+     "found": 20,
+     "total": 20
+    },
+    "env": {
+     "found": 3,
+     "total": 3
+    },
+    "http": {
+     "found": 19,
+     "total": 20
+    },
+    "route": {
+     "found": 19,
+     "total": 19
+    },
+    "service": {
+     "found": 21,
+     "total": 21
+    }
+   },
+   "seconds": 1.9,
+   "total": 83
+  },
+  "wild-workouts": {
+   "found": 67,
+   "recall": {
+    "data": {
+     "found": 2,
+     "total": 6
+    },
+    "env": {
+     "found": 20,
+     "total": 20
+    },
+    "http": {
+     "found": 22,
+     "total": 22
+    },
+    "route": {
+     "found": 11,
+     "total": 11
+    },
+    "rpc": {
+     "found": 6,
+     "total": 6
+    },
+    "service": {
+     "found": 6,
+     "total": 6
+    }
+   },
+   "seconds": 2.8,
+   "total": 71
+  }
+ }
+}

@@ -1,0 +1,3295 @@
+{
+ "meta": {
+  "date": "2026-10-20",
+  "precision": {
+   "conservative": 0.9903501516404742,
+   "estimate": 0.9975875379101186,
+   "flows": 3472,
+   "fp": 1,
+   "fp_rate_unmatched": 0.008547008547008548,
+   "lower_bound": 0.717741935483871,
+   "matched": 2492,
+   "reviewed": 117,
+   "unmatched": 980
+  }
+ },
+ "results": {
+  "8mb.local": {
+   "commit": "5759c1682177da44cdc57b170c9369ff79950931",
+   "flows": 177,
+   "flows_by_kind": {
+    "env": [
+     36,
+     69
+    ],
+    "event": [
+     6,
+     6
+    ],
+    "http": [
+     49,
+     49
+    ],
+    "route": [
+     46,
+     53
+    ]
+   },
+   "fn": {
+    "env · origen sin aristas de flujo": {
+     "examples": [
+      "frontend/src/lib/api.ts:10 → frontend/.env.example:3 (env PUBLIC_BACKEND_URL)",
+      "frontend/src/lib/sse.ts:13 → frontend/.env.example:3 (env PUBLIC_BACKEND_URL)"
+     ],
+     "n": 2
+    },
+    "event · conectados por separado, sin camino": {
+     "examples": [
+      "backend-api/app/routers/upload.py:293 → worker/app/tasks.py:453 (event worker.worker.compress_video (celery task))"
+     ],
+     "n": 1
+    },
+    "event · destino sin aristas de flujo": {
+     "examples": [
+      "worker/app/tasks.py:264 → backend-api/app/routers/stream.py:79 (event progress:{task_id} (redis pubsub))",
+      "backend-api/app/routers/compress.py:117 → backend-api/app/routers/stream.py:79 (event progress:{task_id} (redis pubsub))",
+      "backend-api/app/routers/compress.py:130 → backend-api/app/routers/stream.py:79 (event progress:{task_id} (redis pubsub))",
+      "backend-api/app/routers/compress.py:162 → backend-api/app/routers/stream.py:79 (event progress:{task_id} (redis pubsub))"
+     ],
+     "n": 5
+    },
+    "event · origen sin aristas de flujo": {
+     "examples": [
+      "backend-api/app/folder_watch.py:229 → worker/app/tasks.py:453 (event worker.worker.compress_video (celery task))"
+     ],
+     "n": 1
+    },
+    "http · llamada no detectada": {
+     "examples": [
+      "frontend/src/lib/api.ts:50 → backend-api/app/routers/upload.py:105 (POST /api/upload)",
+      "frontend/src/lib/api.ts:136 → backend-api/app/routers/upload.py:171 (POST /api/batches/upload)",
+      "frontend/src/routes/queue/+page.svelte:65 → backend-api/app/routers/stream.py:165 (GET /api/stream/{})"
+     ],
+     "n": 3
+    }
+   },
+   "found": 142,
+   "matched": 137,
+   "recall": {
+    "env": {
+     "found": 39,
+     "total": 41
+    },
+    "event": {
+     "found": 6,
+     "total": 13
+    },
+    "http": {
+     "found": 51,
+     "total": 54
+    },
+    "route": {
+     "found": 46,
+     "total": 46
+    }
+   },
+   "sample": [
+    {
+     "a": "f:backend-api/app/settings_manager.py:update_auth_settings",
+     "b": "v:AUTH_USER",
+     "edge": "env",
+     "from": "backend-api/app/settings_manager.py:311 update_auth_settings",
+     "kind": "env",
+     "note": "",
+     "to": ".env.example:13 AUTH_USER",
+     "verdict": null
+    },
+    {
+     "a": "f:worker/app/tasks.py:_encode_gate",
+     "b": "v:LOCAL_RUNTIME",
+     "edge": "env",
+     "from": "worker/app/tasks.py:93 _encode_gate",
+     "kind": "env",
+     "note": "",
+     "to": ".github/workflows/test.yml:43 LOCAL_RUNTIME",
+     "verdict": null
+    },
+    {
+     "a": "f:worker/app/hw_detect.py:_hardware_mapping",
+     "b": "v:QSV_DEVICE",
+     "edge": "env",
+     "from": "worker/app/hw_detect.py:631 _hardware_mapping",
+     "kind": "env",
+     "note": "",
+     "to": "worker/app/hw_detect.py:648 QSV_DEVICE",
+     "verdict": null
+    },
+    {
+     "a": "f:shared/local_runtime.py:enabled",
+     "b": "v:LOCAL_RUNTIME",
+     "edge": "env",
+     "from": "shared/local_runtime.py:24 enabled",
+     "kind": "env",
+     "note": "",
+     "to": ".github/workflows/test.yml:43 LOCAL_RUNTIME",
+     "verdict": null
+    },
+    {
+     "a": "f:backend-api/app/celery_app.py:_local_enabled",
+     "b": "v:LOCAL_RUNTIME",
+     "edge": "env",
+     "from": "backend-api/app/celery_app.py:24 _local_enabled",
+     "kind": "env",
+     "note": "",
+     "to": ".github/workflows/test.yml:43 LOCAL_RUNTIME",
+     "verdict": null
+    },
+    {
+     "a": "c:backend-api/app/config.py:Settings",
+     "b": "v:OUTPUTS_DIR",
+     "edge": "env",
+     "from": "backend-api/app/config.py:22 Settings",
+     "kind": "env",
+     "note": "",
+     "to": "backend-api/app/config.py:38 OUTPUTS_DIR",
+     "verdict": null
+    },
+    {
+     "a": "f:worker/app/tasks.py:_publish",
+     "b": "v:LOCAL_RUNTIME",
+     "edge": "env",
+     "from": "worker/app/tasks.py:252 _publish",
+     "kind": "env",
+     "note": "",
+     "to": ".github/workflows/test.yml:43 LOCAL_RUNTIME",
+     "verdict": null
+    },
+    {
+     "a": "c:backend-api/app/config.py:Settings",
+     "b": "v:MAX_UPLOAD_SIZE_MB",
+     "edge": "env",
+     "from": "backend-api/app/config.py:22 Settings",
+     "kind": "env",
+     "note": "",
+     "to": "backend-api/app/config.py:41 MAX_UPLOAD_SIZE_MB",
+     "verdict": null
+    },
+    {
+     "a": "m:backend-api/app/main.py",
+     "b": "m:backend-api/app/routers/compress.py",
+     "edge": "handles",
+     "from": "backend-api/app/main.py:1 main.py",
+     "kind": "route",
+     "note": "",
+     "to": "backend-api/app/routers/compress.py:1 compress.py",
+     "verdict": null
+    },
+    {
+     "a": "f:backend-api/app/settings_manager.py:update_history_enabled",
+     "b": "v:HISTORY_ENABLED",
+     "edge": "env",
+     "from": "backend-api/app/settings_manager.py:526 update_history_enabled",
+     "kind": "env",
+     "note": "",
+     "to": ".env.example:70 HISTORY_ENABLED",
+     "verdict": null
+    }
+   ],
+   "seconds": 4.95,
+   "split": "control2",
+   "stack": "FastAPI (routers) + Celery/Redis (worker FFmpeg) + SvelteKit (fetch/XHR/EventSource), Redis pub/sub para progreso SSE, config pydantic Settings + .env",
+   "total": 154,
+   "unmatched": 40
+  },
+  "NotyKT": {
+   "commit": "c62208675230b3bde5f4614d616940d14f38881d",
+   "flows": 42,
+   "flows_by_kind": {
+    "data": [
+     10,
+     14
+    ],
+    "env": [
+     8,
+     9
+    ],
+    "http": [
+     8,
+     8
+    ],
+    "route": [
+     10,
+     10
+    ],
+    "service": [
+     1,
+     1
+    ]
+   },
+   "fn": {
+    "data · origen sin aristas de flujo": {
+     "examples": [
+      "noty-api/data/src/main/kotlin/dev/shreyaspatil/noty/data/dao/NoteDao.kt:43 → noty-api/data/src/main/kotlin/dev/shreyaspatil/noty/data/database/table/Notes.kt:23 (data notes (Exposed Notes table))",
+      "noty-api/data/src/main/kotlin/dev/shreyaspatil/noty/data/dao/NoteDao.kt:58 → noty-api/data/src/main/kotlin/dev/shreyaspatil/noty/data/database/table/Notes.kt:23 (data notes (Exposed Notes table))",
+      "noty-api/data/src/main/kotlin/dev/shreyaspatil/noty/data/dao/NoteDao.kt:65 → noty-api/data/src/main/kotlin/dev/shreyaspatil/noty/data/database/table/Notes.kt:23 (data notes (Exposed Notes table))",
+      "noty-api/data/src/main/kotlin/dev/shreyaspatil/noty/data/dao/NoteDao.kt:80 → noty-api/data/src/main/kotlin/dev/shreyaspatil/noty/data/database/table/Notes.kt:23 (data notes (Exposed Notes table))"
+     ],
+     "n": 16
+    },
+    "env · origen sin aristas de flujo": {
+     "examples": [
+      "noty-api/application/src/main/kotlin/dev/shreyaspatil/noty/api/di/module/ConfigModule.kt:49 → noty-api/application/src/main/resources/application.conf:13 (env key.secret (ConfigModule.secretKey))"
+     ],
+     "n": 1
+    },
+    "http · llamada no detectada": {
+     "examples": [
+      "noty-android/repository/src/main/java/dev/shreyaspatil/noty/repository/DefaultNotyUserRepository.kt:42 → noty-api/application/src/main/kotlin/dev/shreyaspatil/noty/api/route/AuthRouter.kt:34 (POST /auth/register)",
+      "noty-android/repository/src/main/java/dev/shreyaspatil/noty/repository/DefaultNotyUserRepository.kt:50 → noty-api/application/src/main/kotlin/dev/shreyaspatil/noty/api/route/AuthRouter.kt:45 (POST /auth/login)",
+      "noty-android/repository/src/main/java/dev/shreyaspatil/noty/repository/NotyRemoteNoteRepository.kt:43 → noty-api/application/src/main/kotlin/dev/shreyaspatil/noty/api/route/NoteRouter.kt:43 (GET /notes/)",
+      "noty-android/repository/src/main/java/dev/shreyaspatil/noty/repository/NotyRemoteNoteRepository.kt:49 → noty-api/application/src/main/kotlin/dev/shreyaspatil/noty/api/route/NoteRouter.kt:50 (POST /notes/)"
+     ],
+     "n": 8
+    }
+   },
+   "found": 62,
+   "matched": 37,
+   "recall": {
+    "data": {
+     "found": 10,
+     "total": 26
+    },
+    "env": {
+     "found": 33,
+     "total": 34
+    },
+    "http": {
+     "found": 8,
+     "total": 16
+    },
+    "route": {
+     "found": 10,
+     "total": 10
+    },
+    "service": {
+     "found": 1,
+     "total": 1
+    }
+   },
+   "sample": [
+    {
+     "a": "f:noty-android/data/local/src/main/java/dev/shreyaspatil/noty/data/local/dao/NotesDao.kt:NotesDao.getAllNotes",
+     "b": "c:noty-api/data/src/main/kotlin/dev/shreyaspatil/noty/data/database/table/Notes.kt:Notes",
+     "edge": "data",
+     "from": "noty-android/data/local/src/main/java/dev/shreyaspatil/noty/data/local/dao/NotesDao.kt:43 NotesDao.getAllNotes",
+     "kind": "data",
+     "note": "",
+     "to": "noty-api/data/src/main/kotlin/dev/shreyaspatil/noty/data/database/table/Notes.kt:23 Notes",
+     "verdict": null
+    },
+    {
+     "a": "f:noty-api/application/src/main/kotlin/dev/shreyaspatil/noty/api/di/module/ConfigModule.kt:ConfigModule.databaseConfig",
+     "b": "v:PORT",
+     "edge": "env",
+     "from": "noty-api/application/src/main/kotlin/dev/shreyaspatil/noty/api/di/module/ConfigModule.kt:31 ConfigModule.databaseConfig",
+     "kind": "env",
+     "note": "",
+     "to": "noty-api/.env:2 PORT",
+     "verdict": null
+    },
+    {
+     "a": "f:noty-android/data/local/src/main/java/dev/shreyaspatil/noty/data/local/dao/NotesDao.kt:NotesDao.deleteNoteById",
+     "b": "c:noty-api/data/src/main/kotlin/dev/shreyaspatil/noty/data/database/table/Notes.kt:Notes",
+     "edge": "data",
+     "from": "noty-android/data/local/src/main/java/dev/shreyaspatil/noty/data/local/dao/NotesDao.kt:59 NotesDao.deleteNoteById",
+     "kind": "data",
+     "note": "",
+     "to": "noty-api/data/src/main/kotlin/dev/shreyaspatil/noty/data/database/table/Notes.kt:23 Notes",
+     "verdict": null
+    },
+    {
+     "a": "f:noty-android/data/local/src/main/java/dev/shreyaspatil/noty/data/local/dao/NotesDao.kt:NotesDao.deleteAllNotes",
+     "b": "c:noty-api/data/src/main/kotlin/dev/shreyaspatil/noty/data/database/table/Notes.kt:Notes",
+     "edge": "data",
+     "from": "noty-android/data/local/src/main/java/dev/shreyaspatil/noty/data/local/dao/NotesDao.kt:62 NotesDao.deleteAllNotes",
+     "kind": "data",
+     "note": "",
+     "to": "noty-api/data/src/main/kotlin/dev/shreyaspatil/noty/data/database/table/Notes.kt:23 Notes",
+     "verdict": null
+    },
+    {
+     "a": "f:noty-android/data/local/src/main/java/dev/shreyaspatil/noty/data/local/dao/NotesDao.kt:NotesDao.getNoteById",
+     "b": "c:noty-api/data/src/main/kotlin/dev/shreyaspatil/noty/data/database/table/Notes.kt:Notes",
+     "edge": "data",
+     "from": "noty-android/data/local/src/main/java/dev/shreyaspatil/noty/data/local/dao/NotesDao.kt:40 NotesDao.getNoteById",
+     "kind": "data",
+     "note": "",
+     "to": "noty-api/data/src/main/kotlin/dev/shreyaspatil/noty/data/database/table/Notes.kt:23 Notes",
+     "verdict": null
+    }
+   ],
+   "seconds": 5.42,
+   "split": "control2",
+   "stack": "Android Kotlin (Retrofit + Room + Hilt, capas data/repository) + backend Ktor/Exposed/Postgres en el mismo repo, docker compose",
+   "total": 87,
+   "unmatched": 5
+  },
+  "aspire-samples": {
+   "commit": "0c28efefd93e1dc937c5af9cf453cb6da5c3601d",
+   "flows": 142,
+   "flows_by_kind": {
+    "data": [
+     15,
+     15
+    ],
+    "env": [
+     26,
+     40
+    ],
+    "event": [
+     10,
+     10
+    ],
+    "http": [
+     15,
+     15
+    ],
+    "route": [
+     18,
+     27
+    ],
+    "rpc": [
+     14,
+     14
+    ],
+    "service": [
+     20,
+     21
+    ]
+   },
+   "fn": {
+    "data · origen y destino sin aristas de flujo": {
+     "examples": [
+      "samples/aspire-shop/AspireShop.CatalogDbManager/CatalogDbInitializer.cs:28 → samples/aspire-shop/AspireShop.CatalogDbManager/Migrations/20260709111930_Initial.cs:8 (catalogdb schema (MigrateAsync -> Initial migration))"
+     ],
+     "n": 1
+    },
+    "event · conectados por separado, sin camino": {
+     "examples": [
+      "samples/polyglot-task-queue/worker-python/main.py:306 → samples/polyglot-task-queue/worker-python/main.py:174 (event queue tasks)"
+     ],
+     "n": 1
+    }
+   },
+   "found": 115,
+   "matched": 118,
+   "recall": {
+    "data": {
+     "found": 20,
+     "total": 21
+    },
+    "env": {
+     "found": 14,
+     "total": 14
+    },
+    "event": {
+     "found": 10,
+     "total": 11
+    },
+    "http": {
+     "found": 16,
+     "total": 16
+    },
+    "route": {
+     "found": 18,
+     "total": 18
+    },
+    "rpc": {
+     "found": 10,
+     "total": 10
+    },
+    "service": {
+     "found": 27,
+     "total": 27
+    }
+   },
+   "sample": [
+    {
+     "a": "f:samples/aspire-with-javascript/AspireJavaScript.ServiceDefaults/Extensions.cs:Extensions.AddOpenTelemetryExporters",
+     "b": "v:OTEL_EXPORTER_OTLP_ENDPOINT",
+     "edge": "env",
+     "from": "samples/aspire-with-javascript/AspireJavaScript.ServiceDefaults/Extensions.cs:70 Extensions.AddOpenTelemetryExporters",
+     "kind": "env",
+     "note": "Configuration[\"OTEL_EXPORTER_OTLP_ENDPOINT\"]: lectura real de entorno",
+     "to": "samples/Metrics/ServiceDefaults/Extensions.cs:72 OTEL_EXPORTER_OTLP_ENDPOINT",
+     "verdict": "ok"
+    },
+    {
+     "a": "m:samples/polyglot-task-queue/worker-python/main.py",
+     "b": "v:OTEL_SERVICE_NAME",
+     "edge": "env",
+     "from": "samples/polyglot-task-queue/worker-python/main.py:1 main.py",
+     "kind": "env",
+     "note": "os.environ.get(OTEL_SERVICE_NAME): lectura real",
+     "to": "samples/container-build/ginapp/otel.go:53 OTEL_SERVICE_NAME",
+     "verdict": "ok"
+    },
+    {
+     "a": "m:samples/aspire-with-javascript/AspireJavaScript.MinimalApi/Program.cs",
+     "b": "f:samples/aspire-with-javascript/AspireJavaScript.ServiceDefaults/Extensions.cs:Extensions.MapDefaultEndpoints",
+     "edge": "handles",
+     "from": "samples/aspire-with-javascript/AspireJavaScript.MinimalApi/Program.cs:1 Program.cs",
+     "kind": "route",
+     "note": "app.MapDefaultEndpoints(): método de extensión del repo que mapea /health y /alive",
+     "to": "samples/aspire-with-javascript/AspireJavaScript.ServiceDefaults/Extensions.cs:91 Extensions.MapDefaultEndpoints",
+     "verdict": "ok"
+    },
+    {
+     "a": "m:samples/aspire-shop/AspireShop.BasketService/Program.cs",
+     "b": "c:samples/aspire-shop/AspireShop.BasketService/BasketService.cs:BasketService",
+     "edge": "handles",
+     "from": "samples/aspire-shop/AspireShop.BasketService/Program.cs:1 Program.cs",
+     "kind": "route",
+     "note": "MapGrpcService<BasketService>(): registro real del servicio gRPC",
+     "to": "samples/aspire-shop/AspireShop.BasketService/BasketService.cs:8 BasketService",
+     "verdict": "ok"
+    },
+    {
+     "a": "m:samples/polyglot-task-queue/frontend/vite.config.ts",
+     "b": "v:API_HTTPS",
+     "edge": "env",
+     "from": "samples/polyglot-task-queue/frontend/vite.config.ts:1 vite.config.ts",
+     "kind": "env",
+     "note": "process.env.API_HTTPS en vite.config: lectura real",
+     "to": "samples/aspire-with-node/frontend/vite.config.ts:11 API_HTTPS",
+     "verdict": "ok"
+    },
+    {
+     "a": "m:samples/aspire-shop/AspireShop.Frontend/Program.cs",
+     "b": "f:samples/aspire-shop/AspireShop.ServiceDefaults/Extensions.cs:Extensions.MapDefaultEndpoints",
+     "edge": "handles",
+     "from": "samples/aspire-shop/AspireShop.Frontend/Program.cs:1 Program.cs",
+     "kind": "route",
+     "note": "MapDefaultEndpoints: montaje real",
+     "to": "samples/aspire-shop/AspireShop.ServiceDefaults/Extensions.cs:93 Extensions.MapDefaultEndpoints",
+     "verdict": "ok"
+    },
+    {
+     "a": "m:samples/aspire-shop/AspireShop.CatalogDbManager/Program.cs",
+     "b": "f:samples/aspire-shop/AspireShop.ServiceDefaults/Extensions.cs:Extensions.MapDefaultEndpoints",
+     "edge": "handles",
+     "from": "samples/aspire-shop/AspireShop.CatalogDbManager/Program.cs:1 Program.cs",
+     "kind": "route",
+     "note": "MapDefaultEndpoints: montaje real",
+     "to": "samples/aspire-shop/AspireShop.ServiceDefaults/Extensions.cs:93 Extensions.MapDefaultEndpoints",
+     "verdict": "ok"
+    },
+    {
+     "a": "f:samples/polyglot-task-queue/worker-csharp/Extensions.cs:Extensions.AddOpenTelemetryExporters",
+     "b": "v:OTEL_EXPORTER_OTLP_ENDPOINT",
+     "edge": "env",
+     "from": "samples/polyglot-task-queue/worker-csharp/Extensions.cs:81 Extensions.AddOpenTelemetryExporters",
+     "kind": "env",
+     "note": "Configuration[\"OTEL_EXPORTER_OTLP_ENDPOINT\"]: lectura real",
+     "to": "samples/Metrics/ServiceDefaults/Extensions.cs:72 OTEL_EXPORTER_OTLP_ENDPOINT",
+     "verdict": "ok"
+    },
+    {
+     "a": "m:samples/aspire-shop/AspireShop.CatalogService/Program.cs",
+     "b": "f:samples/aspire-shop/AspireShop.ServiceDefaults/Extensions.cs:Extensions.MapDefaultEndpoints",
+     "edge": "handles",
+     "from": "samples/aspire-shop/AspireShop.CatalogService/Program.cs:1 Program.cs",
+     "kind": "route",
+     "note": "MapDefaultEndpoints: montaje real",
+     "to": "samples/aspire-shop/AspireShop.ServiceDefaults/Extensions.cs:93 Extensions.MapDefaultEndpoints",
+     "verdict": "ok"
+    },
+    {
+     "a": "m:samples/vite-csharp-postgres/frontend/vite.config.ts",
+     "b": "v:API_HTTP",
+     "edge": "env",
+     "from": "samples/vite-csharp-postgres/frontend/vite.config.ts:1 vite.config.ts",
+     "kind": "env",
+     "note": "process.env.API_HTTP en vite.config: lectura real",
+     "to": "samples/aspire-with-node/frontend/vite.config.ts:11 API_HTTP",
+     "verdict": "ok"
+    }
+   ],
+   "seconds": 8.0,
+   "split": "control",
+   "stack": "Muestras .NET Aspire poliglotas: minimal APIs + gRPC + EF Core, frontends Angular/React/Vue/Vite, Node/Express, workers Python y C# por RabbitMQ, AppHost C# y TypeScript",
+   "total": 117,
+   "unmatched": 24
+  },
+  "django-react-blog": {
+   "commit": "f164e4394455494c3afc42cc48dd7e7bcf1558e4",
+   "flows": 79,
+   "flows_by_kind": {
+    "data": [
+     28,
+     29
+    ],
+    "env": [
+     4,
+     6
+    ],
+    "http": [
+     8,
+     9
+    ],
+    "route": [
+     25,
+     25
+    ],
+    "service": [
+     9,
+     10
+    ]
+   },
+   "fn": {
+    "service · origen sin aristas de flujo": {
+     "examples": [
+      "frontend/src/actions/index.js:13 → nginx_proxy/nginx_proxy.conf:3 (frontend ROOT_URL http://api.<host>/api/v1 -> nginx api.* server block)"
+     ],
+     "n": 1
+    }
+   },
+   "found": 74,
+   "matched": 74,
+   "recall": {
+    "data": {
+     "found": 29,
+     "total": 29
+    },
+    "env": {
+     "found": 4,
+     "total": 4
+    },
+    "http": {
+     "found": 8,
+     "total": 8
+    },
+    "route": {
+     "found": 22,
+     "total": 22
+    },
+    "service": {
+     "found": 11,
+     "total": 12
+    }
+   },
+   "sample": [
+    {
+     "a": "f:frontend/src/components/Login.js:LoginForm.render",
+     "b": "c:docker-compose-dm.yml:backend",
+     "edge": "depends",
+     "from": "frontend/src/components/Login.js:9 LoginForm.render",
+     "kind": "service",
+     "note": "EmailSignInForm endpoint=\"http://localhost:8000/...\": el frontend llama al backend publicado en el puerto 8000",
+     "to": "docker-compose-dm.yml:19 backend",
+     "verdict": "ok"
+    },
+    {
+     "a": "m:backend/backend/wsgi.py",
+     "b": "v:DJANGO_SETTINGS_MODULE",
+     "edge": "env",
+     "from": "backend/backend/wsgi.py:1 wsgi.py",
+     "kind": "env",
+     "note": "os.environ.setdefault(\"DJANGO_SETTINGS_MODULE\"): lectura/escritura real",
+     "to": "backend/backend/wsgi.py:14 DJANGO_SETTINGS_MODULE",
+     "verdict": "ok"
+    },
+    {
+     "a": "m:backend/manage.py",
+     "b": "v:DJANGO_SETTINGS_MODULE",
+     "edge": "env",
+     "from": "backend/manage.py:1 manage.py",
+     "kind": "env",
+     "note": "os.environ.setdefault(\"DJANGO_SETTINGS_MODULE\"): lectura real",
+     "to": "backend/backend/wsgi.py:14 DJANGO_SETTINGS_MODULE",
+     "verdict": "ok"
+    },
+    {
+     "a": "f:backend/posts/models.py:unique_slug",
+     "b": "c:backend/posts/models.py:Post",
+     "edge": "data",
+     "from": "backend/posts/models.py:12 unique_slug",
+     "kind": "data",
+     "note": "Post.objects.filter(...) en unique_slug: acceso real",
+     "to": "backend/posts/models.py:26 Post",
+     "verdict": "ok"
+    },
+    {
+     "a": "f:frontend/src/actions/auth.js:signinUser",
+     "b": "e:backend/backend/urls.py:ANY /api/v1/auth",
+     "edge": "http",
+     "from": "frontend/src/actions/auth.js:9 signinUser",
+     "kind": "http",
+     "note": "axios.post(`${ROOT_URL}/auth/`) -> obtain_auth_token: llamada real (handler de librería, omitido en etiquetas)",
+     "to": "backend/backend/urls.py:29 ANY /api/v1/auth",
+     "verdict": "ok"
+    }
+   ],
+   "seconds": 0.98,
+   "split": "control",
+   "stack": "Django 1.x + Django REST Framework (generic views) + React/Redux (axios) + Postgres, docker compose + nginx",
+   "total": 75,
+   "unmatched": 5
+  },
+  "eShop": {
+   "commit": "913acea66708a59595351174cee9b29f37179d29",
+   "flows": 154,
+   "flows_by_kind": {
+    "data": [
+     13,
+     29
+    ],
+    "event": [
+     49,
+     49
+    ],
+    "http": [
+     17,
+     18
+    ],
+    "route": [
+     30,
+     46
+    ],
+    "rpc": [
+     9,
+     12
+    ]
+   },
+   "fn": {
+    "route · ruta no detectada": {
+     "examples": [
+      "src/Catalog.API/Apis/CatalogApi.cs:27 → src/Catalog.API/Apis/CatalogApi.cs:131 (GET /api/catalog/items (v2))"
+     ],
+     "n": 1
+    }
+   },
+   "found": 106,
+   "matched": 118,
+   "recall": {
+    "data": {
+     "found": 18,
+     "total": 18
+    },
+    "event": {
+     "found": 36,
+     "total": 36
+    },
+    "http": {
+     "found": 17,
+     "total": 17
+    },
+    "route": {
+     "found": 29,
+     "total": 30
+    },
+    "rpc": {
+     "found": 6,
+     "total": 6
+    }
+   },
+   "sample": [
+    {
+     "a": "e:src/WebhookClient/Endpoints/AuthenticationEndpoints.cs:POST /logout",
+     "b": "f:src/WebhookClient/Endpoints/AuthenticationEndpoints.cs:AuthenticationEndpoints.MapAuthenticationEndpoints",
+     "edge": "handles",
+     "from": "src/WebhookClient/Endpoints/AuthenticationEndpoints.cs:12 POST /logout",
+     "kind": "route",
+     "note": "MapPost(\"/logout\") con lambda inline: ruta real de WebhookClient no etiquetada",
+     "to": "src/WebhookClient/Endpoints/AuthenticationEndpoints.cs:10 AuthenticationEndpoints.MapAuthenticationEndpoints",
+     "verdict": "ok"
+    },
+    {
+     "a": "m:src/Ordering.API/Program.cs",
+     "b": "f:src/eShop.ServiceDefaults/Extensions.cs:Extensions.MapDefaultEndpoints",
+     "edge": "handles",
+     "from": "src/Ordering.API/Program.cs:1 Program.cs",
+     "kind": "route",
+     "note": "MapDefaultEndpoints: montaje real",
+     "to": "src/eShop.ServiceDefaults/Extensions.cs:108 Extensions.MapDefaultEndpoints",
+     "verdict": "ok"
+    },
+    {
+     "a": "m:src/WebApp/Program.cs",
+     "b": "e:src/Catalog.API/Apis/CatalogApi.cs:GET /api/catalog/items/:id/pic",
+     "edge": "http",
+     "from": "src/WebApp/Program.cs:1 Program.cs",
+     "kind": "http",
+     "note": "MapForwarder reenvía a /api/catalog/items/{id}/pic: flujo real",
+     "to": "src/Catalog.API/Apis/CatalogApi.cs:47 GET /api/catalog/items/:id/pic",
+     "verdict": "ok"
+    },
+    {
+     "a": "e:src/WebApp/Program.cs:ANY /product-images/:id",
+     "b": "m:src/WebApp/Program.cs",
+     "edge": "handles",
+     "from": "src/WebApp/Program.cs:32 ANY /product-images/:id",
+     "kind": "route",
+     "note": "ruta MapForwarder declarada en el módulo",
+     "to": "src/WebApp/Program.cs:1 Program.cs",
+     "verdict": "ok"
+    },
+    {
+     "a": "m:src/PaymentProcessor/Program.cs",
+     "b": "f:src/eShop.ServiceDefaults/Extensions.cs:Extensions.MapDefaultEndpoints",
+     "edge": "handles",
+     "from": "src/PaymentProcessor/Program.cs:1 Program.cs",
+     "kind": "route",
+     "note": "MapDefaultEndpoints: montaje real",
+     "to": "src/eShop.ServiceDefaults/Extensions.cs:108 Extensions.MapDefaultEndpoints",
+     "verdict": "ok"
+    },
+    {
+     "a": "f:src/Catalog.API/Infrastructure/EntityConfigurations/CatalogBrandEntityTypeConfiguration.cs:CatalogBrandEntityTypeConfiguration.Configure",
+     "b": "c:src/Catalog.API/Infrastructure/Migrations/20231009153249_Initial.cs:CatalogBrand",
+     "edge": "data",
+     "from": "src/Catalog.API/Infrastructure/EntityConfigurations/CatalogBrandEntityTypeConfiguration.cs:6 CatalogBrandEntityTypeConfiguration.Configure",
+     "kind": "data",
+     "note": "builder.ToTable(\"CatalogBrand\") -> CreateTable de la migración: mapeo real",
+     "to": "src/Catalog.API/Infrastructure/Migrations/20231009153249_Initial.cs:29 CatalogBrand",
+     "verdict": "ok"
+    },
+    {
+     "a": "c:src/Catalog.API/Model/CatalogItem.cs:CatalogItem",
+     "b": "c:src/Catalog.API/Infrastructure/Migrations/20231009153249_Initial.cs:Catalog",
+     "edge": "data",
+     "from": "src/Catalog.API/Model/CatalogItem.cs:7 CatalogItem",
+     "kind": "data",
+     "note": "entidad CatalogItem -> tabla Catalog (ToTable) de la migración: real",
+     "to": "src/Catalog.API/Infrastructure/Migrations/20231009153249_Initial.cs:53 Catalog",
+     "verdict": "ok"
+    },
+    {
+     "a": "m:src/WebhookClient/Program.cs",
+     "b": "f:src/WebhookClient/Endpoints/AuthenticationEndpoints.cs:AuthenticationEndpoints.MapAuthenticationEndpoints",
+     "edge": "handles",
+     "from": "src/WebhookClient/Program.cs:1 Program.cs",
+     "kind": "route",
+     "note": "app.MapAuthenticationEndpoints(): montaje real",
+     "to": "src/WebhookClient/Endpoints/AuthenticationEndpoints.cs:10 AuthenticationEndpoints.MapAuthenticationEndpoints",
+     "verdict": "ok"
+    },
+    {
+     "a": "m:src/WebhookClient/Program.cs",
+     "b": "f:src/WebhookClient/Endpoints/WebhookEndpoints.cs:WebhookEndpoints.MapWebhookEndpoints",
+     "edge": "handles",
+     "from": "src/WebhookClient/Program.cs:1 Program.cs",
+     "kind": "route",
+     "note": "app.MapWebhookEndpoints(): montaje real",
+     "to": "src/WebhookClient/Endpoints/WebhookEndpoints.cs:8 WebhookEndpoints.MapWebhookEndpoints",
+     "verdict": "ok"
+    },
+    {
+     "a": "f:src/Catalog.API/Infrastructure/EntityConfigurations/CatalogItemEntityTypeConfiguration.cs:CatalogItemEntityTypeConfiguration.Configure",
+     "b": "c:src/Catalog.API/Infrastructure/Migrations/20231009153249_Initial.cs:Catalog",
+     "edge": "data",
+     "from": "src/Catalog.API/Infrastructure/EntityConfigurations/CatalogItemEntityTypeConfiguration.cs:6 CatalogItemEntityTypeConfiguration.Configure",
+     "kind": "data",
+     "note": "builder.ToTable(\"Catalog\") -> migración: real",
+     "to": "src/Catalog.API/Infrastructure/Migrations/20231009153249_Initial.cs:53 Catalog",
+     "verdict": "ok"
+    }
+   ],
+   "seconds": 10.36,
+   "split": "",
+   "stack": "ASP.NET Core 8 / Aspire: minimal APIs, gRPC, RabbitMQ integration events, EF Core, Blazor WebApp, MAUI (HybridApp, ClientApp)",
+   "total": 107,
+   "unmatched": 36
+  },
+  "full-stack-fastapi-template": {
+   "commit": "b1125d8839482cb7bbae603ddc6d0081bf87532e",
+   "flows": 120,
+   "flows_by_kind": {
+    "data": [
+     17,
+     22
+    ],
+    "env": [
+     11,
+     21
+    ],
+    "http": [
+     40,
+     40
+    ],
+    "route": [
+     29,
+     29
+    ],
+    "service": [
+     3,
+     8
+    ]
+   },
+   "fn": {
+    "data · conectados por separado, sin camino": {
+     "examples": [
+      "backend/app/api/routes/users.py:141 → backend/app/models.py:51 (table user (SQLModel User))"
+     ],
+     "n": 1
+    }
+   },
+   "found": 114,
+   "matched": 100,
+   "recall": {
+    "data": {
+     "found": 20,
+     "total": 21
+    },
+    "env": {
+     "found": 21,
+     "total": 21
+    },
+    "http": {
+     "found": 40,
+     "total": 40
+    },
+    "route": {
+     "found": 29,
+     "total": 29
+    },
+    "service": {
+     "found": 4,
+     "total": 4
+    }
+   },
+   "sample": [
+    {
+     "a": "c:backend/app/core/config.py:Settings",
+     "b": "v:SMTP_SSL",
+     "edge": "env",
+     "from": "backend/app/core/config.py:15 Settings",
+     "kind": "env",
+     "note": "campo de pydantic BaseSettings: lectura de entorno real (sin definicion en .env, por eso sin etiqueta)",
+     "to": "backend/app/core/config.py:43 SMTP_SSL",
+     "verdict": "ok"
+    },
+    {
+     "a": "c:compose.override.yml:playwright",
+     "b": "c:compose.override.yml:mailpit",
+     "edge": "depends",
+     "from": "compose.override.yml:77 playwright",
+     "kind": "service",
+     "note": "playwright depends_on mailpit: dependencia real omitida en las etiquetas",
+     "to": "compose.override.yml:71 mailpit",
+     "verdict": "ok"
+    },
+    {
+     "a": "c:backend/app/core/config.py:Settings",
+     "b": "v:API_V1_STR",
+     "edge": "env",
+     "from": "backend/app/core/config.py:15 Settings",
+     "kind": "env",
+     "note": "campo de pydantic BaseSettings: lectura de entorno real (sin definicion en .env, por eso sin etiqueta)",
+     "to": "backend/app/core/config.py:22 API_V1_STR",
+     "verdict": "ok"
+    },
+    {
+     "a": "f:backend/app/alembic/versions/d98dd8ec85a3_edit_replace_id_integers_in_all_models_.py:downgrade",
+     "b": "c:backend/app/alembic/versions/e2412789c190_initialize_models.py:item",
+     "edge": "data",
+     "from": "backend/app/alembic/versions/d98dd8ec85a3_edit_replace_id_integers_in_all_models_.py:57 downgrade",
+     "kind": "data",
+     "note": "el downgrade de alembic altera/consulta las tablas user/item: acceso real",
+     "to": "backend/app/alembic/versions/e2412789c190_initialize_models.py:34 item",
+     "verdict": "ok"
+    },
+    {
+     "a": "m:frontend/.env",
+     "b": "c:compose.override.yml:mailpit",
+     "edge": "depends",
+     "from": "frontend/.env:1 .env",
+     "kind": "service",
+     "note": "MAILPIT_HOST=http://localhost:8025 -> puerto publicado por mailpit: real",
+     "to": "compose.override.yml:71 mailpit",
+     "verdict": "ok"
+    },
+    {
+     "a": "c:backend/app/core/config.py:Settings",
+     "b": "v:EMAIL_TEST_USER",
+     "edge": "env",
+     "from": "backend/app/core/config.py:15 Settings",
+     "kind": "env",
+     "note": "campo de pydantic BaseSettings: lectura de entorno real (sin definicion en .env, por eso sin etiqueta)",
+     "to": "backend/app/core/config.py:64 EMAIL_TEST_USER",
+     "verdict": "ok"
+    },
+    {
+     "a": "f:backend/app/alembic/versions/d98dd8ec85a3_edit_replace_id_integers_in_all_models_.py:downgrade",
+     "b": "c:backend/app/alembic/versions/e2412789c190_initialize_models.py:user",
+     "edge": "data",
+     "from": "backend/app/alembic/versions/d98dd8ec85a3_edit_replace_id_integers_in_all_models_.py:57 downgrade",
+     "kind": "data",
+     "note": "el downgrade de alembic altera/consulta las tablas user/item: acceso real",
+     "to": "backend/app/alembic/versions/e2412789c190_initialize_models.py:21 user",
+     "verdict": "ok"
+    },
+    {
+     "a": "m:.env",
+     "b": "c:compose.override.yml:db",
+     "edge": "depends",
+     "from": ".env:1 .env",
+     "kind": "service",
+     "note": "DATABASE_URL=...@localhost:5432 -> puerto publicado por db: real",
+     "to": "compose.override.yml:26 db",
+     "verdict": "ok"
+    },
+    {
+     "a": "f:backend/app/alembic/versions/d98dd8ec85a3_edit_replace_id_integers_in_all_models_.py:downgrade",
+     "b": "c:backend/app/models.py:User",
+     "edge": "data",
+     "from": "backend/app/alembic/versions/d98dd8ec85a3_edit_replace_id_integers_in_all_models_.py:57 downgrade",
+     "kind": "data",
+     "note": "el downgrade de alembic altera/consulta las tablas user/item: acceso real",
+     "to": "backend/app/models.py:51 User",
+     "verdict": "ok"
+    },
+    {
+     "a": "c:backend/app/core/config.py:Settings",
+     "b": "v:SMTP_PASSWORD",
+     "edge": "env",
+     "from": "backend/app/core/config.py:15 Settings",
+     "kind": "env",
+     "note": "campo de pydantic BaseSettings: lectura de entorno real (sin definicion en .env, por eso sin etiqueta)",
+     "to": ".github/workflows/deploy-docker-compose.yml:27 SMTP_PASSWORD",
+     "verdict": "ok"
+    }
+   ],
+   "seconds": 2.46,
+   "split": "",
+   "stack": "FastAPI + SQLModel/Postgres (Python) + React/TypeScript con cliente OpenAPI generado, docker compose",
+   "total": 115,
+   "unmatched": 20
+  },
+  "full-stack-flutter-app": {
+   "commit": "3f0809811e56c27ecbdad07e28e9c9c2ca2990f8",
+   "flows": 99,
+   "flows_by_kind": {
+    "data": [
+     56,
+     56
+    ],
+    "http": [
+     17,
+     17
+    ],
+    "route": [
+     25,
+     26
+    ]
+   },
+   "fn": {
+    "route · handler distinto": {
+     "examples": [
+      "server/routes/api/v1/ws.dart:10 → server/routes/api/v1/ws.dart:11 (GET /api/v1/ws (websocket))"
+     ],
+     "n": 1
+    }
+   },
+   "found": 94,
+   "matched": 98,
+   "recall": {
+    "data": {
+     "found": 52,
+     "total": 52
+    },
+    "http": {
+     "found": 17,
+     "total": 17
+    },
+    "route": {
+     "found": 25,
+     "total": 26
+    }
+   },
+   "sample": [
+    {
+     "a": "e:server/routes/api/v1/ws.dart:ANY /api/v1/ws",
+     "b": "f:server/routes/api/v1/ws.dart:onRequest",
+     "edge": "handles",
+     "from": "server/routes/api/v1/ws.dart:10 ANY /api/v1/ws",
+     "kind": "route",
+     "note": "onRequest de la ruta ws (dart_frog): handler real",
+     "to": "server/routes/api/v1/ws.dart:10 onRequest",
+     "verdict": "ok"
+    }
+   ],
+   "seconds": 5.76,
+   "split": "control",
+   "stack": "Flutter (Dart, cubits + dio) + servidor dart_frog (rutas por ficheros) + stormberry/Postgres",
+   "total": 95,
+   "unmatched": 1
+  },
+  "ghostfolio": {
+   "commit": "7e54ba65929de0ef639830e2139366f96b600602",
+   "flows": 679,
+   "flows_by_kind": {
+    "data": [
+     284,
+     315
+    ],
+    "env": [
+     16,
+     90
+    ],
+    "event": [
+     35,
+     35
+    ],
+    "http": [
+     108,
+     115
+    ],
+    "route": [
+     120,
+     120
+    ],
+    "service": [
+     4,
+     4
+    ]
+   },
+   "fn": {},
+   "found": 452,
+   "matched": 567,
+   "recall": {
+    "data": {
+     "found": 165,
+     "total": 165
+    },
+    "env": {
+     "found": 19,
+     "total": 19
+    },
+    "event": {
+     "found": 36,
+     "total": 36
+    },
+    "http": {
+     "found": 108,
+     "total": 108
+    },
+    "route": {
+     "found": 120,
+     "total": 120
+    },
+    "service": {
+     "found": 4,
+     "total": 4
+    }
+   },
+   "sample": [
+    {
+     "a": "f:apps/api/src/services/configuration/configuration.service.ts:ConfigurationService.constructor",
+     "b": "v:CACHE_QUOTES_TTL",
+     "edge": "env",
+     "from": "apps/api/src/services/configuration/configuration.service.ts:45 ConfigurationService.constructor",
+     "kind": "env",
+     "note": "clave de cleanEnv(process.env, {...}): lectura real",
+     "to": "apps/api/src/services/configuration/configuration.service.ts:56 CACHE_QUOTES_TTL",
+     "verdict": "ok"
+    },
+    {
+     "a": "f:apps/api/src/services/configuration/configuration.service.ts:ConfigurationService.constructor",
+     "b": "v:GOOGLE_CLIENT_ID",
+     "edge": "env",
+     "from": "apps/api/src/services/configuration/configuration.service.ts:45 ConfigurationService.constructor",
+     "kind": "env",
+     "note": "cleanEnv: lectura real",
+     "to": "apps/api/src/services/configuration/configuration.service.ts:86 GOOGLE_CLIENT_ID",
+     "verdict": "ok"
+    },
+    {
+     "a": "c:apps/api/src/services/queues/data-gathering/data-gathering.processor.ts:DataGatheringProcessor",
+     "b": "v:PROCESSOR_GATHER_ASSET_PROFILE_CONCURRENCY",
+     "edge": "env",
+     "from": "apps/api/src/services/queues/data-gathering/data-gathering.processor.ts:31 DataGatheringProcessor",
+     "kind": "env",
+     "note": "process.env.PROCESSOR_GATHER_ASSET_PROFILE_CONCURRENCY: lectura real",
+     "to": "apps/api/src/services/configuration/configuration.service.ts:119 PROCESSOR_GATHER_ASSET_PROFILE_CONCURRENCY",
+     "verdict": "ok"
+    },
+    {
+     "a": "f:apps/api/src/services/configuration/configuration.service.ts:ConfigurationService.constructor",
+     "b": "v:API_KEY_BETTER_UPTIME",
+     "edge": "env",
+     "from": "apps/api/src/services/configuration/configuration.service.ts:45 ConfigurationService.constructor",
+     "kind": "env",
+     "note": "cleanEnv: lectura real",
+     "to": "apps/api/src/services/configuration/configuration.service.ts:49 API_KEY_BETTER_UPTIME",
+     "verdict": "ok"
+    },
+    {
+     "a": "f:apps/api/src/services/configuration/configuration.service.ts:ConfigurationService.constructor",
+     "b": "v:API_KEY_ALPHA_VANTAGE",
+     "edge": "env",
+     "from": "apps/api/src/services/configuration/configuration.service.ts:45 ConfigurationService.constructor",
+     "kind": "env",
+     "note": "cleanEnv: lectura real",
+     "to": "apps/api/src/services/configuration/configuration.service.ts:48 API_KEY_ALPHA_VANTAGE",
+     "verdict": "ok"
+    },
+    {
+     "a": "f:apps/api/src/services/configuration/configuration.service.ts:ConfigurationService.constructor",
+     "b": "v:OIDC_CLIENT_SECRET",
+     "edge": "env",
+     "from": "apps/api/src/services/configuration/configuration.service.ts:45 ConfigurationService.constructor",
+     "kind": "env",
+     "note": "cleanEnv: lectura real",
+     "to": "apps/api/src/services/configuration/configuration.service.ts:103 OIDC_CLIENT_SECRET",
+     "verdict": "ok"
+    },
+    {
+     "a": "f:apps/api/src/middlewares/html-template.middleware.ts:HtmlTemplateMiddleware.use",
+     "b": "v:ROOT_URL",
+     "edge": "env",
+     "from": "apps/api/src/middlewares/html-template.middleware.ts:131 HtmlTemplateMiddleware.use",
+     "kind": "env",
+     "note": "process.env.ROOT_URL: lectura real",
+     "to": "apps/api/src/main.ts:150 ROOT_URL",
+     "verdict": "ok"
+    },
+    {
+     "a": "m:prisma/migrations/20230215174320_changed_data_source_from_ghostfolio_to_manual/migration.sql",
+     "b": "c:prisma/migrations/20210605161257_added_symbol_profile/migration.sql:SymbolProfile",
+     "edge": "data",
+     "from": "prisma/migrations/20230215174320_changed_data_source_from_ghostfolio_to_manual/migration.sql:1 migration.sql",
+     "kind": "data",
+     "note": "UPDATE \"SymbolProfile\" en una migración posterior: acceso real",
+     "to": "prisma/migrations/20210605161257_added_symbol_profile/migration.sql:5 SymbolProfile",
+     "verdict": "ok"
+    },
+    {
+     "a": "f:apps/api/src/services/configuration/configuration.service.ts:ConfigurationService.constructor",
+     "b": "v:MAX_CHART_ITEMS",
+     "edge": "env",
+     "from": "apps/api/src/services/configuration/configuration.service.ts:45 ConfigurationService.constructor",
+     "kind": "env",
+     "note": "cleanEnv: lectura real",
+     "to": "apps/api/src/services/configuration/configuration.service.ts:94 MAX_CHART_ITEMS",
+     "verdict": "ok"
+    },
+    {
+     "a": "f:apps/api/src/services/configuration/configuration.service.ts:ConfigurationService.constructor",
+     "b": "v:ENABLE_FEATURE_FEAR_AND_GREED_INDEX",
+     "edge": "env",
+     "from": "apps/api/src/services/configuration/configuration.service.ts:45 ConfigurationService.constructor",
+     "kind": "env",
+     "note": "clave de cleanEnv(process.env, {...}): lectura real",
+     "to": "apps/api/src/services/configuration/configuration.service.ts:73 ENABLE_FEATURE_FEAR_AND_GREED_INDEX",
+     "verdict": "ok"
+    }
+   ],
+   "seconds": 19.17,
+   "split": "control",
+   "stack": "NestJS (TypeScript) + Angular, Nx monorepo; colas Bull/Redis, EventEmitter2, Prisma/Postgres",
+   "total": 452,
+   "unmatched": 112
+  },
+  "go-coffeeshop": {
+   "commit": "22d33190a0cf81630878e47bafae2de7c0abb783",
+   "flows": 100,
+   "flows_by_kind": {
+    "data": [
+     21,
+     32
+    ],
+    "env": [
+     14,
+     25
+    ],
+    "event": [
+     8,
+     8
+    ],
+    "http": [
+     4,
+     4
+    ],
+    "route": [
+     5,
+     7
+    ],
+    "rpc": [
+     13,
+     13
+    ],
+    "service": [
+     10,
+     11
+    ]
+   },
+   "fn": {
+    "event · conectados por separado, sin camino": {
+     "examples": [
+      "internal/barista/eventhandlers/barista_ordered.go:73 → internal/counter/events/handlers/barista_order_updated.go:27 (event barista-order-updated (BaristaOrderUpdated))",
+      "internal/kitchen/eventhandlers/kitchen_ordered.go:77 → internal/counter/events/handlers/kitchen_order_updated.go:27 (event kitchen-order-updated (KitchenOrderUpdated))"
+     ],
+     "n": 2
+    },
+    "event · origen sin aristas de flujo": {
+     "examples": [
+      "internal/counter/usecases/orders/service.go:69 → internal/barista/eventhandlers/barista_ordered.go:34 (event barista-order-created (BaristaOrdered))",
+      "internal/counter/usecases/orders/service.go:78 → internal/kitchen/eventhandlers/kitchen_ordered.go:37 (event kitchen-order-created (KitchenOrdered))"
+     ],
+     "n": 2
+    }
+   },
+   "found": 82,
+   "matched": 75,
+   "recall": {
+    "data": {
+     "found": 21,
+     "total": 21
+    },
+    "env": {
+     "found": 14,
+     "total": 14
+    },
+    "event": {
+     "found": 8,
+     "total": 12
+    },
+    "http": {
+     "found": 4,
+     "total": 4
+    },
+    "route": {
+     "found": 7,
+     "total": 7
+    },
+    "rpc": {
+     "found": 9,
+     "total": 9
+    },
+    "service": {
+     "found": 19,
+     "total": 19
+    }
+   },
+   "sample": [
+    {
+     "a": "f:internal/counter/app/router/counter_grpc_server.go:NewGRPCCounterServer",
+     "b": "c:internal/counter/app/router/counter_grpc_server.go:counterGRPCServer",
+     "edge": "handles",
+     "from": "internal/counter/app/router/counter_grpc_server.go:31 NewGRPCCounterServer",
+     "kind": "route",
+     "note": "RegisterCounterServiceServer(grpcServer, &svc): registro real",
+     "to": "internal/counter/app/router/counter_grpc_server.go:21 counterGRPCServer",
+     "verdict": "ok"
+    },
+    {
+     "a": "c:pkg/config/configs.go:App",
+     "b": "v:APP_VERSION",
+     "edge": "env",
+     "from": "pkg/config/configs.go:4 App",
+     "kind": "env",
+     "note": "tag env:\"APP_VERSION\": lectura real",
+     "to": "pkg/config/configs.go:6 APP_VERSION",
+     "verdict": "ok"
+    },
+    {
+     "a": "m:internal/barista/infras/postgresql/query.sql.go",
+     "b": "c:db/migrations/000002_init_baristadb.up.sql:barista_orders",
+     "edge": "data",
+     "from": "internal/barista/infras/postgresql/query.sql.go:1 query.sql.go",
+     "kind": "data",
+     "note": "consulta generada por sqlc sobre barista.barista_orders: real",
+     "to": "db/migrations/000002_init_baristadb.up.sql:23 barista_orders",
+     "verdict": "ok"
+    },
+    {
+     "a": "c:pkg/config/configs.go:Log",
+     "b": "v:LOG_LEVEL",
+     "edge": "env",
+     "from": "pkg/config/configs.go:14 Log",
+     "kind": "env",
+     "note": "tag env:\"LOG_LEVEL\": lectura real",
+     "to": "pkg/config/configs.go:15 LOG_LEVEL",
+     "verdict": "ok"
+    },
+    {
+     "a": "m:internal/counter/infras/postgresql/query.sql.go",
+     "b": "c:internal/counter/infras/postgresql/models.go:OrderLineItem",
+     "edge": "data",
+     "from": "internal/counter/infras/postgresql/query.sql.go:1 query.sql.go",
+     "kind": "data",
+     "note": "consulta generada sobre \"order\".line_items -> struct sqlc OrderLineItem: real",
+     "to": "internal/counter/infras/postgresql/models.go:14 OrderLineItem",
+     "verdict": "ok"
+    },
+    {
+     "a": "f:cmd/web/app/js/script.js:initApp",
+     "b": "c:docker-compose.yaml:product",
+     "edge": "depends",
+     "from": "cmd/web/app/js/script.js:1 initApp",
+     "kind": "service",
+     "note": "url: 'http://localhost:5001' es un valor por defecto que se sustituye por la URL del proxy; no es una llamada real al servicio product",
+     "to": "docker-compose.yaml:52 product",
+     "verdict": "fp"
+    },
+    {
+     "a": "f:internal/product/app/router/product_grpc_server.go:NewProductGRPCServer",
+     "b": "c:internal/product/app/router/product_grpc_server.go:productGRPCServer",
+     "edge": "handles",
+     "from": "internal/product/app/router/product_grpc_server.go:24 NewProductGRPCServer",
+     "kind": "route",
+     "note": "RegisterProductServiceServer: registro real",
+     "to": "internal/product/app/router/product_grpc_server.go:19 productGRPCServer",
+     "verdict": "ok"
+    },
+    {
+     "a": "f:internal/counter/infras/postgresql/query/query.sql:GetByID",
+     "b": "c:db/migrations/000001_init_counterdb.up.sql:line_items",
+     "edge": "data",
+     "from": "internal/counter/infras/postgresql/query/query.sql:17 GetByID",
+     "kind": "data",
+     "note": "consulta sqlc GetByID hace JOIN con line_items: real",
+     "to": "db/migrations/000001_init_counterdb.up.sql:35 line_items",
+     "verdict": "ok"
+    },
+    {
+     "a": "c:cmd/counter/config/config.go:PG",
+     "b": "v:PG_POOL_MAX",
+     "edge": "env",
+     "from": "cmd/counter/config/config.go:22 PG",
+     "kind": "env",
+     "note": "tag env:\"PG_POOL_MAX\": lectura real",
+     "to": "cmd/barista/config/config.go:22 PG_POOL_MAX",
+     "verdict": "ok"
+    },
+    {
+     "a": "m:internal/kitchen/infras/postgresql/query.sql.go",
+     "b": "c:db/migrations/000003_init_kitchendb.up.sql:kitchen_orders",
+     "edge": "data",
+     "from": "internal/kitchen/infras/postgresql/query.sql.go:1 query.sql.go",
+     "kind": "data",
+     "note": "consulta generada por sqlc sobre kitchen.kitchen_orders: real",
+     "to": "db/migrations/000003_init_kitchendb.up.sql:23 kitchen_orders",
+     "verdict": "ok"
+    }
+   ],
+   "seconds": 1.02,
+   "split": "control",
+   "stack": "Go: servicios gRPC (product, counter) + grpc-gateway proxy, barista/kitchen por RabbitMQ (amqp091), sqlc/Postgres, web echo con JS",
+   "total": 86,
+   "unmatched": 25
+  },
+  "koel": {
+   "commit": "dce85c40e8881f732dec8e2b50741214993e2b19",
+   "flows": 317,
+   "flows_by_kind": {
+    "http": [
+     140,
+     143
+    ],
+    "route": [
+     174,
+     174
+    ]
+   },
+   "fn": {},
+   "found": 301,
+   "matched": 314,
+   "recall": {
+    "http": {
+     "found": 142,
+     "total": 142
+    },
+    "route": {
+     "found": 159,
+     "total": 159
+    }
+   },
+   "sample": [
+    {
+     "a": "m:resources/assets/js/services/downloadService.ts",
+     "b": "e:routes/api.base.php:GET /api/songs/:song/download-url",
+     "edge": "http",
+     "from": "resources/assets/js/services/downloadService.ts:1 downloadService.ts",
+     "kind": "http",
+     "note": "signedUrlService.fetch(`songs/${id}/download-url`): llamada real (omitida a proposito por URL firmada)",
+     "to": "routes/api.base.php:188 GET /api/songs/:song/download-url",
+     "verdict": "ok"
+    },
+    {
+     "a": "m:resources/assets/js/stores/playableStore.ts",
+     "b": "e:routes/api.base.php:GET /api/songs/in-folder",
+     "edge": "http",
+     "from": "resources/assets/js/stores/playableStore.ts:1 playableStore.ts",
+     "kind": "http",
+     "note": "http.get(`songs/in-folder${query}`): llamada real no etiquetada",
+     "to": "routes/api.base.php:210 GET /api/songs/in-folder",
+     "verdict": "ok"
+    },
+    {
+     "a": "m:resources/assets/js/stores/radioStationStore.ts",
+     "b": "e:routes/api.base.php:GET /api/radio/stations/:radioStation/stream-url",
+     "edge": "http",
+     "from": "resources/assets/js/stores/radioStationStore.ts:1 radioStationStore.ts",
+     "kind": "http",
+     "note": "signedUrlService.fetch(`radio/stations/${id}/stream-url`): llamada real (omitida a proposito)",
+     "to": "routes/api.base.php:353 GET /api/radio/stations/:radioStation/stream-url",
+     "verdict": "ok"
+    }
+   ],
+   "seconds": 24.22,
+   "split": "",
+   "stack": "Laravel (PHP) API + Vue 3/TypeScript SPA",
+   "total": 301,
+   "unmatched": 3
+  },
+  "kotlinconf-app": {
+   "commit": "907ce238e1ffe2472991eeb2d2bfa386bdb4ea8f",
+   "flows": 85,
+   "flows_by_kind": {
+    "data": [
+     14,
+     24
+    ],
+    "env": [
+     13,
+     13
+    ],
+    "http": [
+     13,
+     13
+    ],
+    "route": [
+     31,
+     31
+    ],
+    "service": [
+     4,
+     4
+    ]
+   },
+   "fn": {},
+   "found": 72,
+   "matched": 75,
+   "recall": {
+    "data": {
+     "found": 18,
+     "total": 18
+    },
+    "env": {
+     "found": 6,
+     "total": 6
+    },
+    "http": {
+     "found": 13,
+     "total": 13
+    },
+    "route": {
+     "found": 31,
+     "total": 31
+    },
+    "service": {
+     "found": 4,
+     "total": 4
+    }
+   },
+   "sample": [
+    {
+     "a": "f:backend/src/main/kotlin/org/jetbrains/kotlinconf/backend/schema/MigrationRunner.kt:MigrationRunner.appliedVersions",
+     "b": "c:backend/src/main/kotlin/org/jetbrains/kotlinconf/backend/schema/MigrationRunner.kt:SchemaMigrations",
+     "edge": "data",
+     "from": "backend/src/main/kotlin/org/jetbrains/kotlinconf/backend/schema/MigrationRunner.kt:105 MigrationRunner.appliedVersions",
+     "kind": "data",
+     "note": "MigrationRunner consulta la tabla Exposed SchemaMigrations: acceso real",
+     "to": "backend/src/main/kotlin/org/jetbrains/kotlinconf/backend/schema/MigrationRunner.kt:19 SchemaMigrations",
+     "verdict": "ok"
+    },
+    {
+     "a": "f:backend/src/main/kotlin/org/jetbrains/kotlinconf/backend/schema/MigrationRunner.kt:MigrationRunner.currentVersion",
+     "b": "c:backend/src/main/kotlin/org/jetbrains/kotlinconf/backend/schema/MigrationRunner.kt:SchemaMigrations",
+     "edge": "data",
+     "from": "backend/src/main/kotlin/org/jetbrains/kotlinconf/backend/schema/MigrationRunner.kt:66 MigrationRunner.currentVersion",
+     "kind": "data",
+     "note": "MigrationRunner consulta la tabla Exposed SchemaMigrations: acceso real",
+     "to": "backend/src/main/kotlin/org/jetbrains/kotlinconf/backend/schema/MigrationRunner.kt:19 SchemaMigrations",
+     "verdict": "ok"
+    },
+    {
+     "a": "f:backend/src/main/kotlin/org/jetbrains/kotlinconf/backend/schema/MigrationRunner.kt:MigrationRunner.migrate",
+     "b": "c:backend/src/main/kotlin/org/jetbrains/kotlinconf/backend/schema/MigrationRunner.kt:SchemaMigrations",
+     "edge": "data",
+     "from": "backend/src/main/kotlin/org/jetbrains/kotlinconf/backend/schema/MigrationRunner.kt:29 MigrationRunner.migrate",
+     "kind": "data",
+     "note": "MigrationRunner consulta la tabla Exposed SchemaMigrations: acceso real",
+     "to": "backend/src/main/kotlin/org/jetbrains/kotlinconf/backend/schema/MigrationRunner.kt:19 SchemaMigrations",
+     "verdict": "ok"
+    },
+    {
+     "a": "m:backend/src/main/resources/db/migrations/V004__add_year_and_signed_policies_again.sql",
+     "b": "c:backend/src/main/resources/db/migrations/V001__initial_schema.sql:Users",
+     "edge": "data",
+     "from": "backend/src/main/resources/db/migrations/V004__add_year_and_signed_policies_again.sql:1 V004__add_year_and_signed_policies_again.sql",
+     "kind": "data",
+     "note": "DML (UPDATE/INSERT ... SELECT) de una migración Flyway posterior sobre la tabla creada en V001: real",
+     "to": "backend/src/main/resources/db/migrations/V001__initial_schema.sql:4 Users",
+     "verdict": "ok"
+    },
+    {
+     "a": "c:backend/src/main/kotlin/org/jetbrains/kotlinconf/backend/schema/SignedPolicies.kt:SignedPolicies",
+     "b": "c:backend/src/main/resources/db/migrations/V004__add_year_and_signed_policies_again.sql:SignedPolicies",
+     "edge": "data",
+     "from": "backend/src/main/kotlin/org/jetbrains/kotlinconf/backend/schema/SignedPolicies.kt:9 SignedPolicies",
+     "kind": "data",
+     "note": "la migracion V004 vuelve a crear SignedPolicies: el modelo mapea tambien esa tabla",
+     "to": "backend/src/main/resources/db/migrations/V004__add_year_and_signed_policies_again.sql:13 SignedPolicies",
+     "verdict": "ok"
+    },
+    {
+     "a": "m:backend/src/main/resources/db/migrations/V002__add_year_and_signed_policies.sql",
+     "b": "c:backend/src/main/resources/db/migrations/V001__initial_schema.sql:Votes",
+     "edge": "data",
+     "from": "backend/src/main/resources/db/migrations/V002__add_year_and_signed_policies.sql:1 V002__add_year_and_signed_policies.sql",
+     "kind": "data",
+     "note": "DML (UPDATE/INSERT ... SELECT) de una migración Flyway posterior sobre la tabla creada en V001: real",
+     "to": "backend/src/main/resources/db/migrations/V001__initial_schema.sql:12 Votes",
+     "verdict": "ok"
+    },
+    {
+     "a": "m:backend/src/main/resources/db/migrations/V002__add_year_and_signed_policies.sql",
+     "b": "c:backend/src/main/resources/db/migrations/V001__initial_schema.sql:Feedback",
+     "edge": "data",
+     "from": "backend/src/main/resources/db/migrations/V002__add_year_and_signed_policies.sql:1 V002__add_year_and_signed_policies.sql",
+     "kind": "data",
+     "note": "DML (UPDATE/INSERT ... SELECT) de una migración Flyway posterior sobre la tabla creada en V001: real",
+     "to": "backend/src/main/resources/db/migrations/V001__initial_schema.sql:23 Feedback",
+     "verdict": "ok"
+    },
+    {
+     "a": "m:backend/src/main/resources/db/migrations/V004__add_year_and_signed_policies_again.sql",
+     "b": "c:backend/src/main/resources/db/migrations/V001__initial_schema.sql:Feedback",
+     "edge": "data",
+     "from": "backend/src/main/resources/db/migrations/V004__add_year_and_signed_policies_again.sql:1 V004__add_year_and_signed_policies_again.sql",
+     "kind": "data",
+     "note": "DML (UPDATE/INSERT ... SELECT) de una migración Flyway posterior sobre la tabla creada en V001: real",
+     "to": "backend/src/main/resources/db/migrations/V001__initial_schema.sql:23 Feedback",
+     "verdict": "ok"
+    },
+    {
+     "a": "m:backend/src/main/resources/db/migrations/V002__add_year_and_signed_policies.sql",
+     "b": "c:backend/src/main/resources/db/migrations/V001__initial_schema.sql:Users",
+     "edge": "data",
+     "from": "backend/src/main/resources/db/migrations/V002__add_year_and_signed_policies.sql:1 V002__add_year_and_signed_policies.sql",
+     "kind": "data",
+     "note": "DML (UPDATE/INSERT ... SELECT) de una migración Flyway posterior sobre la tabla creada en V001: real",
+     "to": "backend/src/main/resources/db/migrations/V001__initial_schema.sql:4 Users",
+     "verdict": "ok"
+    },
+    {
+     "a": "m:backend/src/main/resources/db/migrations/V004__add_year_and_signed_policies_again.sql",
+     "b": "c:backend/src/main/resources/db/migrations/V001__initial_schema.sql:Votes",
+     "edge": "data",
+     "from": "backend/src/main/resources/db/migrations/V004__add_year_and_signed_policies_again.sql:1 V004__add_year_and_signed_policies_again.sql",
+     "kind": "data",
+     "note": "DML (UPDATE/INSERT ... SELECT) de una migración Flyway posterior sobre la tabla creada en V001: real",
+     "to": "backend/src/main/resources/db/migrations/V001__initial_schema.sql:12 Votes",
+     "verdict": "ok"
+    }
+   ],
+   "seconds": 5.37,
+   "split": "",
+   "stack": "Kotlin Multiplatform (Android/iOS/desktop/web, Ktor client) + backend Ktor + Exposed/Postgres + admin SPA Kotlin/JS",
+   "total": 72,
+   "unmatched": 10
+  },
+  "microservices-demo": {
+   "commit": "38e7348eb289eb5b87c0c6e8cb19ced0449dc389",
+   "flows": 155,
+   "flows_by_kind": {
+    "env": [
+     16,
+     74
+    ],
+    "http": [
+     10,
+     11
+    ],
+    "route": [
+     12,
+     19
+    ],
+    "rpc": [
+     25,
+     34
+    ],
+    "service": [
+     16,
+     17
+    ]
+   },
+   "fn": {
+    "http · llamada no detectada": {
+     "examples": [
+      "src/loadgenerator/locustfile.py:35 → src/frontend/handlers.go:59 (GET /)"
+     ],
+     "n": 1
+    }
+   },
+   "found": 92,
+   "matched": 79,
+   "recall": {
+    "env": {
+     "found": 29,
+     "total": 29
+    },
+    "http": {
+     "found": 10,
+     "total": 11
+    },
+    "route": {
+     "found": 12,
+     "total": 12
+    },
+    "rpc": {
+     "found": 25,
+     "total": 25
+    },
+    "service": {
+     "found": 16,
+     "total": 16
+    }
+   },
+   "sample": [
+    {
+     "a": "c:src/cartservice/src/cartstore/AlloyDBCartStore.cs:AlloyDBCartStore",
+     "b": "v:ALLOYDB_PRIMARY_IP",
+     "edge": "env",
+     "from": "src/cartservice/src/cartstore/AlloyDBCartStore.cs:25 AlloyDBCartStore",
+     "kind": "env",
+     "note": "configuration[\"...\"] (IConfiguration lee el entorno) en el almacen de carrito: lectura real",
+     "to": "kustomize/components/alloydb/kustomization.yaml:34 ALLOYDB_PRIMARY_IP",
+     "verdict": "ok"
+    },
+    {
+     "a": "f:src/productcatalogservice/catalog_loader.go:loadCatalogFromAlloyDB",
+     "b": "v:ALLOYDB_SECRET_NAME",
+     "edge": "env",
+     "from": "src/productcatalogservice/catalog_loader.go:85 loadCatalogFromAlloyDB",
+     "kind": "env",
+     "note": "lectura real de la variable; solo se define en componentes kustomize (fuera de lo etiquetado)",
+     "to": "kustomize/components/alloydb/kustomization.yaml:40 ALLOYDB_SECRET_NAME",
+     "verdict": "ok"
+    },
+    {
+     "a": "m:src/emailservice/email_server.py",
+     "b": "v:COLLECTOR_SERVICE_ADDR",
+     "edge": "env",
+     "from": "src/emailservice/email_server.py:1 email_server.py",
+     "kind": "env",
+     "note": "lectura real de la variable; solo se define en componentes kustomize (fuera de lo etiquetado)",
+     "to": "kustomize/components/google-cloud-operations/kustomization.yaml:33 COLLECTOR_SERVICE_ADDR",
+     "verdict": "ok"
+    },
+    {
+     "a": "m:src/paymentservice/index.js",
+     "b": "v:COLLECTOR_SERVICE_ADDR",
+     "edge": "env",
+     "from": "src/paymentservice/index.js:1 index.js",
+     "kind": "env",
+     "note": "lectura real de la variable; solo se define en componentes kustomize (fuera de lo etiquetado)",
+     "to": "kustomize/components/google-cloud-operations/kustomization.yaml:33 COLLECTOR_SERVICE_ADDR",
+     "verdict": "ok"
+    },
+    {
+     "a": "m:src/paymentservice/index.js",
+     "b": "v:OTEL_SERVICE_NAME",
+     "edge": "env",
+     "from": "src/paymentservice/index.js:1 index.js",
+     "kind": "env",
+     "note": "lectura real de la variable; solo se define en componentes kustomize (fuera de lo etiquetado)",
+     "to": "kustomize/components/google-cloud-operations/kustomization.yaml:35 OTEL_SERVICE_NAME",
+     "verdict": "ok"
+    },
+    {
+     "a": "f:src/frontend/handlers.go:frontendServer.homeHandler",
+     "b": "v:ENV_PLATFORM",
+     "edge": "env",
+     "from": "src/frontend/handlers.go:59 frontendServer.homeHandler",
+     "kind": "env",
+     "note": "lectura real; la definicion vista es la del chart de Helm (fuera de lo etiquetado)",
+     "to": "helm-chart/templates/frontend.yaml:111 ENV_PLATFORM",
+     "verdict": "ok"
+    },
+    {
+     "a": "f:src/productcatalogservice/server.go:run",
+     "b": "e:protos/demo.proto:RPC hipstershop.ProductCatalogService/SearchProducts",
+     "edge": "rpc",
+     "from": "src/productcatalogservice/server.go:123 run",
+     "kind": "rpc",
+     "note": "RegisterProductCatalogServiceServer: registro real",
+     "to": "protos/demo.proto:74 RPC hipstershop.ProductCatalogService/SearchProducts",
+     "verdict": "ok"
+    },
+    {
+     "a": "f:src/productcatalogservice/catalog_loader.go:loadCatalog",
+     "b": "v:ALLOYDB_CLUSTER_NAME",
+     "edge": "env",
+     "from": "src/productcatalogservice/catalog_loader.go:33 loadCatalog",
+     "kind": "env",
+     "note": "lectura real de la variable; solo se define en componentes kustomize (fuera de lo etiquetado)",
+     "to": "kustomize/components/alloydb/kustomization.yaml:64 ALLOYDB_CLUSTER_NAME",
+     "verdict": "ok"
+    },
+    {
+     "a": "c:src/cartservice/src/cartstore/SpannerCartStore.cs:SpannerCartStore",
+     "b": "v:SPANNER_CONNECTION_STRING",
+     "edge": "env",
+     "from": "src/cartservice/src/cartstore/SpannerCartStore.cs:23 SpannerCartStore",
+     "kind": "env",
+     "note": "configuration[\"...\"] (IConfiguration lee el entorno) en el almacen de carrito: lectura real",
+     "to": "kustomize/components/spanner/kustomization.yaml:32 SPANNER_CONNECTION_STRING",
+     "verdict": "ok"
+    },
+    {
+     "a": "f:src/productcatalogservice/server.go:main",
+     "b": "v:ENABLE_TRACING",
+     "edge": "env",
+     "from": "src/productcatalogservice/server.go:68 main",
+     "kind": "env",
+     "note": "lectura real de la variable; solo se define en componentes kustomize (fuera de lo etiquetado)",
+     "to": "kustomize/components/google-cloud-operations/kustomization.yaml:37 ENABLE_TRACING",
+     "verdict": "ok"
+    }
+   ],
+   "seconds": 2.87,
+   "split": "",
+   "stack": "Go + C# + Node.js + Python + Java; gRPC entre servicios, frontend Go con templates HTML/JS, k8s",
+   "total": 93,
+   "unmatched": 76
+  },
+  "papermark": {
+   "commit": "ed19717ec02a1ac79aecf5569159aa9d2d869312",
+   "flows": 529,
+   "flows_by_kind": {
+    "data": [
+     89,
+     424
+    ],
+    "env": [
+     19,
+     36
+    ],
+    "route": [
+     69,
+     69
+    ]
+   },
+   "fn": {
+    "event · conectados por separado, sin camino": {
+     "examples": [
+      "app/(ee)/api/ai/store/teams/[teamId]/datarooms/[dataroomId]/route.ts:196 → ee/features/ai/lib/trigger/process-document-for-ai.ts:22 (event process-document-for-ai (Trigger.dev task))",
+      "app/(ee)/api/ai/store/teams/[teamId]/documents/[documentId]/route.ts:166 → ee/features/ai/lib/trigger/process-document-for-ai.ts:22 (event process-document-for-ai (Trigger.dev task))",
+      "app/(ee)/api/links/[id]/upload/route.ts:342 → lib/trigger/dataroom-upload-notification.ts:13 (event send-dataroom-upload-notification (Trigger.dev task))",
+      "app/(ee)/api/links/[id]/upload/route.ts:399 → lib/trigger/dataroom-change-notification.ts:16 (event send-dataroom-change-notification (Trigger.dev task))"
+     ],
+     "n": 30
+    },
+    "event · destino sin aristas de flujo": {
+     "examples": [
+      "app/(ee)/api/ai/store/teams/[teamId]/datarooms/[dataroomId]/route.ts:189 → ee/features/ai/lib/trigger/add-file-to-vector-store.ts:13 (event add-file-to-vector-store (Trigger.dev task))",
+      "app/(ee)/api/ai/store/teams/[teamId]/documents/[documentId]/route.ts:152 → ee/features/ai/lib/trigger/add-file-to-vector-store.ts:13 (event add-file-to-vector-store (Trigger.dev task))",
+      "ee/features/ai/lib/trigger/process-document-for-ai.ts:159 → ee/features/ai/lib/trigger/add-file-to-vector-store.ts:13 (event add-file-to-vector-store (Trigger.dev task))",
+      "pages/api/links/download/bulk.ts:159 → lib/trigger/bulk-download.ts:137 (event bulk-download (Trigger.dev task))"
+     ],
+     "n": 8
+    },
+    "route · ruta no detectada": {
+     "examples": [
+      "app/(ee)/api/scim/v2.0/[...directory]/route.ts:77 → app/(ee)/api/scim/v2.0/[...directory]/route.ts:15 (PATCH /api/scim/v2.0/{...directory})",
+      "app/(ee)/api/scim/v2.0/[...directory]/route.ts:78 → app/(ee)/api/scim/v2.0/[...directory]/route.ts:15 (POST /api/scim/v2.0/{...directory})",
+      "app/(ee)/api/scim/v2.0/[...directory]/route.ts:79 → app/(ee)/api/scim/v2.0/[...directory]/route.ts:15 (PUT /api/scim/v2.0/{...directory})"
+     ],
+     "n": 3
+    }
+   },
+   "found": 165,
+   "matched": 177,
+   "recall": {
+    "data": {
+     "found": 66,
+     "total": 66
+    },
+    "env": {
+     "found": 33,
+     "total": 33
+    },
+    "event": {
+     "found": 0,
+     "total": 38
+    },
+    "route": {
+     "found": 66,
+     "total": 69
+    }
+   },
+   "sample": [
+    {
+     "a": "f:app/(ee)/api/ai/chat/[chatId]/route.ts:GET",
+     "b": "c:prisma/schema/schema.prisma:Chat",
+     "edge": "data",
+     "from": "app/(ee)/api/ai/chat/[chatId]/route.ts:15 GET",
+     "kind": "data",
+     "note": "",
+     "to": "prisma/schema/schema.prisma:285 Chat",
+     "verdict": null
+    },
+    {
+     "a": "f:app/(ee)/api/workflows/route.ts:GET",
+     "b": "c:prisma/schema/team.prisma:UserTeam",
+     "edge": "data",
+     "from": "app/(ee)/api/workflows/route.ts:16 GET",
+     "kind": "data",
+     "note": "",
+     "to": "prisma/schema/team.prisma:128 UserTeam",
+     "verdict": null
+    },
+    {
+     "a": "f:ee/features/dataroom-freeze/lib/trigger/dataroom-freeze-archive.ts:generateAuditLogsCsv",
+     "b": "c:prisma/migrations/20230912150657_initialize/migration.sql:View",
+     "edge": "data",
+     "from": "ee/features/dataroom-freeze/lib/trigger/dataroom-freeze-archive.ts:510 generateAuditLogsCsv",
+     "kind": "data",
+     "note": "",
+     "to": "prisma/migrations/20230912150657_initialize/migration.sql:102 View",
+     "verdict": null
+    },
+    {
+     "a": "f:app/(ee)/api/workflows/[workflowId]/steps/route.ts:PUT",
+     "b": "c:prisma/schema/team.prisma:UserTeam",
+     "edge": "data",
+     "from": "app/(ee)/api/workflows/[workflowId]/steps/route.ts:331 PUT",
+     "kind": "data",
+     "note": "",
+     "to": "prisma/schema/team.prisma:128 UserTeam",
+     "verdict": null
+    },
+    {
+     "a": "f:app/(ee)/api/workflows/[workflowId]/steps/route.ts:PUT",
+     "b": "c:prisma/schema/workflow.prisma:Workflow",
+     "edge": "data",
+     "from": "app/(ee)/api/workflows/[workflowId]/steps/route.ts:331 PUT",
+     "kind": "data",
+     "note": "",
+     "to": "prisma/schema/workflow.prisma:15 Workflow",
+     "verdict": null
+    },
+    {
+     "a": "m:ee/features/ai/lib/trigger/process-excel-for-ai.ts",
+     "b": "c:prisma/schema/document.prisma:DocumentVersion",
+     "edge": "data",
+     "from": "ee/features/ai/lib/trigger/process-excel-for-ai.ts:1 process-excel-for-ai.ts",
+     "kind": "data",
+     "note": "",
+     "to": "prisma/schema/document.prisma:47 DocumentVersion",
+     "verdict": null
+    },
+    {
+     "a": "f:app/(ee)/api/ai/chat/route.ts:GET",
+     "b": "c:prisma/migrations/20230912150657_initialize/migration.sql:View",
+     "edge": "data",
+     "from": "app/(ee)/api/ai/chat/route.ts:360 GET",
+     "kind": "data",
+     "note": "",
+     "to": "prisma/migrations/20230912150657_initialize/migration.sql:102 View",
+     "verdict": null
+    },
+    {
+     "a": "c:prisma/schema/dataroom.prisma:Dataroom",
+     "b": "c:prisma/migrations/20240327102407_add_dataroom/migration.sql:Dataroom",
+     "edge": "data",
+     "from": "prisma/schema/dataroom.prisma:1 Dataroom",
+     "kind": "data",
+     "note": "",
+     "to": "prisma/migrations/20240327102407_add_dataroom/migration.sql:15 Dataroom",
+     "verdict": null
+    },
+    {
+     "a": "f:app/(ee)/api/ai/chat/[chatId]/messages/route.ts:POST",
+     "b": "c:prisma/schema/schema.prisma:Chat",
+     "edge": "data",
+     "from": "app/(ee)/api/ai/chat/[chatId]/messages/route.ts:19 POST",
+     "kind": "data",
+     "note": "",
+     "to": "prisma/schema/schema.prisma:285 Chat",
+     "verdict": null
+    },
+    {
+     "a": "f:app/(ee)/api/ai/chat/route.ts:POST",
+     "b": "c:prisma/schema/dataroom.prisma:Dataroom",
+     "edge": "data",
+     "from": "app/(ee)/api/ai/chat/route.ts:18 POST",
+     "kind": "data",
+     "note": "",
+     "to": "prisma/schema/dataroom.prisma:1 Dataroom",
+     "verdict": null
+    }
+   ],
+   "seconds": 22.05,
+   "split": "control2",
+   "stack": "Next.js (app router + pages) full-stack con Prisma/Postgres, tareas Trigger.dev, vercel/Next env",
+   "total": 206,
+   "unmatched": 352
+  },
+  "phoenix-realworld": {
+   "commit": "8620fb2829703051cdbd032f93be6cd941c4810e",
+   "flows": 59,
+   "flows_by_kind": {
+    "data": [
+     30,
+     32
+    ],
+    "route": [
+     27,
+     27
+    ]
+   },
+   "fn": {},
+   "found": 56,
+   "matched": 57,
+   "recall": {
+    "data": {
+     "found": 32,
+     "total": 32
+    },
+    "route": {
+     "found": 24,
+     "total": 24
+    }
+   },
+   "sample": [
+    {
+     "a": "f:lib/real_world/blog/blog.ex:RealWorld.Blog.list_tags",
+     "b": "c:priv/repo/migrations/20170426154053_create_blog_article.exs:articles",
+     "edge": "data",
+     "from": "lib/real_world/blog/blog.ex:56 RealWorld.Blog.list_tags",
+     "kind": "data",
+     "note": "SQL crudo \"from articles\" en list_tags: acceso real no etiquetado",
+     "to": "priv/repo/migrations/20170426154053_create_blog_article.exs:5 articles",
+     "verdict": "ok"
+    },
+    {
+     "a": "f:lib/real_world/blog/blog.ex:RealWorld.Blog.list_tags",
+     "b": "c:lib/real_world/blog/article.ex:RealWorld.Blog.Article",
+     "edge": "data",
+     "from": "lib/real_world/blog/blog.ex:56 RealWorld.Blog.list_tags",
+     "kind": "data",
+     "note": "SQL crudo \"from articles\" en list_tags: acceso real no etiquetado",
+     "to": "lib/real_world/blog/article.ex:1 RealWorld.Blog.Article",
+     "verdict": "ok"
+    }
+   ],
+   "seconds": 0.43,
+   "split": "",
+   "stack": "Elixir Phoenix 1.3 + Ecto + Guardian; solo backend",
+   "total": 56,
+   "unmatched": 2
+  },
+  "proshop_mern": {
+   "commit": "1d20b5b09e796e2f00779306c390360e9e573276",
+   "flows": 79,
+   "flows_by_kind": {
+    "data": [
+     28,
+     28
+    ],
+    "http": [
+     23,
+     23
+    ],
+    "route": [
+     27,
+     28
+    ]
+   },
+   "fn": {},
+   "found": 82,
+   "matched": 78,
+   "recall": {
+    "data": {
+     "found": 32,
+     "total": 32
+    },
+    "http": {
+     "found": 23,
+     "total": 23
+    },
+    "route": {
+     "found": 27,
+     "total": 27
+    }
+   },
+   "sample": [
+    {
+     "a": "e:backend/server.js:GET /",
+     "b": "m:backend/server.js",
+     "edge": "handles",
+     "from": "backend/server.js:45 GET /",
+     "kind": "route",
+     "note": "app.get(\"/\") en server.js: ruta real no etiquetada",
+     "to": "backend/server.js:1 server.js",
+     "verdict": "ok"
+    }
+   ],
+   "seconds": 0.51,
+   "split": "",
+   "stack": "Node.js/Express + Mongoose (MongoDB) + React/Redux (axios)",
+   "total": 82,
+   "unmatched": 1
+  },
+  "quarkus-super-heroes": {
+   "commit": "0d5a6a32dbfc387f52be407a8f5a515881c9cf00",
+   "flows": 57,
+   "flows_by_kind": {
+    "data": [
+     11,
+     11
+    ],
+    "route": [
+     0,
+     8
+    ],
+    "service": [
+     0,
+     38
+    ]
+   },
+   "fn": {
+    "data · origen sin aristas de flujo": {
+     "examples": [
+      "rest-heroes/src/main/java/io/quarkus/sample/superheroes/hero/service/HeroService.java:44 → rest-heroes/src/main/java/io/quarkus/sample/superheroes/hero/Hero.java:17 (data hero (Hibernate Reactive entity))",
+      "rest-heroes/src/main/java/io/quarkus/sample/superheroes/hero/service/HeroService.java:50 → rest-heroes/src/main/java/io/quarkus/sample/superheroes/hero/Hero.java:17 (data hero (Hibernate Reactive entity))",
+      "rest-heroes/src/main/java/io/quarkus/sample/superheroes/hero/service/HeroService.java:56 → rest-heroes/src/main/java/io/quarkus/sample/superheroes/hero/Hero.java:17 (data hero (Hibernate Reactive entity))",
+      "rest-heroes/src/main/java/io/quarkus/sample/superheroes/hero/service/HeroService.java:62 → rest-heroes/src/main/java/io/quarkus/sample/superheroes/hero/Hero.java:17 (data hero (Hibernate Reactive entity))"
+     ],
+     "n": 16
+    },
+    "data · origen y destino sin aristas de flujo": {
+     "examples": [
+      "rest-fights/src/main/java/io/quarkus/sample/superheroes/fight/service/FightService.java:93 → rest-fights/src/main/java/io/quarkus/sample/superheroes/fight/Fight.java:19 (data Fights collection (Mongo Panache entity))",
+      "rest-fights/src/main/java/io/quarkus/sample/superheroes/fight/service/FightService.java:99 → rest-fights/src/main/java/io/quarkus/sample/superheroes/fight/Fight.java:19 (data Fights collection (Mongo Panache entity))",
+      "rest-fights/src/main/java/io/quarkus/sample/superheroes/fight/service/FightService.java:107 → rest-fights/src/main/java/io/quarkus/sample/superheroes/fight/Fight.java:19 (data Fights collection (Mongo Panache entity))",
+      "rest-fights/src/main/java/io/quarkus/sample/superheroes/fight/service/FightService.java:302 → rest-fights/src/main/java/io/quarkus/sample/superheroes/fight/Fight.java:19 (data Fights collection (Mongo Panache entity))"
+     ],
+     "n": 5
+    },
+    "env · origen sin aristas de flujo": {
+     "examples": [
+      "ui-super-heroes/src/main/java/io/quarkus/sample/superheroes/ui/EnvResource.java:22 → deploy/docker-compose/java25.yml:261 (env API_BASE_URL (api.base.url))",
+      "ui-super-heroes/src/main/java/io/quarkus/sample/superheroes/ui/EnvResource.java:25 → ui-super-heroes/src/main/resources/application.properties:67 (env CALCULATE_API_BASE_URL (calculate.api.base.url))"
+     ],
+     "n": 2
+    },
+    "event · destino sin aristas de flujo": {
+     "examples": [
+      "rest-fights/src/main/resources/application.properties:83 → event-statistics/src/main/java/io/quarkus/sample/superheroes/statistics/listener/SuperStats.java:62 (event fights (Kafka topic))",
+      "event-statistics/src/main/resources/application.properties:12 → event-statistics/src/main/java/io/quarkus/sample/superheroes/statistics/listener/SuperStats.java:62 (event fights (Kafka topic))"
+     ],
+     "n": 2
+    },
+    "event · origen y destino sin aristas de flujo": {
+     "examples": [
+      "rest-fights/src/main/java/io/quarkus/sample/superheroes/fight/service/FightService.java:305 → event-statistics/src/main/java/io/quarkus/sample/superheroes/statistics/listener/SuperStats.java:62 (event fights (Kafka topic))",
+      "event-statistics/src/main/java/io/quarkus/sample/superheroes/statistics/listener/SuperStats.java:59 → event-statistics/src/main/java/io/quarkus/sample/superheroes/statistics/listener/SuperStats.java:62 (event fights (Kafka topic))",
+      "event-statistics/src/main/java/io/quarkus/sample/superheroes/statistics/listener/SuperStats.java:60 → event-statistics/src/main/java/io/quarkus/sample/superheroes/statistics/endpoint/TopWinnerStatsChannelHolder.java:23 (event winner-stats (in-memory channel))",
+      "event-statistics/src/main/java/io/quarkus/sample/superheroes/statistics/listener/SuperStats.java:86 → event-statistics/src/main/java/io/quarkus/sample/superheroes/statistics/endpoint/TeamStatsChannelHolder.java:23 (event team-stats (in-memory channel))"
+     ],
+     "n": 4
+    },
+    "http · llamada no detectada": {
+     "examples": [
+      "rest-fights/src/main/java/io/quarkus/sample/superheroes/fight/client/HeroRestClient.java:31 → rest-heroes/src/main/java/io/quarkus/sample/superheroes/hero/rest/HeroResource.java:35 (GET /api/heroes/random)",
+      "rest-fights/src/main/java/io/quarkus/sample/superheroes/fight/client/HeroRestClient.java:39 → rest-heroes/src/main/java/io/quarkus/sample/superheroes/hero/rest/HelloHeroResource.java:11 (GET /api/heroes/hello)",
+      "rest-fights/src/main/java/io/quarkus/sample/superheroes/fight/client/VillainClient.java:59 → rest-villains/src/main/java/io/quarkus/sample/superheroes/villain/rest/VillainResource.java:33 (GET /api/villains/random)",
+      "rest-fights/src/main/java/io/quarkus/sample/superheroes/fight/client/VillainClient.java:76 → rest-villains/src/main/java/io/quarkus/sample/superheroes/villain/rest/HelloVillainResource.java:12 (GET /api/villains/hello)"
+     ],
+     "n": 13
+    },
+    "route · ruta no detectada": {
+     "examples": [
+      "rest-heroes/src/main/resources/openapi/openapi.yml:15 → rest-heroes/src/main/java/io/quarkus/sample/superheroes/hero/rest/HeroResource.java:48 (GET /api/heroes)",
+      "rest-heroes/src/main/resources/openapi/openapi.yml:44 → rest-heroes/src/main/java/io/quarkus/sample/superheroes/hero/rest/HeroResource.java:101 (PUT /api/heroes)",
+      "rest-heroes/src/main/resources/openapi/openapi.yml:77 → rest-heroes/src/main/java/io/quarkus/sample/superheroes/hero/rest/HeroResource.java:72 (POST /api/heroes)",
+      "rest-heroes/src/main/resources/openapi/openapi.yml:107 → rest-heroes/src/main/java/io/quarkus/sample/superheroes/hero/rest/HeroResource.java:132 (DELETE /api/heroes)"
+     ],
+     "n": 40
+    },
+    "rpc · origen y destino sin aristas de flujo": {
+     "examples": [
+      "grpc-locations/src/main/proto/locationservice-v1.proto:48 → grpc-locations/src/main/kotlin/io/quarkus/sample/superheroes/location/grpc/LocationGrpcService.kt:15 (Locations.GetRandomLocation)",
+      "grpc-locations/src/main/proto/locationservice-v1.proto:49 → grpc-locations/src/main/kotlin/io/quarkus/sample/superheroes/location/grpc/LocationGrpcService.kt:46 (Locations.GetAllLocations)",
+      "grpc-locations/src/main/proto/locationservice-v1.proto:50 → grpc-locations/src/main/kotlin/io/quarkus/sample/superheroes/location/grpc/LocationGrpcService.kt:55 (Locations.DeleteAllLocations)",
+      "grpc-locations/src/main/proto/locationservice-v1.proto:51 → grpc-locations/src/main/kotlin/io/quarkus/sample/superheroes/location/grpc/LocationGrpcService.kt:22 (Locations.GetLocationByName)"
+     ],
+     "n": 11
+    },
+    "service · conectados por separado, sin camino": {
+     "examples": [
+      "deploy/docker-compose/java25.yml:53 → deploy/docker-compose/java25.yml:8 (rest-fights-java25 depends_on fights-db)",
+      "deploy/docker-compose/java25.yml:54 → deploy/docker-compose/java25.yml:20 (rest-fights-java25 depends_on apicurio)",
+      "deploy/docker-compose/java25.yml:55 → deploy/docker-compose/java25.yml:29 (rest-fights-java25 depends_on fights-kafka)",
+      "deploy/docker-compose/java25.yml:127 → deploy/docker-compose/java25.yml:85 (rest-villains-java25 depends_on villains-db)"
+     ],
+     "n": 27
+    }
+   },
+   "found": 19,
+   "matched": 11,
+   "recall": {
+    "data": {
+     "found": 8,
+     "total": 29
+    },
+    "env": {
+     "found": 11,
+     "total": 13
+    },
+    "event": {
+     "found": 0,
+     "total": 6
+    },
+    "http": {
+     "found": 0,
+     "total": 13
+    },
+    "route": {
+     "found": 0,
+     "total": 40
+    },
+    "rpc": {
+     "found": 0,
+     "total": 11
+    },
+    "service": {
+     "found": 0,
+     "total": 27
+    }
+   },
+   "sample": [
+    {
+     "a": "c:rest-heroes/src/main/kubernetes/common.yml:ConfigMap/rest-heroes-config",
+     "b": "c:rest-heroes/src/main/kubernetes/common.yml:Service/heroes-db",
+     "edge": "depends",
+     "from": "rest-heroes/src/main/kubernetes/common.yml:3 ConfigMap/rest-heroes-config",
+     "kind": "service",
+     "note": "",
+     "to": "rest-heroes/src/main/kubernetes/common.yml:119 Service/heroes-db",
+     "verdict": null
+    },
+    {
+     "a": "c:rest-fights/src/main/kubernetes/openshift.yml:ConfigMap/rest-fights-config",
+     "b": "c:rest-fights/src/main/kubernetes/common.yml:Service/fights-db",
+     "edge": "depends",
+     "from": "rest-fights/src/main/kubernetes/openshift.yml:3 ConfigMap/rest-fights-config",
+     "kind": "service",
+     "note": "",
+     "to": "rest-fights/src/main/kubernetes/common.yml:117 Service/fights-db",
+     "verdict": null
+    },
+    {
+     "a": "m:event-statistics/src/main/docker-compose/java25.yml",
+     "b": "c:event-statistics/src/main/kubernetes/common.yml:Service/apicurio",
+     "edge": "depends",
+     "from": "event-statistics/src/main/docker-compose/java25.yml:1 java25.yml",
+     "kind": "service",
+     "note": "",
+     "to": "event-statistics/src/main/kubernetes/common.yml:159 Service/apicurio",
+     "verdict": null
+    },
+    {
+     "a": "e:rest-fights/src/main/java/io/quarkus/sample/superheroes/fight/client/HeroRestClient.java:GET /api/heroes/random",
+     "b": "f:rest-fights/src/main/java/io/quarkus/sample/superheroes/fight/client/HeroRestClient.java:HeroRestClient.findRandomHero",
+     "edge": "handles",
+     "from": "rest-fights/src/main/java/io/quarkus/sample/superheroes/fight/client/HeroRestClient.java:30 GET /api/heroes/random",
+     "kind": "route",
+     "note": "",
+     "to": "rest-fights/src/main/java/io/quarkus/sample/superheroes/fight/client/HeroRestClient.java:30 HeroRestClient.findRandomHero",
+     "verdict": null
+    },
+    {
+     "a": "c:grpc-locations/src/main/kubernetes/common.yml:ConfigMap/grpc-locations-config",
+     "b": "c:grpc-locations/src/main/kubernetes/common.yml:Service/locations-db",
+     "edge": "depends",
+     "from": "grpc-locations/src/main/kubernetes/common.yml:3 ConfigMap/grpc-locations-config",
+     "kind": "service",
+     "note": "",
+     "to": "grpc-locations/src/main/kubernetes/common.yml:126 Service/locations-db",
+     "verdict": null
+    },
+    {
+     "a": "m:event-statistics/src/main/docker-compose/infra.yml",
+     "b": "c:event-statistics/src/main/kubernetes/common.yml:Service/fights-kafka",
+     "edge": "depends",
+     "from": "event-statistics/src/main/docker-compose/infra.yml:1 infra.yml",
+     "kind": "service",
+     "note": "",
+     "to": "event-statistics/src/main/kubernetes/common.yml:82 Service/fights-kafka",
+     "verdict": null
+    },
+    {
+     "a": "c:rest-fights/src/main/kubernetes/kubernetes.yml:ConfigMap/rest-fights-config",
+     "b": "c:rest-fights/src/main/kubernetes/common.yml:Service/fights-db",
+     "edge": "depends",
+     "from": "rest-fights/src/main/kubernetes/kubernetes.yml:3 ConfigMap/rest-fights-config",
+     "kind": "service",
+     "note": "",
+     "to": "rest-fights/src/main/kubernetes/common.yml:117 Service/fights-db",
+     "verdict": null
+    },
+    {
+     "a": "m:rest-fights/src/main/docker-compose/native.yml",
+     "b": "c:rest-fights/src/main/kubernetes/common.yml:Service/fights-db",
+     "edge": "depends",
+     "from": "rest-fights/src/main/docker-compose/native.yml:1 native.yml",
+     "kind": "service",
+     "note": "",
+     "to": "rest-fights/src/main/kubernetes/common.yml:117 Service/fights-db",
+     "verdict": null
+    },
+    {
+     "a": "m:rest-villains/src/main/docker-compose/java25.yml",
+     "b": "c:rest-villains/src/main/kubernetes/common.yml:Service/villains-db",
+     "edge": "depends",
+     "from": "rest-villains/src/main/docker-compose/java25.yml:1 java25.yml",
+     "kind": "service",
+     "note": "",
+     "to": "rest-villains/src/main/kubernetes/common.yml:118 Service/villains-db",
+     "verdict": null
+    },
+    {
+     "a": "m:event-statistics/src/main/docker-compose/native.yml",
+     "b": "c:event-statistics/src/main/kubernetes/common.yml:Service/fights-kafka",
+     "edge": "depends",
+     "from": "event-statistics/src/main/docker-compose/native.yml:1 native.yml",
+     "kind": "service",
+     "note": "",
+     "to": "event-statistics/src/main/kubernetes/common.yml:82 Service/fights-kafka",
+     "verdict": null
+    }
+   ],
+   "seconds": 9.5,
+   "split": "control2",
+   "stack": "Quarkus multi-servicio: JAX-RS generado desde OpenAPI (RESTEasy Reactive), MicroProfile REST client + JAX-RS client, gRPC (Kotlin), Kafka (SmallRye Reactive Messaging), Panache Hibernate/Mongo, UI React (axios), docker compose",
+   "total": 139,
+   "unmatched": 46
+  },
+  "rails-realworld": {
+   "commit": "a2ae4fff78b3337683cea988c023281dcb5551b9",
+   "flows": 47,
+   "flows_by_kind": {
+    "data": [
+     22,
+     27
+    ],
+    "route": [
+     20,
+     20
+    ]
+   },
+   "fn": {
+    "data · conectados por separado, sin camino": {
+     "examples": [
+      "app/controllers/favorites_controller.rb:6 → app/models/favorite.rb:1 (ActiveRecord Favorite (table favorites))",
+      "app/controllers/favorites_controller.rb:12 → app/models/favorite.rb:1 (ActiveRecord Favorite (table favorites))",
+      "app/controllers/follows_controller.rb:7 → app/models/follow.rb:1 (ActiveRecord Follow (table follows))",
+      "app/controllers/follows_controller.rb:15 → app/models/follow.rb:1 (ActiveRecord Follow (table follows))"
+     ],
+     "n": 5
+    }
+   },
+   "found": 41,
+   "matched": 42,
+   "recall": {
+    "data": {
+     "found": 23,
+     "total": 28
+    },
+    "route": {
+     "found": 18,
+     "total": 18
+    }
+   },
+   "sample": [
+    {
+     "a": "c:app/models/comment.rb:Comment",
+     "b": "c:db/migrate/20160712061113_create_comments.rb:comments",
+     "edge": "data",
+     "from": "app/models/comment.rb:1 Comment",
+     "kind": "data",
+     "note": "la migracion create_table crea la misma tabla que db/schema.rb: relacion real",
+     "to": "db/migrate/20160712061113_create_comments.rb:3 comments",
+     "verdict": "ok"
+    },
+    {
+     "a": "c:app/models/favorite.rb:Favorite",
+     "b": "c:db/migrate/20160712055201_create_favorites.rb:favorites",
+     "edge": "data",
+     "from": "app/models/favorite.rb:1 Favorite",
+     "kind": "data",
+     "note": "la migracion create_table crea la misma tabla que db/schema.rb: relacion real",
+     "to": "db/migrate/20160712055201_create_favorites.rb:3 favorites",
+     "verdict": "ok"
+    },
+    {
+     "a": "c:app/models/follow.rb:Follow",
+     "b": "c:db/migrate/20160712061614_acts_as_follower_migration.rb:follows",
+     "edge": "data",
+     "from": "app/models/follow.rb:1 Follow",
+     "kind": "data",
+     "note": "la migracion create_table crea la misma tabla que db/schema.rb: relacion real",
+     "to": "db/migrate/20160712061614_acts_as_follower_migration.rb:3 follows",
+     "verdict": "ok"
+    },
+    {
+     "a": "c:app/models/article.rb:Article",
+     "b": "c:db/migrate/20160712052128_create_articles.rb:articles",
+     "edge": "data",
+     "from": "app/models/article.rb:1 Article",
+     "kind": "data",
+     "note": "la migracion create_table crea la misma tabla que db/schema.rb: relacion real",
+     "to": "db/migrate/20160712052128_create_articles.rb:3 articles",
+     "verdict": "ok"
+    },
+    {
+     "a": "c:app/models/user.rb:User",
+     "b": "c:db/migrate/20160712045707_devise_create_users.rb:users",
+     "edge": "data",
+     "from": "app/models/user.rb:1 User",
+     "kind": "data",
+     "note": "la migracion create_table crea la misma tabla que db/schema.rb: relacion real",
+     "to": "db/migrate/20160712045707_devise_create_users.rb:3 users",
+     "verdict": "ok"
+    }
+   ],
+   "seconds": 0.36,
+   "split": "",
+   "stack": "Ruby on Rails 4 API (Devise, acts_as_follower, acts_as_taggable_on) + jbuilder; solo backend",
+   "total": 46,
+   "unmatched": 5
+  },
+  "realworld-axum-sqlx": {
+   "commit": "f1b25654773228297e35c292f357d33b7121a101",
+   "flows": 72,
+   "flows_by_kind": {
+    "data": [
+     46,
+     46
+    ],
+    "env": [
+     3,
+     3
+    ],
+    "route": [
+     23,
+     23
+    ]
+   },
+   "fn": {},
+   "found": 73,
+   "matched": 72,
+   "recall": {
+    "data": {
+     "found": 47,
+     "total": 47
+    },
+    "env": {
+     "found": 3,
+     "total": 3
+    },
+    "route": {
+     "found": 23,
+     "total": 23
+    }
+   },
+   "sample": [],
+   "seconds": 0.25,
+   "split": "",
+   "stack": "Rust: axum + sqlx (queries inline) + Postgres; solo backend",
+   "total": 73,
+   "unmatched": 0
+  },
+  "sb3-course": {
+   "commit": "9cc3cc7c37ab25315d8d92bd58dae19fdfff3b65",
+   "flows": 152,
+   "flows_by_kind": {
+    "data": [
+     10,
+     10
+    ],
+    "env": [
+     4,
+     4
+    ],
+    "event": [
+     2,
+     2
+    ],
+    "http": [
+     5,
+     5
+    ],
+    "route": [
+     8,
+     8
+    ],
+    "service": [
+     24,
+     123
+    ]
+   },
+   "fn": {},
+   "found": 90,
+   "matched": 53,
+   "recall": {
+    "data": {
+     "found": 10,
+     "total": 10
+    },
+    "env": {
+     "found": 41,
+     "total": 41
+    },
+    "event": {
+     "found": 2,
+     "total": 2
+    },
+    "http": {
+     "found": 5,
+     "total": 5
+    },
+    "route": {
+     "found": 8,
+     "total": 8
+    },
+    "service": {
+     "found": 24,
+     "total": 24
+    }
+   },
+   "sample": [
+    {
+     "a": "c:k8s/manifests/applications/inventory-service.yml:Deployment/inventory-service",
+     "b": "c:k8s/manifests/infra/loki.yml:Service/loki",
+     "edge": "depends",
+     "from": "k8s/manifests/applications/inventory-service.yml:2 Deployment/inventory-service",
+     "kind": "service",
+     "note": "referencia en manifiesto k8s (URL *.svc o configMapKeyRef) al Service: cableado real",
+     "to": "k8s/manifests/infra/loki.yml:23 Service/loki",
+     "verdict": "ok"
+    },
+    {
+     "a": "c:k8s/manifests/applications/inventory-service.yml:ConfigMap/inventory-service-config",
+     "b": "c:k8s/manifests/infra/mysql.yml:Service/mysql",
+     "edge": "depends",
+     "from": "k8s/manifests/applications/inventory-service.yml:48 ConfigMap/inventory-service-config",
+     "kind": "service",
+     "note": "referencia en manifiesto k8s (URL *.svc o configMapKeyRef) al Service: cableado real",
+     "to": "k8s/manifests/infra/mysql.yml:42 Service/mysql",
+     "verdict": "ok"
+    },
+    {
+     "a": "c:k8s/manifests/infra/kafka.yml:Deployment/broker",
+     "b": "c:k8s/manifests/infra/zookeeper.yml:Service/zookeeper",
+     "edge": "depends",
+     "from": "k8s/manifests/infra/kafka.yml:2 Deployment/broker",
+     "kind": "service",
+     "note": "referencia en manifiesto k8s (URL *.svc o configMapKeyRef) al Service: cableado real",
+     "to": "k8s/manifests/infra/zookeeper.yml:33 Service/zookeeper",
+     "verdict": "ok"
+    },
+    {
+     "a": "c:k8s/manifests/infrastructure/kafka-ui.yml:Deployment/kafka-ui",
+     "b": "c:k8s/manifests/infrastructure/kafka.yml:Service/broker",
+     "edge": "depends",
+     "from": "k8s/manifests/infrastructure/kafka-ui.yml:2 Deployment/kafka-ui",
+     "kind": "service",
+     "note": "referencia en manifiesto k8s (URL *.svc o configMapKeyRef) al Service: cableado real",
+     "to": "k8s/manifests/infrastructure/kafka.yml:50 Service/broker",
+     "verdict": "ok"
+    },
+    {
+     "a": "c:k8s/manifests/applications/common-config.yml:ConfigMap/common-config",
+     "b": "c:k8s/manifests/infra/kafka.yml:Service/broker",
+     "edge": "depends",
+     "from": "k8s/manifests/applications/common-config.yml:3 ConfigMap/common-config",
+     "kind": "service",
+     "note": "referencia en manifiesto k8s (URL *.svc o configMapKeyRef) al Service: cableado real",
+     "to": "k8s/manifests/infra/kafka.yml:50 Service/broker",
+     "verdict": "ok"
+    },
+    {
+     "a": "c:k8s/manifests/infrastructure/prometheus.yml:ConfigMap/prometheus-configmap",
+     "b": "c:k8s/manifests/applications/api-gateway.yml:Service/api-gateway",
+     "edge": "depends",
+     "from": "k8s/manifests/infrastructure/prometheus.yml:44 ConfigMap/prometheus-configmap",
+     "kind": "service",
+     "note": "referencia en manifiesto k8s (URL *.svc o configMapKeyRef) al Service: cableado real",
+     "to": "k8s/manifests/applications/api-gateway.yml:53 Service/api-gateway",
+     "verdict": "ok"
+    },
+    {
+     "a": "c:k8s/manifests/infra/kafka.yml:ConfigMap/kafka-config",
+     "b": "c:k8s/manifests/infra/zookeeper.yml:Service/zookeeper",
+     "edge": "depends",
+     "from": "k8s/manifests/infra/kafka.yml:67 ConfigMap/kafka-config",
+     "kind": "service",
+     "note": "referencia en manifiesto k8s (URL *.svc o configMapKeyRef) al Service: cableado real",
+     "to": "k8s/manifests/infra/zookeeper.yml:33 Service/zookeeper",
+     "verdict": "ok"
+    },
+    {
+     "a": "c:k8s/manifests/applications/notification-service.yml:ConfigMap/notification-service-config",
+     "b": "c:k8s/manifests/infrastructure/schema-registry.yml:Service/schema-registry",
+     "edge": "depends",
+     "from": "k8s/manifests/applications/notification-service.yml:53 ConfigMap/notification-service-config",
+     "kind": "service",
+     "note": "referencia en manifiesto k8s (URL *.svc o configMapKeyRef) al Service: cableado real",
+     "to": "k8s/manifests/infrastructure/schema-registry.yml:30 Service/schema-registry",
+     "verdict": "ok"
+    },
+    {
+     "a": "c:k8s/manifests/applications/notification-service.yml:Deployment/notification-service",
+     "b": "c:k8s/manifests/infra/tempo.yml:Service/tempo",
+     "edge": "depends",
+     "from": "k8s/manifests/applications/notification-service.yml:2 Deployment/notification-service",
+     "kind": "service",
+     "note": "referencia en manifiesto k8s (URL *.svc o configMapKeyRef) al Service: cableado real",
+     "to": "k8s/manifests/infra/tempo.yml:39 Service/tempo",
+     "verdict": "ok"
+    },
+    {
+     "a": "c:k8s/manifests/applications/api-gateway.yml:Deployment/api-gateway",
+     "b": "c:k8s/manifests/infrastructure/keycloak.yml:Service/keycloak",
+     "edge": "depends",
+     "from": "k8s/manifests/applications/api-gateway.yml:2 Deployment/api-gateway",
+     "kind": "service",
+     "note": "referencia en manifiesto k8s (URL *.svc o configMapKeyRef) al Service: cableado real",
+     "to": "k8s/manifests/infrastructure/keycloak.yml:66 Service/keycloak",
+     "verdict": "ok"
+    }
+   ],
+   "seconds": 1.31,
+   "split": "control",
+   "stack": "Spring Boot 3 microservicios: Spring Cloud Gateway MVC, RestClient + @HttpExchange, Kafka + Avro, JPA/Flyway MySQL, Mongo, Angular, k8s",
+   "total": 90,
+   "unmatched": 99
+  },
+  "spring-petclinic-microservices": {
+   "commit": "1d76b00d683e86b62867a6bf59530f8ab301244f",
+   "flows": 109,
+   "flows_by_kind": {
+    "data": [
+     19,
+     43
+    ],
+    "http": [
+     19,
+     19
+    ],
+    "route": [
+     20,
+     20
+    ],
+    "service": [
+     21,
+     27
+    ]
+   },
+   "fn": {
+    "http · otro endpoint o endpoint sin handler": {
+     "examples": [
+      "spring-petclinic-api-gateway/src/main/resources/static/scripts/pages/PetFormPage.js:61 → spring-petclinic-customers-service/src/main/java/org/springframework/samples/petclinic/customers/web/PetResource.java:57 (POST /api/customer/owners/{ownerId}/pets)"
+     ],
+     "n": 1
+    }
+   },
+   "found": 82,
+   "matched": 79,
+   "recall": {
+    "data": {
+     "found": 20,
+     "total": 20
+    },
+    "env": {
+     "found": 3,
+     "total": 3
+    },
+    "http": {
+     "found": 19,
+     "total": 20
+    },
+    "route": {
+     "found": 19,
+     "total": 19
+    },
+    "service": {
+     "found": 21,
+     "total": 21
+    }
+   },
+   "sample": [
+    {
+     "a": "f:spring-petclinic-api-gateway/src/main/java/org/springframework/samples/petclinic/api/application/CustomersServiceClient.java:CustomersServiceClient.getOwner",
+     "b": "c:docker-compose.yml:customers-service",
+     "edge": "depends",
+     "from": "spring-petclinic-api-gateway/src/main/java/org/springframework/samples/petclinic/api/application/CustomersServiceClient.java:35 CustomersServiceClient.getOwner",
+     "kind": "service",
+     "note": ".uri(\"http://customers-service/...\") -> servicio compose: real",
+     "to": "docker-compose.yml:35 customers-service",
+     "verdict": "ok"
+    },
+    {
+     "a": "m:spring-petclinic-admin-server/src/main/resources/application.yml",
+     "b": "c:docker-compose.yml:config-server",
+     "edge": "depends",
+     "from": "spring-petclinic-admin-server/src/main/resources/application.yml:1 application.yml",
+     "kind": "service",
+     "note": "spring.config.import configserver:http://config-server:8888: cableado real",
+     "to": "docker-compose.yml:2 config-server",
+     "verdict": "ok"
+    },
+    {
+     "a": "c:spring-petclinic-api-gateway/src/main/java/org/springframework/samples/petclinic/api/application/VisitsServiceClient.java:VisitsServiceClient",
+     "b": "c:docker-compose.yml:visits-service",
+     "edge": "depends",
+     "from": "spring-petclinic-api-gateway/src/main/java/org/springframework/samples/petclinic/api/application/VisitsServiceClient.java:30 VisitsServiceClient",
+     "kind": "service",
+     "note": "hostname = \"http://visits-service/\": real",
+     "to": "docker-compose.yml:50 visits-service",
+     "verdict": "ok"
+    },
+    {
+     "a": "c:spring-petclinic-customers-service/src/main/java/org/springframework/samples/petclinic/customers/model/PetType.java:PetType",
+     "b": "c:spring-petclinic-customers-service/src/main/resources/db/mysql/schema.sql:types",
+     "edge": "data",
+     "from": "spring-petclinic-customers-service/src/main/java/org/springframework/samples/petclinic/customers/model/PetType.java:25 PetType",
+     "kind": "data",
+     "note": "la entidad JPA tambien corresponde al schema de MySQL (las etiquetas solo usan HSQLDB)",
+     "to": "spring-petclinic-customers-service/src/main/resources/db/mysql/schema.sql:5 types",
+     "verdict": "ok"
+    },
+    {
+     "a": "m:spring-petclinic-vets-service/src/main/resources/db/mysql/data.sql",
+     "b": "c:spring-petclinic-vets-service/src/main/resources/db/mysql/schema.sql:specialties",
+     "edge": "data",
+     "from": "spring-petclinic-vets-service/src/main/resources/db/mysql/data.sql:1 data.sql",
+     "kind": "data",
+     "note": "data.sql inserta en la tabla definida en schema.sql: real",
+     "to": "spring-petclinic-vets-service/src/main/resources/db/mysql/schema.sql:12 specialties",
+     "verdict": "ok"
+    },
+    {
+     "a": "m:spring-petclinic-customers-service/src/main/resources/db/hsqldb/data.sql",
+     "b": "c:spring-petclinic-customers-service/src/main/resources/db/hsqldb/schema.sql:types",
+     "edge": "data",
+     "from": "spring-petclinic-customers-service/src/main/resources/db/hsqldb/data.sql:1 data.sql",
+     "kind": "data",
+     "note": "data.sql inserta en la tabla definida en schema.sql: real",
+     "to": "spring-petclinic-customers-service/src/main/resources/db/hsqldb/schema.sql:5 types",
+     "verdict": "ok"
+    },
+    {
+     "a": "m:spring-petclinic-vets-service/src/main/resources/db/hsqldb/data.sql",
+     "b": "c:spring-petclinic-vets-service/src/main/resources/db/hsqldb/schema.sql:vets",
+     "edge": "data",
+     "from": "spring-petclinic-vets-service/src/main/resources/db/hsqldb/data.sql:1 data.sql",
+     "kind": "data",
+     "note": "data.sql inserta en la tabla definida en schema.sql: real",
+     "to": "spring-petclinic-vets-service/src/main/resources/db/hsqldb/schema.sql:5 vets",
+     "verdict": "ok"
+    },
+    {
+     "a": "m:spring-petclinic-vets-service/src/main/resources/db/hsqldb/data.sql",
+     "b": "c:spring-petclinic-vets-service/src/main/resources/db/hsqldb/schema.sql:vet_specialties",
+     "edge": "data",
+     "from": "spring-petclinic-vets-service/src/main/resources/db/hsqldb/data.sql:1 data.sql",
+     "kind": "data",
+     "note": "data.sql inserta en la tabla definida en schema.sql: real",
+     "to": "spring-petclinic-vets-service/src/main/resources/db/hsqldb/schema.sql:18 vet_specialties",
+     "verdict": "ok"
+    },
+    {
+     "a": "m:spring-petclinic-customers-service/src/main/resources/db/hsqldb/data.sql",
+     "b": "c:spring-petclinic-customers-service/src/main/resources/db/hsqldb/schema.sql:pets",
+     "edge": "data",
+     "from": "spring-petclinic-customers-service/src/main/resources/db/hsqldb/data.sql:1 data.sql",
+     "kind": "data",
+     "note": "data.sql inserta en la tabla definida en schema.sql: real",
+     "to": "spring-petclinic-customers-service/src/main/resources/db/hsqldb/schema.sql:21 pets",
+     "verdict": "ok"
+    },
+    {
+     "a": "f:spring-petclinic-genai-service/src/main/java/org/springframework/samples/petclinic/genai/VectorStoreController.java:VectorStoreController.loadVetDataToVectorStoreOnStartup",
+     "b": "c:docker-compose.yml:vets-service",
+     "edge": "depends",
+     "from": "spring-petclinic-genai-service/src/main/java/org/springframework/samples/petclinic/genai/VectorStoreController.java:49 VectorStoreController.loadVetDataToVectorStoreOnStartup",
+     "kind": "service",
+     "note": "\"http://vets-service/\": real",
+     "to": "docker-compose.yml:65 vets-service",
+     "verdict": "ok"
+    }
+   ],
+   "seconds": 1.78,
+   "split": "",
+   "stack": "Spring Boot / Spring Cloud (Java): gateway, config/discovery server, WebClient/RestClient entre servicios, JPA; frontend JS vanilla (Vue) estatico",
+   "total": 83,
+   "unmatched": 30
+  },
+  "tchatchers": {
+   "commit": "1fc372bf1565741a6d7d15af5b74375ecf489cf0",
+   "flows": 112,
+   "flows_by_kind": {
+    "data": [
+     24,
+     75
+    ],
+    "env": [
+     11,
+     15
+    ],
+    "route": [
+     14,
+     14
+    ],
+    "service": [
+     8,
+     8
+    ]
+   },
+   "fn": {
+    "data · conectados por separado, sin camino": {
+     "examples": [
+      "tchatchers_core/src/user.rs:219 → tchatchers_back/migrations/20220829174521_create_tables.up.sql:1 (data CHATTER: UPDATE CHATTER c SET LAST_LOGON = tr.timestam)",
+      "tchatchers_core/src/ws_message.rs:235 → tchatchers_back/migrations/20230102170032_messages.up.sql:1 (data MESSAGE: UPDATE MESSAGE m SET RECEPTION_STATUS = $1 WH)"
+     ],
+     "n": 2
+    },
+    "data · origen sin aristas de flujo": {
+     "examples": [
+      "tchatchers_core/src/user.rs:145 → tchatchers_back/migrations/20220829174521_create_tables.up.sql:1 (data CHATTER: UPDATE CHATTER SET is_authorized=$1 WHERE id=)",
+      "tchatchers_core/src/user.rs:165 → tchatchers_back/migrations/20220829174521_create_tables.up.sql:1 (data CHATTER: UPDATE CHATTER SET is_authorized=$1 WHERE log)",
+      "tchatchers_core/src/user.rs:531 → tchatchers_back/migrations/20220829174521_create_tables.up.sql:1 (data CHATTER: UPDATE CHATTER SET name=$1, locale_id=$2 WHER)",
+      "tchatchers_core/src/user.rs:540 → tchatchers_back/migrations/20220829174521_create_tables.up.sql:1 (data CHATTER: UPDATE CHATTER SET pfp=$1 WHERE id=$2)"
+     ],
+     "n": 4
+    },
+    "event · destino sin aristas de flujo": {
+     "examples": [
+      "tchatchers_back/src/api/user.rs:96 → tchatchers_core/src/async_message/processor.rs:34 (event LoggedUsers (redis stream queue))",
+      "tchatchers_back/src/api/user.rs:170 → tchatchers_core/src/async_message/processor.rs:34 (event LoggedUsers (redis stream queue))",
+      "tchatchers_back/src/api/user.rs:278 → tchatchers_core/src/async_message/processor.rs:126 (event RemoveUserData (redis stream queue))",
+      "tchatchers_back/src/api/user.rs:306 → tchatchers_core/src/async_message/processor.rs:126 (event RemoveUserData (redis stream queue))"
+     ],
+     "n": 4
+    },
+    "event · origen y destino sin aristas de flujo": {
+     "examples": [
+      "tchatchers_back/src/ws.rs:164 → tchatchers_core/src/async_message/processor.rs:71 (event MessagesSeen (redis stream queue))",
+      "tchatchers_back/src/ws.rs:130 → tchatchers_core/src/async_message/processor.rs:96 (event PersistMessage (redis stream queue))",
+      "tchatchers_back/src/ws.rs:128 → tchatchers_core/src/async_message/processor.rs:112 (event CleanRoom (redis stream queue))",
+      "tchatchers_core/src/async_message/processor.rs:157 → tchatchers_core/src/async_message/processor.rs:34 (event LoggedUsers (redis stream queue))"
+     ],
+     "n": 13
+    },
+    "http · llamada no detectada": {
+     "examples": [
+      "tchatchers_front/src/bin/app.rs:31 → tchatchers_back/src/api/user.rs:358 (GET /api/whoami)",
+      "tchatchers_front/src/components/feed.rs:113 → tchatchers_back/src/api/user.rs:218 (GET /api/validate)",
+      "tchatchers_front/src/components/feed.rs:204 → tchatchers_back/src/api/user.rs:218 (GET /api/validate)",
+      "tchatchers_front/src/components/logout.rs:31 → tchatchers_back/src/api/user.rs:193 (GET /api/logout)"
+     ],
+     "n": 16
+    }
+   },
+   "found": 66,
+   "matched": 57,
+   "recall": {
+    "data": {
+     "found": 25,
+     "total": 31
+    },
+    "env": {
+     "found": 11,
+     "total": 11
+    },
+    "event": {
+     "found": 0,
+     "total": 17
+    },
+    "http": {
+     "found": 0,
+     "total": 16
+    },
+    "route": {
+     "found": 14,
+     "total": 14
+    },
+    "service": {
+     "found": 16,
+     "total": 16
+    }
+   },
+   "sample": [
+    {
+     "a": "f:tchatchers_core/src/report.rs:Report.message",
+     "b": "c:tchatchers_back/migrations/20230102170032_messages.up.sql:MESSAGE",
+     "edge": "data",
+     "from": "tchatchers_core/src/report.rs:119 Report.message",
+     "kind": "data",
+     "note": "",
+     "to": "tchatchers_back/migrations/20230102170032_messages.up.sql:1 MESSAGE",
+     "verdict": null
+    },
+    {
+     "a": "m:tchatchers_back/migrations/20230717165058_add_persist_messages_queue.up.sql",
+     "b": "c:tchatchers_back/migrations/20230715151704_change_process_table.up.sql:PROCESS_KIND",
+     "edge": "data",
+     "from": "tchatchers_back/migrations/20230717165058_add_persist_messages_queue.up.sql:1 20230717165058_add_persist_messages_queue.up.sql",
+     "kind": "data",
+     "note": "",
+     "to": "tchatchers_back/migrations/20230715151704_change_process_table.up.sql:2 PROCESS_KIND",
+     "verdict": null
+    },
+    {
+     "a": "m:tchatchers_back/migrations/20230518163723_report_message_translation.up.sql",
+     "b": "c:tchatchers_back/migrations/20230103190641_translations.up.sql:TRANSLATION",
+     "edge": "data",
+     "from": "tchatchers_back/migrations/20230518163723_report_message_translation.up.sql:1 20230518163723_report_message_translation.up.sql",
+     "kind": "data",
+     "note": "",
+     "to": "tchatchers_back/migrations/20230103190641_translations.up.sql:24 TRANSLATION",
+     "verdict": null
+    },
+    {
+     "a": "m:tchatchers_back/migrations/20230120221433_translations.up.sql",
+     "b": "c:tchatchers_back/migrations/20230103190641_translations.up.sql:LABEL",
+     "edge": "data",
+     "from": "tchatchers_back/migrations/20230120221433_translations.up.sql:1 20230120221433_translations.up.sql",
+     "kind": "data",
+     "note": "",
+     "to": "tchatchers_back/migrations/20230103190641_translations.up.sql:18 LABEL",
+     "verdict": null
+    },
+    {
+     "a": "f:tchatchers_back/src/main.rs:main",
+     "b": "v:TOWER_LOG",
+     "edge": "env",
+     "from": "tchatchers_back/src/main.rs:74 main",
+     "kind": "env",
+     "note": "",
+     "to": "tchatchers_back/src/main.rs:78 TOWER_LOG",
+     "verdict": null
+    },
+    {
+     "a": "m:tchatchers_back/migrations/20230717193223_add_clean_rooms_queue.up.sql",
+     "b": "c:tchatchers_back/migrations/20230715151704_change_process_table.up.sql:PROCESS_KIND",
+     "edge": "data",
+     "from": "tchatchers_back/migrations/20230717193223_add_clean_rooms_queue.up.sql:1 20230717193223_add_clean_rooms_queue.up.sql",
+     "kind": "data",
+     "note": "",
+     "to": "tchatchers_back/migrations/20230715151704_change_process_table.up.sql:2 PROCESS_KIND",
+     "verdict": null
+    },
+    {
+     "a": "f:tchatchers_back/migrations/20230702112232_deleted_records.up.sql:chatters_delete_trigger",
+     "b": "c:tchatchers_back/migrations/20220829174521_create_tables.up.sql:CHATTER",
+     "edge": "data",
+     "from": "tchatchers_back/migrations/20230702112232_deleted_records.up.sql:28 chatters_delete_trigger",
+     "kind": "data",
+     "note": "",
+     "to": "tchatchers_back/migrations/20220829174521_create_tables.up.sql:1 CHATTER",
+     "verdict": null
+    },
+    {
+     "a": "m:tchatchers_back/migrations/20230120221433_translations.down.sql",
+     "b": "c:tchatchers_back/migrations/20230103190641_translations.up.sql:TRANSLATION",
+     "edge": "data",
+     "from": "tchatchers_back/migrations/20230120221433_translations.down.sql:1 20230120221433_translations.down.sql",
+     "kind": "data",
+     "note": "",
+     "to": "tchatchers_back/migrations/20230103190641_translations.up.sql:24 TRANSLATION",
+     "verdict": null
+    },
+    {
+     "a": "f:tchatchers_back/migrations/20230109173206_update_ts_on_chatter.up.sql:update_lastupdated_timestamp",
+     "b": "c:tchatchers_back/migrations/20220829174521_create_tables.up.sql:CHATTER",
+     "edge": "data",
+     "from": "tchatchers_back/migrations/20230109173206_update_ts_on_chatter.up.sql:5 update_lastupdated_timestamp",
+     "kind": "data",
+     "note": "",
+     "to": "tchatchers_back/migrations/20220829174521_create_tables.up.sql:1 CHATTER",
+     "verdict": null
+    },
+    {
+     "a": "m:tchatchers_back/migrations/20230409175458_fix_typo.up.sql",
+     "b": "c:tchatchers_back/migrations/20230103190641_translations.up.sql:LABEL",
+     "edge": "data",
+     "from": "tchatchers_back/migrations/20230409175458_fix_typo.up.sql:1 20230409175458_fix_typo.up.sql",
+     "kind": "data",
+     "note": "",
+     "to": "tchatchers_back/migrations/20230103190641_translations.up.sql:18 LABEL",
+     "verdict": null
+    }
+   ],
+   "seconds": 1.43,
+   "split": "control2",
+   "stack": "Rust: Axum (API + WebSocket) + Yew/WASM (gloo-net) + sqlx/Postgres + Redis streams (worker async), docker compose",
+   "total": 105,
+   "unmatched": 55
+  },
+  "terminus": {
+   "commit": "3a9480d7703dcd400528da509ca805851e38ac07",
+   "flows": 11,
+   "flows_by_kind": {
+    "env": [
+     1,
+     5
+    ],
+    "service": [
+     4,
+     6
+    ]
+   },
+   "fn": {
+    "data · origen y destino sin aristas de flujo": {
+     "examples": [
+      "app/relations/account.rb:7 → config/db/migrate/20250916111947_create_account.rb:5 (data table account (ROM relation -> migration))",
+      "app/relations/device.rb:7 → config/db/migrate/20250305150912_create_devices.rb:5 (data table device (ROM relation -> migration))",
+      "app/relations/device_log.rb:7 → config/db/migrate/20250324153748_create_device_logs.rb:37 (data table device_log (ROM relation -> migration))",
+      "app/relations/device_sensor.rb:7 → config/db/migrate/20260217081447_create_device_sensor.rb:8 (data table device_sensor (ROM relation -> migration))"
+     ],
+     "n": 40
+    },
+    "env · destino sin aristas de flujo": {
+     "examples": [
+      "compose.yml:19 → .config/setup/.env.tt:1 (env HANAMI_PORT (compose substitution from .env))",
+      "compose.yml:20 → .config/setup/.env.tt:3 (env API_URI (compose substitution from .env))",
+      "compose.yml:21 → .config/setup/.env.tt:4 (env APP_SECRET (compose substitution from .env))",
+      "compose.yml:23 → .config/setup/.env.tt:6 (env DATABASE_NAME (compose substitution from .env))"
+     ],
+     "n": 10
+    },
+    "env · origen sin aristas de flujo": {
+     "examples": [
+      "config/settings.rb:12 → compose.yml:20 (env API_URI (Hanami setting))",
+      "config/settings.rb:9 → compose.yml:21 (env APP_SECRET (Hanami setting))",
+      "config/settings.rb:32 → compose.yml:24 (env KEYVALUE_URL (Hanami setting))"
+     ],
+     "n": 3
+    },
+    "env · origen y destino sin aristas de flujo": {
+     "examples": [
+      "app/providers/sidekiq.rb:40 → config/settings.rb:32 (env KEYVALUE_URL (settings read))",
+      "app/providers/sidekiq.rb:48 → config/settings.rb:32 (env KEYVALUE_URL (settings read))",
+      "app/providers/rack_attack.rb:26 → config/settings.rb:32 (env KEYVALUE_URL (settings read))",
+      "app/actions/api/display/show.rb:49 → config/settings.rb:12 (env API_URI (settings read))"
+     ],
+     "n": 7
+    },
+    "event · origen y destino sin aristas de flujo": {
+     "examples": [
+      "app/actions/designs/update.rb:49 → app/jobs/screens/upsert.rb:19 (event Jobs::Screens::Upsert (Sidekiq job))",
+      "app/actions/extensions/build/create.rb:22 → app/jobs/batches/extension.rb:16 (event Jobs::Batches::Extension (Sidekiq job))",
+      "app/aspects/extensions/exchanges/creator.rb:24 → app/jobs/extensions/exchange_refresh.rb:16 (event Jobs::Extensions::ExchangeRefresh (Sidekiq job))",
+      "app/aspects/extensions/exchanges/updater.rb:31 → app/jobs/extensions/exchange_refresh.rb:16 (event Jobs::Extensions::ExchangeRefresh (Sidekiq job))"
+     ],
+     "n": 11
+    },
+    "route · endpoint sin handler": {
+     "examples": [
+      "config/routes.rb:36 → app/actions/api/devices/index.rb:8 (GET /api/devices)",
+      "config/routes.rb:37 → app/actions/api/devices/show.rb:8 (GET /api/devices/:id)",
+      "config/routes.rb:38 → app/actions/api/devices/create.rb:8 (POST /api/devices)",
+      "config/routes.rb:39 → app/actions/api/devices/patch.rb:8 (PATCH /api/devices/:id)"
+     ],
+     "n": 40
+    },
+    "service · origen y destino sin aristas de flujo": {
+     "examples": [
+      "render.yaml:20 → render.yaml:11 (terminus-web API_URI fromService -> terminus-web)",
+      "render.yaml:28 → render.yaml:2 (terminus-web DATABASE_URL fromDatabase -> terminus database)",
+      "render.yaml:33 → render.yaml:59 (terminus-web KEYVALUE_URL fromService -> terminus-keyvalue)",
+      "render.yaml:45 → render.yaml:11 (terminus-worker API_URI fromService -> terminus-web)"
+     ],
+     "n": 6
+    }
+   },
+   "found": 5,
+   "matched": 5,
+   "recall": {
+    "data": {
+     "found": 0,
+     "total": 40
+    },
+    "env": {
+     "found": 1,
+     "total": 21
+    },
+    "event": {
+     "found": 0,
+     "total": 11
+    },
+    "route": {
+     "found": 0,
+     "total": 40
+    },
+    "service": {
+     "found": 4,
+     "total": 10
+    }
+   },
+   "sample": [
+    {
+     "a": "m:config/puma.rb",
+     "b": "v:HANAMI_ENV",
+     "edge": "env",
+     "from": "config/puma.rb:1 puma.rb",
+     "kind": "env",
+     "note": "",
+     "to": ".circleci/config.yml:10 HANAMI_ENV",
+     "verdict": null
+    },
+    {
+     "a": "m:config/providers/http.rb",
+     "b": "v:HANAMI_MAX_THREADS",
+     "edge": "env",
+     "from": "config/providers/http.rb:1 http.rb",
+     "kind": "env",
+     "note": "",
+     "to": "config/providers/http.rb:16 HANAMI_MAX_THREADS",
+     "verdict": null
+    },
+    {
+     "a": "m:config/puma.rb",
+     "b": "v:HANAMI_WEB_CONCURRENCY",
+     "edge": "env",
+     "from": "config/puma.rb:1 puma.rb",
+     "kind": "env",
+     "note": "",
+     "to": "config/puma.rb:12 HANAMI_WEB_CONCURRENCY",
+     "verdict": null
+    },
+    {
+     "a": "c:compose.yml:worker",
+     "b": "c:compose.yml:keyvalue",
+     "edge": "depends",
+     "from": "compose.yml:52 worker",
+     "kind": "service",
+     "note": "",
+     "to": "compose.yml:106 keyvalue",
+     "verdict": null
+    },
+    {
+     "a": "m:config/puma.rb",
+     "b": "v:PIDFILE",
+     "edge": "env",
+     "from": "config/puma.rb:1 puma.rb",
+     "kind": "env",
+     "note": "",
+     "to": "config/puma.rb:21 PIDFILE",
+     "verdict": null
+    },
+    {
+     "a": "c:compose.yml:worker",
+     "b": "c:compose.yml:database",
+     "edge": "depends",
+     "from": "compose.yml:52 worker",
+     "kind": "service",
+     "note": "",
+     "to": "compose.yml:83 database",
+     "verdict": null
+    }
+   ],
+   "seconds": 8.93,
+   "split": "control2",
+   "stack": "Ruby Hanami 2 (acciones, rutas, ROM/Sequel, Postgres) + jobs Sidekiq (Redis/Valkey) con sidekiq-scheduler, compose + render.yaml",
+   "total": 122,
+   "unmatched": 6
+  },
+  "wild-workouts": {
+   "commit": "8ecfcdf05b1462c4757bd2dcac9086c78e9f7791",
+   "flows": 96,
+   "flows_by_kind": {
+    "data": [
+     2,
+     2
+    ],
+    "env": [
+     20,
+     30
+    ],
+    "http": [
+     22,
+     23
+    ],
+    "route": [
+     13,
+     13
+    ],
+    "rpc": [
+     4,
+     11
+    ],
+    "service": [
+     8,
+     17
+    ]
+   },
+   "fn": {
+    "data · origen y destino sin aristas de flujo": {
+     "examples": [
+      "internal/users/firestore.go:24 → internal/users/firestore.go:12 (collection users (Firestore))",
+      "internal/trainings/adapters/trainings_firestore_repository.go:44 → internal/trainings/adapters/trainings_firestore_repository.go:17 (collection trainings (Firestore))",
+      "internal/trainer/adapters/hour_firestore_repository.go:89 → internal/trainer/adapters/dates_firestore_repository.go:16 (collection trainer-hours (Firestore))",
+      "internal/trainer/adapters/dates_firestore_repository.go:42 → internal/trainer/adapters/dates_firestore_repository.go:16 (collection trainer-hours (Firestore))"
+     ],
+     "n": 4
+    }
+   },
+   "found": 67,
+   "matched": 69,
+   "recall": {
+    "data": {
+     "found": 2,
+     "total": 6
+    },
+    "env": {
+     "found": 20,
+     "total": 20
+    },
+    "http": {
+     "found": 22,
+     "total": 22
+    },
+    "route": {
+     "found": 11,
+     "total": 11
+    },
+    "rpc": {
+     "found": 6,
+     "total": 6
+    },
+    "service": {
+     "found": 6,
+     "total": 6
+    }
+   },
+   "sample": [
+    {
+     "a": "c:docker-compose.yml:trainer-http",
+     "b": "m:.env",
+     "edge": "depends",
+     "from": "docker-compose.yml:14 trainer-http",
+     "kind": "service",
+     "note": "env_file: .env del servicio compose: real",
+     "to": ".env:1 .env",
+     "verdict": "ok"
+    },
+    {
+     "a": "m:web/src/repositories/user.js",
+     "b": "v:VUE_APP_USERS_HTTP_PORT",
+     "edge": "env",
+     "from": "web/src/repositories/user.js:1 user.js",
+     "kind": "env",
+     "note": "process.env.VUE_APP_*: lectura real sin definicion en el repo",
+     "to": "web/src/repositories/user.js:19 VUE_APP_USERS_HTTP_PORT",
+     "verdict": "ok"
+    },
+    {
+     "a": "f:internal/users/main.go:main",
+     "b": "e:api/protobuf/users.proto:RPC users.UsersService/GetTrainingBalance",
+     "edge": "rpc",
+     "from": "internal/users/main.go:18 main",
+     "kind": "rpc",
+     "note": "RegisterUsersServiceServer: registro real",
+     "to": "api/protobuf/users.proto:10 RPC users.UsersService/GetTrainingBalance",
+     "verdict": "ok"
+    },
+    {
+     "a": "f:web/src/repositories/user.js:loginUser",
+     "b": "e:internal/users/openapi_api.gen.go:GET /users/current",
+     "edge": "http",
+     "from": "web/src/repositories/user.js:37 loginUser",
+     "kind": "http",
+     "note": "loginUser llama a usersAPI.getCurrentUser del SDK generado: flujo real no etiquetado",
+     "to": "internal/users/openapi_api.gen.go:166 GET /users/current",
+     "verdict": "ok"
+    },
+    {
+     "a": "f:internal/common/server/http.go:addAuthMiddleware",
+     "b": "v:SERVICE_ACCOUNT_FILE",
+     "edge": "env",
+     "from": "internal/common/server/http.go:62 addAuthMiddleware",
+     "kind": "env",
+     "note": "os.Getenv(\"SERVICE_ACCOUNT_FILE\"): lectura real sin definicion",
+     "to": "internal/common/server/http.go:69 SERVICE_ACCOUNT_FILE",
+     "verdict": "ok"
+    },
+    {
+     "a": "m:.env",
+     "b": "c:docker-compose.yml:firestore",
+     "edge": "depends",
+     "from": ".env:1 .env",
+     "kind": "service",
+     "note": "FIRESTORE_EMULATOR_HOST=firestore:8787 apunta al servicio compose firestore: cableado real",
+     "to": "docker-compose.yml:113 firestore",
+     "verdict": "ok"
+    },
+    {
+     "a": "m:web/src/repositories/auth.js",
+     "b": "v:NODE_ENV",
+     "edge": "env",
+     "from": "web/src/repositories/auth.js:1 auth.js",
+     "kind": "env",
+     "note": "process.env.NODE_ENV definido por ENV en docker/web/Dockerfile: lectura real",
+     "to": "docker/web/Dockerfile:3 NODE_ENV",
+     "verdict": "ok"
+    },
+    {
+     "a": "c:docker-compose.yml:trainings-http",
+     "b": "m:.env",
+     "edge": "depends",
+     "from": "docker-compose.yml:54 trainings-http",
+     "kind": "service",
+     "note": "env_file: .env: real",
+     "to": ".env:1 .env",
+     "verdict": "ok"
+    },
+    {
+     "a": "f:internal/trainer/main.go:main",
+     "b": "e:api/protobuf/trainer.proto:RPC trainer.TrainerService/ScheduleTraining",
+     "edge": "rpc",
+     "from": "internal/trainer/main.go:19 main",
+     "kind": "rpc",
+     "note": "RegisterTrainerServiceServer: registro real",
+     "to": "api/protobuf/trainer.proto:12 RPC trainer.TrainerService/ScheduleTraining",
+     "verdict": "ok"
+    },
+    {
+     "a": "m:web/src/repositories/user.js",
+     "b": "v:NODE_ENV",
+     "edge": "env",
+     "from": "web/src/repositories/user.js:1 user.js",
+     "kind": "env",
+     "note": "process.env.NODE_ENV definido por ENV en docker/web/Dockerfile: lectura real",
+     "to": "docker/web/Dockerfile:3 NODE_ENV",
+     "verdict": "ok"
+    }
+   ],
+   "seconds": 2.18,
+   "split": "",
+   "stack": "Go (chi, gRPC, Firestore, MySQL) + Vue 2 con cliente OpenAPI generado; docker-compose",
+   "total": 71,
+   "unmatched": 27
+  }
+ }
+}

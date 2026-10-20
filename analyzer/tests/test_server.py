@@ -152,7 +152,7 @@ def test_upload_rejects_path_traversal(api, payload):
     (b'', 413),
     (b'not json\n', 400),
     (b'[1, 2]\n', 400),
-    (ndjson({'readme.txt': 'nothing to analyze'}), 400),
+    (ndjson({'blob.bin': 'nothing to analyze'}), 400),
     (b'PK\x03\x04garbage', 400),
     (zipped({'image.png': 'x'}), 400),
 ])
@@ -356,7 +356,7 @@ def test_analysis_failure_sets_error_state(api, tmp_path):
     status, _ = api.post('/api/analyze', {'exclude': ['app', 'web', 'docs', 'tests']})
     assert status == 202
     final = api.wait('ready', 'error')
-    assert final['state'] == 'error' and 'no hay archivos' in final['error']
+    assert final['state'] == 'error' and 'para analizar en esa carpeta' in final['error']
     lines = api.stream()
     assert lines == [{'t': 'error', 'error': final['error']}]
 
@@ -409,3 +409,36 @@ def test_clone_keeps_token_out_of_args_and_repo(tmp_path, monkeypatch):
     assert encoded in seen['env']['GIT_CONFIG_VALUE_0']
     config = open(os.path.join(dest, '.git', 'config')).read()
     assert secret not in config and encoded not in config
+
+
+def test_memory_endpoints(api, monkeypatch):
+    from cortex_graph import brain, pipeline
+    calls = []
+    monkeypatch.setattr(pipeline, 'rebuild', lambda project, include_tests=None: calls.append(project), raising=False)
+    status, saved = api.post('/api/memory', {'text': 'Vivo en Bilbao', 'project': 'yo-server', 'category': 'identity', 'about': ['Bilbao']})
+    assert status == 201 and saved['status'] == 'new' and saved['memory']['category'] == 'identity'
+    status, again = api.post('/api/memory', {'text': 'vivo en bilbao', 'project': 'yo-server'})
+    assert status == 200 and again['status'] == 'duplicate'
+    status, recalled = api.get('/api/query/recall?q=%C2%BFd%C3%B3nde+vivo%3F&project=yo-server&budget=500')
+    assert status == 200 and recalled['items'][0]['id'] == saved['id'] and recalled['tokens'] <= 500
+    status, hinted = api.get('/api/query/recall?q=mi+ciudad&project=yo-server&hints=Bilbao,vivo')
+    assert status == 200 and hinted['hints'] == ['Bilbao', 'vivo'] and hinted['items'][0]['id'] == saved['id']
+    assert api.get('/api/query/recall?q=x&project=yo-server&hints=' + ','.join(f'a{k}' for k in range(40)))[0] == 400
+    status, prof = api.get('/api/query/profile?project=yo-server')
+    assert status == 200 and '## Quién es' in prof['markdown']
+    status, line = api.get('/api/query/timeline?project=yo-server&about=bilbao')
+    assert status == 200 and line['items'][0]['key'] == f"r:{saved['id']}"
+    status, listed = api.get('/api/query/memories?project=yo-server')
+    assert status == 200 and listed['total'] == 1 and listed['memories'][0]['text'] == 'Vivo en Bilbao'
+    assert api.post('/api/memory', {'text': '', 'project': 'yo-server'})[0] == 400
+    assert api.post('/api/memory', {'text': 'x', 'project': 'yo-server', 'category': 7})[0] == 400
+    assert api.post('/api/memory', {'text': 'x', 'project': 'yo-server', 'confidence': 'mucha'})[0] == 400
+    assert api.get('/api/query/recall?q=&project=yo-server')[0] == 400
+    status, gone = api.post('/api/memory/forget', {'ref': saved['id'], 'project': 'yo-server'})
+    assert status == 200 and gone['forgotten'] == [saved['id']]
+    assert api.post('/api/memory/forget', {'ref': 'nada parecido', 'project': 'yo-server'})[0] == 404
+    for _ in range(200):
+        if not brain.rebuilding():
+            break
+        time.sleep(0.02)
+    assert set(calls) == {'yo-server'}

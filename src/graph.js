@@ -16,8 +16,9 @@ const FLOW_SPEED = 2.2;
 export const EDGE = {
   intra: 0, bridge: 1, import: 2, call: 3, contains: 4, inherits: 5, ref: 6, loads: 6, silk: 7, cross: 8,
   http: 9, rpc: 10, handles: 11, data: 12, event: 13, env: 14, depends: 15, tests: 16, cochange: 17,
+  mentions: 18, links: 19, participant: 20, about: 21, from: 22, supersedes: 23, related: 24, attends: 25, step: 26, uses: 27,
 };
-const EDGE_BASE = [0.13, 0.15, 0.085, 0.045, 0.04, 0.07, 0.06, 0.2, 0.022, 0.12, 0.12, 0.05, 0.035, 0.1, 0, 0, 0, 0];
+const EDGE_BASE = [0.13, 0.15, 0.085, 0.045, 0.04, 0.07, 0.06, 0.2, 0.05, 0.12, 0.12, 0.05, 0.035, 0.1, 0, 0, 0, 0, 0.05, 0.075, 0.09, 0.11, 0.06, 0.025, 0.045, 0.07, 0.085, 0.07];
 export const SHAPE = { dot: 0, ring: 1, diamond: 2 };
 export const EDGE_BASE_OF = (kind) => EDGE_BASE[kind] ?? 0.13;
 
@@ -244,7 +245,7 @@ export function createGraph(scene, { maxNodes = 120000, maxEdges = 140000, seed 
       return i;
     },
 
-    addEdge(a, b, { kind = 0, animate = false, tint = null, arc = 0, flow = false, strength = null } = {}) {
+    addEdge(a, b, { kind = 0, animate = false, tint = null, arc = 0, flow = false, strength = null, via = null } = {}) {
       if (a === b || a < 0 || b < 0 || m >= maxEdges) return -1;
       const key = a < b ? a * 1048576 + b : b * 1048576 + a;
       if (edgeSet.has(key)) return -1;
@@ -256,10 +257,10 @@ export function createGraph(scene, { maxNodes = 120000, maxEdges = 140000, seed 
       const ax = base[a * 3], ay = base[a * 3 + 1], az = base[a * 3 + 2];
       const bx = base[b * 3], by = base[b * 3 + 1], bz = base[b * 3 + 2];
       const len = Math.hypot(bx - ax, by - ay, bz - az);
-      const bend = len * (0.03 + rng() * 0.07);
-      ectrl[e * 3] = (ax + bx) / 2 + gauss(rng) * bend;
-      ectrl[e * 3 + 1] = (ay + by) / 2 + gauss(rng) * bend + len * arc;
-      ectrl[e * 3 + 2] = (az + bz) / 2 + gauss(rng) * bend;
+      const bend = via ? via[3] : len * (0.03 + rng() * 0.07);
+      ectrl[e * 3] = (via ? via[0] : (ax + bx) / 2) + gauss(rng) * bend;
+      ectrl[e * 3 + 1] = (via ? via[1] : (ay + by) / 2 + len * arc) + gauss(rng) * bend;
+      ectrl[e * 3 + 2] = (via ? via[2] : (az + bz) / 2) + gauss(rng) * bend;
       elen[e] = len * 1.05;
       lineBase[e] = strength ?? EDGE_BASE[kind] ?? 0.13;
       grow[e] = animate ? 0 : 1;

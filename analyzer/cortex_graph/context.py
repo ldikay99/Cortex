@@ -29,9 +29,15 @@ REVERSE = 0.6
 RELATIVE_FLOOR = 0.02
 KIND_WEIGHT = {
     'call': 1.0, 'inherits': 0.9, 'handles': 1.0, 'http': 0.9, 'rpc': 0.9, 'data': 0.6, 'event': 0.6, 'contains': 0.7,
-    'import': 0.35, 'ref': 0.25, 'tests': 0.3, 'loads': 0.3, 'env': 0.2, 'cochange': 0.15, 'depends': 0.05,
+    'import': 0.35, 'ref': 0.25, 'tests': 0.3, 'loads': 0.3, 'env': 0.2, 'cochange': 0.15, 'depends': 0.05, 'uses': 0.7, 'step': 0.6,
 }
-CODE_KINDS = ('function', 'method', 'class', 'endpoint', 'variable', 'topic', 'package')
+KNOWLEDGE_WEIGHT = {
+    'about': 0.9, 'from': 0.7, 'mentions': 0.6, 'participant': 0.5, 'attends': 0.5, 'supersedes': 0.4, 'related': 0.35, 'links': 0.5,
+}
+CODE_KINDS = ('function', 'method', 'class', 'endpoint', 'variable', 'topic', 'package', 'component', 'flow')
+KNOWLEDGE_KINDS = ('memory', 'conversation', 'section', 'event', 'person', 'concept', 'doc')
+SYMBOL_KINDS = ('function', 'method', 'class')
+TEXT_EXTS = ('.md', '.markdown', '.mdx', '.txt', '.rst', '.org')
 FENCES = {
     '.py': 'python', '.ts': 'ts', '.tsx': 'tsx', '.js': 'js', '.jsx': 'jsx', '.mjs': 'js', '.cjs': 'js', '.go': 'go', '.rs': 'rust',
     '.java': 'java', '.kt': 'kotlin', '.cs': 'csharp', '.rb': 'ruby', '.php': 'php', '.swift': 'swift', '.c': 'c', '.h': 'c',
@@ -138,11 +144,50 @@ def symbol_range(index, n, lines, context=0):
     return max(1, start - context), min(total, end + context)
 
 
+def knowledge_symbol(index, n, sources):
+    from . import brain
+    if n['kind'] == 'memory':
+        text = n.get('text') or n.get('doc') or n['name']
+    else:
+        text = brain.conversation_text(sources.root, n['key']) if sources.root else None
+        if text is None:
+            return None
+    code, _ = redact(text)
+    redacted = code.count(REDACTED)
+    start = n['line'] or 0
+    end = max(start, int(n.get('end') or start))
+    return {
+        **index.context(), 'node': index.brief(n), 'file': n['file'], 'start': start, 'end': end, 'symbol_end': end,
+        'file_lines': None, 'language': 'markdown', 'truncated': False, 'redacted': redacted, 'code': code,
+    }
+
+
+def agent_symbol(index, n):
+    lines = [f"# {KIND_ES.get(n['kind'], n['kind'])} {n['name']}", '']
+    if n.get('summary'):
+        lines += [n['summary'], '']
+    if n.get('steps'):
+        lines += [f"{k}. {index.by_key[key]['name']} · `{index.by_key[key]['file']}:{index.by_key[key]['line']}`"
+                  for k, key in enumerate(n['steps'], 1) if key in index.by_key] + ['']
+    parts = sorted(index.children[n['id']], key=lambda c: (c['file'], c['line']))
+    if parts:
+        lines += ['contiene:'] + [f"- {c['name']} · `{c['file']}`" for c in parts[:100]]
+    code = '\n'.join(lines).rstrip()
+    return {**index.context(), 'node': index.brief(n), 'file': '', 'start': 0, 'end': 0, 'symbol_end': 0, 'file_lines': None,
+            'language': 'markdown', 'truncated': False, 'redacted': 0, 'code': code}
+
+
 def read_symbol(ref, project=None, context=0):
     context = graph_query.clamp_int(context, 0, 0, MAX_CONTEXT, 'context')
     index = graph_query.load_index(project)
     n = index.resolve(ref)
     sources = Sources(index)
+    if n['kind'] in ('memory', 'conversation'):
+        found = knowledge_symbol(index, n, sources)
+        if found is not None:
+            return found
+    if not n['file'] and (n.get('summary') or n.get('steps') or n['kind'] in ('component', 'flow')):
+        return agent_symbol(index, n)
     if not sources.root:
         raise unavailable(index)
     lines = sources.lines(n['file'])
@@ -169,8 +214,9 @@ def read_symbol(ref, project=None, context=0):
 
 
 class Walker:
-    def __init__(self, index):
+    def __init__(self, index, weights=None):
         self.index = index
+        self.weights = weights or KIND_WEIGHT
         self.cache = {}
 
     def neighbours(self, u):
@@ -178,7 +224,7 @@ class Walker:
         if found is not None:
             return found
         weights = defaultdict(float)
-        for kind, w in KIND_WEIGHT.items():
+        for kind, w in self.weights.items():
             for v, count in self.index.out[kind].get(u, ()):
                 weights[v] += w * (1 + math.log(count))
             back = w * (0.5 if kind == 'contains' else REVERSE)
@@ -240,6 +286,8 @@ def relation_names(index, n, kind, direction, limit=4):
 
 def header(index, k, n, start, end):
     where = f"{n['file']}:{n['line']}" + (f'-{end}' if end and end > n['line'] else '')
+    if not n['file'] and n.get('by'):
+        where = 'aportado por IA' if n['by'] == 'ai' else 'aportado por un agente'
     out = [f"### {k}. {KIND_ES.get(n['kind'], n['kind'])} `{n['name']}` · `{where}` · comunidad {index.community_name(n['c'])}"]
     if n.get('route') and n['kind'] != 'endpoint':
         out.append(f"ruta: `{n['route']}`")
@@ -248,15 +296,32 @@ def header(index, k, n, start, end):
     if n.get('doc'):
         doc = n['doc'] if len(n['doc']) <= 300 else n['doc'][:299].rstrip() + '…'
         out.append(f'> {doc}')
+    if n.get('summary'):
+        summary = n['summary'] if len(n['summary']) <= 600 else n['summary'][:599].rstrip() + '…'
+        out.append(f"> {'resumen de IA' if (n.get('by') or n.get('noted')) == 'ai' else 'resumen del agente'}: {summary}")
+    if isinstance(n.get('tags'), list) and n['tags'] and (n.get('noted') or n['kind'] in ('component', 'flow')):
+        out.append('etiquetas: ' + ', '.join(n['tags'][:12]))
+    if n.get('steps'):
+        names = [index.by_key[k]['name'] for k in n['steps'][:20] if k in index.by_key]
+        out.append('pasos: ' + ' → '.join(names))
     links = []
     for label, kind, direction in (('lo llaman', 'call', 'in'), ('llama a', 'call', 'out'), ('hereda de', 'inherits', 'out'),
-                                   ('lo atiende', 'handles', 'out'), ('atiende', 'handles', 'in')):
+                                   ('lo atiende', 'handles', 'out'), ('atiende', 'handles', 'in'), ('usa', 'uses', 'out'),
+                                   ('lo usan', 'uses', 'in'), ('en flujos', 'step', 'in')):
         names = relation_names(index, n, kind, direction)
         if names:
             links.append(f"{label}: {', '.join(names)}")
     if links:
         out.append(' · '.join(links))
     return '\n'.join(out) + '\n'
+
+
+def snippable(n):
+    if not n['file']:
+        return False
+    if n['kind'] in KNOWLEDGE_KINDS:
+        return n['kind'] == 'section' and n['file'].lower().endswith(TEXT_EXTS)
+    return True
 
 
 def free_range(ranges, rel, start, end):
@@ -295,13 +360,15 @@ def context_for(query, project=None, budget=8000):
         markdown = f'# Contexto · {index.project}\n\nNada en el grafo coincide con «{query}». Prueba con nombres de símbolos, archivos o rutas.\n'
         return {**base, 'tokens_used': tokens(markdown), 'markdown': markdown, 'items': [], 'tests': [], 'source': False,
                 'seconds': round(time.perf_counter() - started, 3)}
-    scores = Walker(index).rank(seeds)
+    code = any(n['kind'] in SYMBOL_KINDS for n in index.nodes)
+    allowed = CODE_KINDS if code else CODE_KINDS + KNOWLEDGE_KINDS
+    scores = Walker(index, KIND_WEIGHT if code else {**KIND_WEIGHT, **KNOWLEDGE_WEIGHT}).rank(seeds)
     candidates = []
     for i, value in scores.items():
         n = index.nodes[i]
         if index.is_test_node(n) and not wants_tests:
             continue
-        if n['kind'] not in CODE_KINDS and i not in seeds:
+        if n['kind'] not in allowed and i not in seeds:
             continue
         candidates.append((value + (seeds.get(i, 0) * 0.05), i))
     candidates.sort(key=lambda c: (-c[0], c[1]))
@@ -319,7 +386,7 @@ def context_for(query, project=None, budget=8000):
     heads = []
     for k, n in enumerate(chosen, 1):
         start, end = index.span(n)
-        lines = sources.lines(n['file']) if available and n['kind'] not in ('module', 'doc') else None
+        lines = sources.lines(n['file']) if available and n['kind'] not in ('module', 'doc') and snippable(n) else None
         if lines:
             start, end = symbol_range(index, n, lines)
         text = header(index, k, n, start, end)
@@ -333,7 +400,13 @@ def context_for(query, project=None, budget=8000):
     snippets = 0
     max_snippets = min(MAX_ITEMS, max(MIN_SNIPPETS, budget // SNIPPET_TOKENS))
     for n, start, end, _ in heads:
-        if not available or snippets >= max_snippets or n['kind'] in ('module', 'doc', 'package'):
+        if n['kind'] == 'memory':
+            note = f"> {n.get('text') or n.get('doc') or n['name']}\n"
+            if used + tokens(note) <= budget:
+                blocks[n['id']] = note
+                used += tokens(note)
+            continue
+        if not available or snippets >= max_snippets or n['kind'] in ('module', 'doc', 'package') or not snippable(n):
             continue
         lines = sources.lines(n['file'])
         if not lines:

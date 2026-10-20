@@ -40,6 +40,7 @@
         <span class="chip"><b id="chip-edges">0</b> relaciones</span>
         <button type="button" class="chip comms" id="comms-chip" aria-expanded="false" aria-controls="comms" title="Ver comunidades y nodos más conectados"><b id="chip-comms">0</b> comunidades</button>
         <button type="button" class="chip comms bridges" id="bridges-chip" hidden aria-expanded="false" aria-controls="bridges" title="Ver los endpoints y quién los llama"><i aria-hidden="true"></i><b id="chip-bridges">0</b> puentes</button>
+        <button type="button" class="chip comms memories" id="memories-chip" hidden aria-expanded="false" aria-controls="memories" title="Ver los recuerdos del proyecto"><i aria-hidden="true"></i><b id="chip-memories">0</b> recuerdos</button>
         <span class="chip version" id="chip-version" hidden></span>
         <span class="chip changes" id="chip-changes" hidden></span>
         <span class="chip here"><i aria-hidden="true"></i><span id="chip-here">en el nido</span></span>
@@ -138,6 +139,12 @@
       <p class="title">Puentes</p>
       <p class="note">Endpoints HTTP y RPC del proyecto, con cuántas llamadas les llegan. Clic para que la araña vaya.</p>
       <ul id="bridges-list" class="rank"></ul>
+    </section>
+
+    <section id="memories" class="popover" hidden aria-label="Recuerdos">
+      <p class="title">Recuerdos</p>
+      <p class="note">Lo que se sabe, por categoría y del más reciente al más antiguo. Lo tachado ya fue reemplazado. Clic para que la araña vaya.</p>
+      <ul id="memories-list" class="rank"></ul>
     </section>
 
     <div id="tip" hidden></div>

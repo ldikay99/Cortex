@@ -125,3 +125,19 @@ def test_spanish_questions_expand_to_english_identifiers():
     assert {'send', 'email'} <= set(query_terms('enviar correo de confirmación'))
     assert {'delet', 'ord'} <= set(query_terms('eliminar pedidos'))
     assert query_terms('add item to cart') == ['add', 'item', 'cart']
+
+
+def test_knowledge_meta_is_searchable():
+    from cortex_graph.search import Index, query_terms
+    nodes = [
+        {'id': 0, 'key': 'u:ana-lopez', 'kind': 'person', 'name': 'Ana López', 'file': '', 'deg': 1, 'aliases': ['Anita', 'ana@example.com']},
+        {'id': 1, 'key': 'r:abc123def456', 'kind': 'memory', 'name': 'Vivo en Madrid', 'file': '', 'deg': 0, 'category': 'identity',
+         'attribute': 'location', 'value': 'Madrid', 'source': 'k:chats/x.json#1'},
+        {'id': 2, 'key': 'k:chats/x.json#1', 'kind': 'conversation', 'name': 'Charla', 'file': 'chats/x.json', 'deg': 1, 'source': 'whatsapp'},
+    ]
+    index = Index(nodes)
+    assert index.search('Anita')[0][0][3]['key'] == 'u:ana-lopez'
+    assert index.search('location')[0][0][3]['key'] == 'r:abc123def456'
+    assert index.search('whatsapp')[0][0][3]['key'] == 'k:chats/x.json#1'
+    assert [r[3]['key'] for r in index.search('chats')[0]] == ['k:chats/x.json#1']
+    assert {search.stem(w) for w in ('memory', 'conversation', 'person')} <= set(query_terms('recuerdo conversación persona'))

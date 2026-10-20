@@ -11,7 +11,8 @@ import numpy as np
 from .errors import CortexError, InvalidInput
 
 FORMAT = 'cortex-grafo/1'
-NODE_KINDS = {'module', 'class', 'function', 'method', 'doc', 'package', 'variable', 'endpoint', 'topic'}
+NODE_KINDS = {'module', 'class', 'function', 'method', 'doc', 'package', 'variable', 'endpoint', 'topic', 'conversation', 'section',
+              'person', 'concept', 'memory', 'event', 'component', 'flow'}
 save_lock = threading.Lock()
 
 
@@ -186,7 +187,16 @@ def compare(nodes, before_nodes):
         elif old.get('hash') and n.get('hash') and old['hash'] != n['hash']:
             modified.append(n['key'])
     removed = [{k: before[key].get(k) for k in ('key', 'kind', 'name', 'file')} for key in before if key not in now]
-    return {'added': added, 'modified': modified, 'removed': removed}
+    for item in removed:
+        if item['kind'] == 'memory':
+            item['name'] = '(olvidado)'
+    changed = set(modified)
+    annotated = [n['key'] for n in nodes if n['key'] in before and n['key'] not in changed
+                 and any(n.get(k) != before[n['key']].get(k) for k in ('summary', 'tags', 'noted'))]
+    out = {'added': added, 'modified': modified, 'removed': removed}
+    if annotated:
+        out['annotated'] = annotated
+    return out
 
 
 def diff(graph, prev):
@@ -195,7 +205,8 @@ def diff(graph, prev):
             n.pop('status', None)
         return {'added': [], 'modified': [], 'removed': []}
     changes = compare(graph['nodes'], prev['nodes'])
-    status = {**{k: 'new' for k in changes['added']}, **{k: 'changed' for k in changes['modified']}}
+    status = {**{k: 'noted' for k in changes.get('annotated', ())}, **{k: 'new' for k in changes['added']},
+              **{k: 'changed' for k in changes['modified']}}
     for n in graph['nodes']:
         if n['key'] in status:
             n['status'] = status[n['key']]
@@ -234,6 +245,27 @@ def save_version(graph, origin=None, options=None, commit=None, previous=None):
         write_atomic(os.path.join(folder, f'v{number}.cortex.json'), json.dumps(graph, ensure_ascii=False))
         write_atomic(os.path.join(folder, 'historial.json'), json.dumps(hist, ensure_ascii=False, indent=1))
     return hist
+
+
+def scrub_memory(project, key):
+    folder = project_dir(project)
+    for name in sorted(os.listdir(folder)):
+        if not re.fullmatch(r'v\d+\.cortex\.json', name):
+            continue
+        path = os.path.join(folder, name)
+        graph = read_json(path)
+        hit = False
+        for n in (graph or {}).get('nodes') or ():
+            if n.get('key') == key:
+                n.update(name='(olvidado)', text='', doc='', value='', attribute='', subject='')
+                hit = True
+        for c in (graph or {}).get('changes', {}).values() if isinstance((graph or {}).get('changes'), dict) else ():
+            for item in c if isinstance(c, list) else ():
+                if isinstance(item, dict) and item.get('key') == key:
+                    item['name'] = '(olvidado)'
+                    hit = True
+        if hit:
+            write_atomic(path, json.dumps(graph, ensure_ascii=False))
 
 
 def write_exports(graph, export_markdown, export_json):

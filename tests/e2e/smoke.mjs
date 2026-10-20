@@ -182,14 +182,18 @@ await step('la ficha muestra firma, documentación y ver código', async () => {
     const v = { x: 0, y: 0, z: 0 };
     const rect = document.querySelector('#stage').getBoundingClientRect();
     const order = c.cosmos.meta.map((m, i) => [m, i]).filter(([m]) => m).sort((a, b) => (b[0].sig ? 1 : 0) - (a[0].sig ? 1 : 0) || (b[0].doc ? 1 : 0) - (a[0].doc ? 1 : 0));
-    for (const [m, i] of order) {
-      const p = c.cosmos.pos;
+    const p = c.cosmos.pos;
+    const screen = (i) => {
       const P = new c.camera.position.constructor(p[i * 3], p[i * 3 + 1], p[i * 3 + 2]).project(c.camera);
-      if (P.z > 1) continue;
-      v.x = (P.x * 0.5 + 0.5) * rect.width + rect.left;
-      v.y = (-P.y * 0.5 + 0.5) * rect.height + rect.top;
+      return P.z > 1 ? null : [(P.x * 0.5 + 0.5) * rect.width + rect.left, (-P.y * 0.5 + 0.5) * rect.height + rect.top];
+    };
+    const all = c.cosmos.meta.map((m, i) => (m ? screen(i) : null));
+    const crowded = (i) => all.some((q, j) => q && j !== i && Math.hypot(q[0] - all[i][0], q[1] - all[i][1]) < 4);
+    for (const [m, i] of order) {
+      if (!all[i]) continue;
+      [v.x, v.y] = all[i];
       if (v.x < 80 || v.x > rect.width - 420 || v.y < 120 || v.y > rect.height - 120) continue;
-      if (c.pickNode(v.x, v.y, 14) !== i) continue;
+      if (c.pickNode(v.x, v.y, 14) !== i || crowded(i)) continue;
       return { i, x: v.x, y: v.y, sig: m.sig || '', doc: m.doc || '', key: c.keyOf(m), project: c.project.name };
     }
     return null;
@@ -198,7 +202,7 @@ await step('la ficha muestra firma, documentación y ver código', async () => {
     assert(pick, 'no hay ningún nodo visible para pasar el ratón');
     await page.mouse.move(pick.x + 40, pick.y + 40);
     await page.mouse.move(pick.x, pick.y, { steps: 4 });
-    await waitFor(page, () => !document.querySelector('#tip').hidden, null, 5000, 'el tooltip no apareció');
+    await waitFor(page, (i) => window.__cortex.hovered === i && !document.querySelector('#tip').hidden, pick.i, 5000, 'el tooltip no apareció');
     const tip = await page.$eval('#tip', (el) => ({ text: el.textContent, sig: el.querySelector('.sig')?.textContent || '', where: el.querySelector('.where')?.textContent || '' }));
     assert(tip.where.length > 0, 'el tooltip no muestra archivo:línea');
     if (pick.sig) assert(tip.sig && pick.sig.startsWith(tip.sig.replace(/…$/, '')), 'el tooltip no muestra la firma');

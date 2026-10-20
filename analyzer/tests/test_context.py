@@ -171,3 +171,50 @@ def test_brief_includes_new_meta(data_dir, tmp_path):
     assert b['sig'] == 'def slugify(text)' and b['end'] == 2 and b['vis'] == 'public'
     assert len(b['doc']) == query.MAX_BRIEF_DOC and b['doc'].endswith('…')
     assert store.slug('meta') == index.project
+
+
+def save_knowledge(root):
+    specs = [
+        ('k:chats/c.json#a1', 'conversation', 'Planes de viaje', 'chats/c.json', 1, {'started': '2025-05-01', 'doc': 'viaje a Japón'}),
+        ('u:ana-lopez', 'person', 'Ana López', '', 0, {}),
+        ('r:abc123def456', 'memory', 'Quiero viajar a Japón con Ana', '', 0, {'text': 'Quiero viajar a Japón con Ana', 'category': 'goal'}),
+        ('s:notas/v.md#japon', 'section', 'Japón', 'notas/v.md', 1, {'end': 3, 'doc': 'Kioto en otoño'}),
+    ]
+    nodes = [{'id': i, 'key': k, 'kind': kind, 'name': name, 'file': f, 'line': line, 'c': 0, 'deg': 1, 'pos': [0.0, 0.0, 0.0], 'hash': k, **extra}
+             for i, (k, kind, name, f, line, extra) in enumerate(specs)]
+    ids = {n['key']: n['id'] for n in nodes}
+    pairs = [('r:abc123def456', 'k:chats/c.json#a1', 'from'), ('r:abc123def456', 'u:ana-lopez', 'about'),
+             ('k:chats/c.json#a1', 'u:ana-lopez', 'participant'), ('s:notas/v.md#japon', 'u:ana-lopez', 'mentions')]
+    graph = {'project': 'notas', 'nodes': nodes, 'edges': [{'a': ids[a], 'b': ids[b], 'kind': k, 'w': 1} for a, b, k in pairs], 'visible': [],
+             'communities': [{'id': 0, 'name': 'memoria', 'hub': 'c.json', 'size': 4, 'center': [0, 0, 0], 'radius': 1.0, 'color': [1, 1, 1]}],
+             'stats': {'files': 2, 'nodes': 4, 'edges': len(pairs), 'communities': 1}}
+    store.save_version(graph, {'type': 'local', 'path': str(root)})
+
+
+def test_knowledge_projects_read_and_context(data_dir, tmp_path, monkeypatch):
+    import sys
+    import types
+    import cortex_graph
+    root = tmp_path / 'notas'
+    (root / 'chats').mkdir(parents=True)
+    (root / 'chats' / 'c.json').write_text('[{"x": 1}]', encoding='utf-8')
+    (root / 'notas').mkdir()
+    (root / 'notas' / 'v.md').write_text('# Japón\n\nKioto en otoño con Ana.\n', encoding='utf-8')
+    conversation = {'id': 'a1', 'messages': [{'i': 0, 'role': 'user', 'author': 'Marina', 'time': '2025-05-01T10:00:00',
+                                              'text': f'Quiero ir a Japón, mi clave es {AWS}'},
+                                             {'i': 1, 'role': 'assistant', 'author': '', 'time': None, 'text': '¡Qué buen plan!'}]}
+    fake = types.SimpleNamespace(load=lambda r, rel, fmt=None: [conversation] if rel == 'chats/c.json' else [])
+    monkeypatch.setitem(sys.modules, 'cortex_graph.importers', fake)
+    monkeypatch.setattr(cortex_graph, 'importers', fake, raising=False)
+    save_knowledge(root)
+    memory = context.read_symbol('r:abc123def456', 'notas')
+    assert memory['code'] == 'Quiero viajar a Japón con Ana' and memory['language'] == 'markdown' and memory['file'] == ''
+    chat = context.read_symbol('k:chats/c.json#a1', 'notas')
+    assert '**Marina** · 2025-05-01 10:00: Quiero ir a Japón' in chat['code'] and AWS not in chat['code']
+    assert '**asistente**: ¡Qué buen plan!' in chat['code'] and chat['redacted'] >= 1
+    section = context.read_symbol('s:notas/v.md#japon', 'notas')
+    assert section['code'].startswith('# Japón')
+    ctx = context.context_for('viaje a Japón con Ana', 'notas', budget=1500)
+    keys = [i['key'] for i in ctx['items']]
+    assert 'r:abc123def456' in keys and 'u:ana-lopez' in keys
+    assert '> Quiero viajar a Japón con Ana' in ctx['markdown'] and ctx['tokens_used'] <= 1500

@@ -58,7 +58,9 @@ def test_edges_cover_imports_calls_inheritance_and_docs(graph):
         ('m:app/models.py', 'c:app/models.py:User', 'contains'),
     }
     assert expected <= edges
-    assert graph['stats']['edge_kinds'] == {'contains': 19, 'import': 9, 'call': 9, 'tests': 2, 'inherits': 1, 'loads': 1, 'ref': 4, 'depends': 1, 'handles': 1}
+    assert graph['stats']['edge_kinds'] == {'contains': 19, 'import': 9, 'call': 9, 'tests': 2, 'inherits': 1, 'loads': 1, 'ref': 4, 'depends': 1,
+                                            'handles': 1, 'data': 1}
+    assert ('f:app/services.py:create_user', 'c:app/models.py:User', 'data') in edges
 
 
 def test_communities_and_visible_edges(graph):
@@ -94,7 +96,7 @@ def test_parse_errors_become_warnings(tmp_path):
 
 def test_empty_project_raises_clear_error(tmp_path):
     (tmp_path / 'empty').mkdir()
-    with pytest.raises(CortexError, match='no hay archivos'):
+    with pytest.raises(CortexError, match='no hay código'):
         analyze(tmp_path / 'empty')
     with pytest.raises(CortexError, match='no existe'):
         analyze(tmp_path / 'missing')

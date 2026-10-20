@@ -455,7 +455,11 @@ def analyze_generic(root, files, g, issues, read_source, digest):
         units[rel] = u
         scripts = rel.rsplit('/', 1)[-1] != 'package.json' or emits_scripts(root, rel, text)
         u.fmt = format_of(u, ctx)
-        found = sorted((Ent(*e) for e in extract(u, ctx, scripts)), key=lambda e: e.pos)
+        try:
+            found = sorted((Ent(*e) for e in extract(u, ctx, scripts)), key=lambda e: e.pos)
+        except (IndexError, ValueError, KeyError, TypeError, AttributeError, RecursionError):
+            issues.add(rel, 'no se pudo extraer su estructura: queda solo como archivo')
+            found = []
         groups = {}
         for i, e in enumerate(found):
             end = e.end if e.end is not None else found[i + 1].pos if i + 1 < len(found) else len(text)
@@ -1371,7 +1375,7 @@ def razor_extract(u, ctx):
         end = match_close(code, brace)
         blocks.append((m.start(), end))
         for f in CS_METHOD_RE.finditer(code, brace + 1, end):
-            if f.group(2) in C_KEYWORDS or f.group(1).split()[-1] in C_KEYWORDS:
+            if f.group(2) in C_KEYWORDS or (f.group(1).split() or [''])[-1] in C_KEYWORDS:
                 continue
             stop = match_close(code, f.end() - 1) if code[f.end() - 1] == '{' else code.find('\n', f.end())
             ents.append(Ent('function', f.group(2), f.start(), end=stop if stop > 0 else end,
@@ -2176,7 +2180,7 @@ def apex_extract(u, ctx):
         u.links.append((('c', m.group(1)), 'data', 'table', [m.group(2)]))
         u.facts['triggers'].append(m.group(1))
     for m in APEX_METHOD_RE.finditer(code):
-        if m.group(2).lower() in C_KEYWORDS or m.group(1).split()[-1].lower() in C_KEYWORDS:
+        if m.group(2).lower() in C_KEYWORDS or (m.group(1).split() or [""])[-1].lower() in C_KEYWORDS:
             continue
         owner = next((c.name for c in reversed(classes) if c.pos < m.start() < c.end), None)
         if owner is None or any(e.kind == 'method' and e.pos < m.start() < e.end for e in ents):

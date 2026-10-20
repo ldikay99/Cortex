@@ -1,0 +1,7 @@
+{
+  "cargo": {
+    "buildScripts": {"enable": false, "overrideCommand": ["true"]}
+  },
+  "procMacro": {"enable": false},
+  "checkOnSave": false
+}

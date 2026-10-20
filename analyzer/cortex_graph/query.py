@@ -9,8 +9,23 @@ from . import store
 from .analyze import export_markdown, is_test
 from .errors import InvalidInput, NotFound
 
-KINDS = ('module', 'class', 'function', 'method', 'doc', 'package', 'variable', 'endpoint', 'topic')
-DEPENDENCY_KINDS = ('import', 'call', 'inherits', 'ref', 'tests', 'http', 'rpc', 'handles', 'env', 'data', 'event', 'depends')
+KINDS = ('module', 'class', 'function', 'method', 'doc', 'package', 'variable', 'endpoint', 'topic', 'conversation', 'section', 'person',
+         'concept', 'memory', 'event', 'component', 'flow')
+KIND_ALIASES = {
+    'archivo': 'module', 'archivos': 'module', 'modulo': 'module', 'módulo': 'module', 'clase': 'class', 'clases': 'class',
+    'funcion': 'function', 'función': 'function', 'funciones': 'function', 'metodo': 'method', 'método': 'method',
+    'metodos': 'method', 'métodos': 'method', 'documento': 'doc', 'documentos': 'doc', 'nota': 'doc', 'notas': 'doc',
+    'dependencia': 'package', 'dependencias': 'package', 'paquete': 'package', 'paquetes': 'package', 'variables': 'variable',
+    'ruta': 'endpoint', 'rutas': 'endpoint', 'endpoints': 'endpoint', 'topico': 'topic', 'tópico': 'topic', 'cola': 'topic',
+    'conversacion': 'conversation', 'conversación': 'conversation', 'conversaciones': 'conversation', 'chat': 'conversation',
+    'chats': 'conversation', 'seccion': 'section', 'sección': 'section', 'secciones': 'section', 'persona': 'person',
+    'personas': 'person', 'gente': 'person', 'tema': 'concept', 'temas': 'concept', 'concepto': 'concept', 'conceptos': 'concept',
+    'etiqueta': 'concept', 'recuerdo': 'memory', 'recuerdos': 'memory', 'memoria': 'memory', 'memorias': 'memory', 'dato': 'memory',
+    'evento': 'event', 'eventos': 'event', 'cita': 'event', 'citas': 'event', 'componente': 'component', 'componentes': 'component',
+    'flujo': 'flow', 'flujos': 'flow', 'proceso': 'flow', 'procesos': 'flow',
+}
+KIND_PREFIX_RE = re.compile(r'^\s*([^\W\d_]+)\s*:\s*(\S.*)$')
+DEPENDENCY_KINDS = ('import', 'call', 'inherits', 'ref', 'tests', 'http', 'rpc', 'handles', 'env', 'data', 'event', 'depends', 'uses')
 RELATIONS = (
     ('imports', 'import', 'out'), ('imported_by', 'import', 'in'),
     ('calls', 'call', 'out'), ('called_by', 'call', 'in'),
@@ -25,10 +40,23 @@ RELATIONS = (
     ('data', 'data', 'out'), ('data_users', 'data', 'in'),
     ('emits', 'event', 'out'), ('receives', 'event', 'in'),
     ('depends_on', 'depends', 'out'), ('dependents', 'depends', 'in'),
+    ('mentions', 'mentions', 'out'), ('mentioned_in', 'mentions', 'in'),
+    ('links', 'links', 'out'), ('linked_from', 'links', 'in'),
+    ('participants', 'participant', 'out'), ('participates_in', 'participant', 'in'),
+    ('about', 'about', 'out'), ('memories', 'about', 'in'),
+    ('derived_from', 'from', 'out'), ('derived', 'from', 'in'),
+    ('supersedes', 'supersedes', 'out'), ('superseded_by', 'supersedes', 'in'),
+    ('attends', 'attends', 'out'), ('attendees', 'attends', 'in'),
+    ('uses', 'uses', 'out'), ('used_by_components', 'uses', 'in'),
+    ('steps', 'step', 'out'), ('in_flows', 'step', 'in'),
 )
+AGENT_FIELDS = ('summary', 'tags', 'by', 'noted', 'client', 'rels')
+MEMORY_FIELDS = ('text', 'category', 'subject', 'attribute', 'value', 'when', 'until', 'valid_from', 'valid_to', 'confidence', 'origin',
+                 'source', 'msg', 'sensitive', 'aliases', 'email', 'tag', 'owner', 'count', 'started', 'ended')
 USAGE_KINDS = tuple(k for k in DEPENDENCY_KINDS if k != 'depends') + ('loads',)
 SYMBOL_KINDS = ('function', 'method', 'class')
-BRIEF_FIELDS = ('route', 'table', 'status', 'sig', 'end', 'vis', 'version', 'ecosystem')
+BRIEF_FIELDS = ('route', 'table', 'status', 'sig', 'end', 'vis', 'version', 'ecosystem', 'source', 'started', 'ended', 'count', 'category',
+                'subject', 'when', 'until', 'valid_from', 'valid_to', 'confidence', 'origin', 'sensitive', 'aliases', 'email', 'tag', 'owner')
 MAX_BRIEF_DOC = 200
 BARRELS = {'__init__.py', 'index.ts', 'index.tsx', 'index.js', 'index.mjs', 'index.cjs', 'mod.rs', 'lib.rs', 'main.rs', 'main.go'}
 MANIFESTS = {'package.json', 'pyproject.toml', 'setup.cfg', 'setup.py', 'Cargo.toml'}
@@ -62,6 +90,29 @@ def clamp_int(value, default, low, high, label):
     except (TypeError, ValueError) as exc:
         raise InvalidInput(f'«{label}» debe ser un número entero') from exc
     return max(low, min(high, number))
+
+
+def normalize_kind(kind):
+    if kind in (None, ''):
+        return None
+    if not isinstance(kind, str):
+        raise InvalidInput('el tipo debe ser texto')
+    key = kind.strip().lower()
+    if key in KINDS:
+        return key
+    if key in KIND_ALIASES:
+        return KIND_ALIASES[key]
+    raise InvalidInput(f'tipo inválido «{kind}»: usa {", ".join(KINDS)} (o persona, tema, recuerdo, conversación, sección, evento)')
+
+
+def split_kind(text):
+    match = KIND_PREFIX_RE.match(text)
+    if match:
+        key = match.group(1).lower()
+        kind = KIND_ALIASES.get(key) or (key if key in KINDS else None)
+        if kind:
+            return kind, match.group(2).strip()
+    return None, text
 
 
 def resolve_project(project=None):
@@ -155,6 +206,13 @@ class GraphIndex:
                 item[field] = n[field]
         if n.get('doc'):
             item['doc'] = n['doc'] if len(n['doc']) <= MAX_BRIEF_DOC else n['doc'][:MAX_BRIEF_DOC - 1].rstrip() + '…'
+        if n.get('summary'):
+            item['summary'] = n['summary'] if len(n['summary']) <= MAX_BRIEF_DOC else n['summary'][:MAX_BRIEF_DOC - 1].rstrip() + '…'
+        if isinstance(n.get('tags'), list) and n['tags']:
+            item['tags'] = n['tags']
+        for field in ('by', 'noted'):
+            if n.get(field):
+                item[field] = n[field]
         if n.get('test'):
             item['test'] = True
         item.update(extra)
@@ -290,8 +348,9 @@ class GraphIndex:
             raise InvalidInput('la búsqueda está vacía')
         if len(text) > 300:
             raise InvalidInput('la búsqueda es demasiado larga')
-        if kind not in (None, '') and kind not in KINDS:
-            raise InvalidInput(f'tipo inválido «{kind}»: usa {", ".join(KINDS)}')
+        kind = normalize_kind(kind)
+        if kind is None:
+            kind, text = split_kind(text)
         limit = clamp_int(limit, 20, 1, 200, 'limit')
         offset = clamp_int(offset, 0, 0, 10 ** 6, 'offset')
         ranked, total = self.text_index().search(text, kind or None)
@@ -306,8 +365,8 @@ class GraphIndex:
         n = self.resolve(ref)
         parent = self.nodes[n['parent']] if 'parent' in n else None
         main = self.brief(n, hash=n.get('hash'))
-        for field in ('doc', 'churn', 'last', 'authors'):
-            if n.get(field):
+        for field in ('doc', 'churn', 'last', 'authors') + MEMORY_FIELDS + AGENT_FIELDS:
+            if n.get(field) not in (None, '', False, []):
                 main[field] = n[field]
         result = {
             **self.context(),
@@ -319,12 +378,16 @@ class GraphIndex:
         }
         for label, kind, direction in RELATIONS:
             result[label] = self.related(n, kind, direction)
+        if n.get('steps'):
+            result['steps'] = [self.brief(self.by_key[k], order=i) for i, k in enumerate(n['steps'], 1) if k in self.by_key]
         pairs = Counter()
         for table in (self.out, self.inc):
             for other, w in table['cochange'].get(n['id'], []):
                 pairs[other] += w
         result['co_changes'] = [{'file': self.nodes[i]['file'], 'weight': w}
                                 for i, w in sorted(pairs.items(), key=lambda p: (-p[1], p[0]))[:20]]
+        result['related'] = sorted((self.brief(self.nodes[i], weight=w) for table in (self.out, self.inc)
+                                    for i, w in table['related'].get(n['id'], [])), key=lambda b: (-b['weight'], -b['deg'], b['id']))[:MAX_LIST]
         if n['kind'] == 'topic':
             result['producers'], result['consumers'] = result['receives'], result['emits']
         elif n['kind'] == 'variable':
@@ -372,7 +435,8 @@ class GraphIndex:
             'node': self.brief(f),
             'community': {'id': f['c'], 'name': self.community_name(f['c'])},
             'symbols': [{'kind': s['kind'], 'name': s['name'], 'line': s['line'], 'deg': s['deg'], 'key': s['key'],
-                         **({'route': s['route']} if s.get('route') else {}), **({'table': s['table']} if s.get('table') else {})}
+                         **({'route': s['route']} if s.get('route') else {}), **({'table': s['table']} if s.get('table') else {}),
+                         **({'summary': s['summary']} if s.get('summary') else {})}
                         for s in symbols],
             'imports': sorted({self.nodes[i]['file'] for i, _ in self.out['import'].get(f['id'], [])}),
             'imported_by': sorted({self.nodes[i]['file'] for i, _ in self.inc['import'].get(f['id'], [])}),
@@ -380,7 +444,31 @@ class GraphIndex:
             'called_from': [{'file': k, 'weight': w} for k, w in called_from.most_common(MAX_LIST)],
             'docs': sorted({self.nodes[i]['file'] for i, _ in self.inc['ref'].get(f['id'], []) if self.nodes[i]['kind'] == 'doc'}),
             'mentions': sorted({self.nodes[i]['file'] for i, _ in self.out['ref'].get(f['id'], [])}),
+            **self.agent_view(f, ids),
         }
+
+    def agent_view(self, f, ids):
+        flows, components = {}, {}
+        for i in ids:
+            for other, _ in self.inc['step'].get(i, []):
+                flows[other] = self.nodes[other]
+            n = self.nodes[i]
+            parent = self.nodes[n['parent']] if 'parent' in n else None
+            if parent is not None and parent['kind'] == 'component':
+                components[parent['id']] = parent
+            for other, _ in self.inc['uses'].get(i, []):
+                if self.nodes[other]['kind'] == 'component':
+                    components[other] = self.nodes[other]
+            if n['kind'] == 'component' and n is not f:
+                components[i] = n
+        out = {}
+        if f.get('summary'):
+            out['summary'] = f['summary']
+        if components:
+            out['components'] = [self.brief(c) for c in sorted(components.values(), key=lambda c: (-c['deg'], c['id']))][:MAX_LIST]
+        if flows:
+            out['flows'] = [self.brief(x) for x in sorted(flows.values(), key=lambda x: (-x['deg'], x['id']))][:MAX_LIST]
+        return out
 
     def find_community(self, ref):
         if isinstance(ref, int) and not isinstance(ref, bool):

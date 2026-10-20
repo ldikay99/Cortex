@@ -11,7 +11,7 @@ import leidenalg
 import networkx as nx
 import numpy as np
 
-from . import bridges, config as project_config, deps, generic, gitinfo, langs
+from . import brain, bridges, config as project_config, content, deps, generic, gitinfo, importers, langs, overlay
 from .common import MAX_FILE_BYTES, MAX_NOTEBOOK_BYTES, Graph, Issues, describe_failure, digest, read_source
 from .errors import CortexError
 from .pyast import analyze_python, py_module_name
@@ -32,17 +32,24 @@ TEST_NAME_RE = re.compile(
     r'|((Test|Tests|Spec|(?<=[a-z0-9])IT)\.(java|kt|kts|scala|cs|swift|php|groovy|dart)$)')
 CODE_PY = {'.py', '.ipynb'}
 CODE_TS = {'.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.mts', '.cts', '.vue', '.svelte'}
-DOCS = {'.md', '.mdx', '.rst'}
+DOCS = {'.md', '.mdx', '.rst', '.markdown'}
+CONTENT_EXTS = {'.txt', '.jsonl', '.srt', '.vtt', '.pdf', '.docx', '.odt', '.eml', '.mbox', '.ics', '.rtf', '.tsv', '.csv'}
+CONTENT_KINDS = {'conversation', 'person', 'concept', 'memory', 'event'}
 CODE_EXTS = CODE_PY | CODE_TS | DOCS | langs.EXTS
 SKIP_SUFFIXES = ('.d.ts', '.min.js', '.bundle.js', '.min.css', '.map', '.pb.go', '_pb2.py', '.g.dart', '.designer.cs')
 
 EDGE_WEIGHT = {
     'contains': 3.0, 'import': 1.0, 'call': 1.0, 'inherits': 1.5, 'ref': 0.6, 'loads': 1.0, 'tests': 0.4, 'http': 1.2,
     'rpc': 1.2, 'handles': 2.0, 'env': 0.2, 'data': 0.6, 'event': 0.8, 'depends': 0.3, 'cochange': 0.3,
+    'mentions': 0.5, 'links': 1.0, 'participant': 1.0, 'about': 1.5, 'from': 1.0, 'supersedes': 0.5, 'related': 0.4, 'attends': 0.8,
+    'step': 0.6, 'uses': 1.0,
 }
 STRUCTURAL_RANK = {'contains': 3, 'handles': 2, 'inherits': 2, 'import': 1}
-BRIDGE_KINDS = {'http', 'rpc', 'handles', 'event', 'data', 'env', 'depends'}
-NODE_EXTRA = ('route', 'table', 'sig', 'doc', 'end', 'vis', 'test', 'version', 'ecosystem', 'scope', 'churn', 'last', 'authors')
+BRIDGE_KINDS = {'http', 'rpc', 'handles', 'event', 'data', 'env', 'depends', 'step', 'uses'}
+NODE_EXTRA = ('route', 'table', 'sig', 'doc', 'end', 'decl', 'vis', 'test', 'version', 'ecosystem', 'scope', 'churn', 'last', 'authors',
+              'text', 'category', 'subject', 'attribute', 'value', 'when', 'until', 'valid_from', 'valid_to', 'confidence',
+              'origin', 'source', 'msg', 'sensitive', 'aliases', 'email', 'emails', 'tag', 'tags', 'owner', 'count', 'started', 'ended',
+              'object', 'negated', 'summary', 'steps', 'rels', 'noted', 'client', 'by')
 MAX_COMMUNITIES = 28
 MIN_COMMUNITY = 8
 MIN_NODES = 40
@@ -53,7 +60,9 @@ LAYOUT_BUDGET = 1.5e9
 ORBIT_MIN = 900
 
 KIND_ES = {'module': 'archivo', 'doc': 'documento', 'class': 'clase', 'function': 'función', 'method': 'método',
-           'package': 'dependencia', 'variable': 'variable', 'endpoint': 'endpoint', 'topic': 'tema'}
+           'package': 'dependencia', 'variable': 'variable', 'endpoint': 'endpoint', 'topic': 'tema',
+           'conversation': 'conversación', 'section': 'sección', 'person': 'persona', 'concept': 'concepto',
+           'memory': 'recuerdo', 'event': 'evento', 'component': 'componente', 'flow': 'flujo'}
 
 PALETTE = [
     [1.0, 0.72, 0.5], [0.58, 0.72, 1.0], [0.76, 0.6, 1.0], [1.0, 0.58, 0.66], [0.54, 0.92, 0.84],
@@ -126,7 +135,8 @@ def wanted(rel):
     name = rel.rsplit('/', 1)[-1]
     if name.endswith(SKIP_SUFFIXES) or name in WRAPPERS:
         return False
-    return os.path.splitext(name)[1] in CODE_EXTS or name in langs.NAME_LANG or generic.kind_of(rel) is not None
+    ext = os.path.splitext(name)[1]
+    return ext in CODE_EXTS or ext.lower() in CONTENT_EXTS or name in langs.NAME_LANG or generic.kind_of(rel) is not None
 
 
 LANGUAGE_NAMES = {
@@ -181,7 +191,7 @@ def language_of(rel):
 
 def formats():
     return {
-        'exts': sorted(CODE_EXTS | generic.CODE | generic.CONFIG | {'.json', '.xml'}),
+        'exts': sorted(CODE_EXTS | CONTENT_EXTS | generic.CODE | generic.CONFIG | {'.json', '.xml'}),
         'names': sorted(generic.CONFIG_NAMES | set(langs.NAME_LANG)), 'max_script_bytes': MAX_SCRIPT_BYTES,
         'prefixes': list(generic.CONFIG_PREFIXES) + ['requirements'], 'skip_dirs': sorted(SKIP_DIRS), 'skip_suffixes': list(SKIP_SUFFIXES),
         'locks': sorted(generic.LOCKS), 'max_bytes': MAX_FILE_BYTES, 'max_notebook_bytes': MAX_NOTEBOOK_BYTES,
@@ -201,17 +211,44 @@ def git_visible(root):
     return {p.decode('utf-8', 'replace') for p in res.stdout.split(b'\0') if p}
 
 
+def chat_only(rel):
+    return rel.lower().endswith('.json') and generic.kind_of(rel) is None
+
+
+def chat_export(rel, path):
+    if not chat_only(rel):
+        return False
+    try:
+        with open(path, 'rb') as fh:
+            head = fh.read(64 * 1024)
+    except OSError:
+        return False
+    try:
+        return bool(importers.detect(rel, head))
+    except Exception:
+        return False
+
+
+def tracked_source_dir(root, dirpath, name, visible):
+    """`build/` anidado en el código (p. ej. `app/actions/build/`) que git no ignora: es fuente, no salida de compilación."""
+    if name != 'build' or visible is None or os.path.abspath(dirpath) == os.path.abspath(root):
+        return False
+    prefix = os.path.relpath(os.path.join(dirpath, name), root).replace(os.sep, '/') + '/'
+    return any(p.startswith(prefix) for p in visible)
+
+
 def list_files(root, exclude=(), skip_tests=False):
     exclude = tuple(e.strip('/') for e in exclude if e.strip('/'))
     visible = git_visible(root)
     out = []
     for dirpath, dirnames, filenames in os.walk(root):
-        dirnames[:] = sorted(d for d in dirnames if d not in SKIP_DIRS and not d.endswith(SKIP_DIR_SUFFIXES))
+        dirnames[:] = sorted(d for d in dirnames if (d not in SKIP_DIRS or tracked_source_dir(root, dirpath, d, visible))
+                             and not d.endswith(SKIP_DIR_SUFFIXES))
         for name in sorted(filenames):
             rel = os.path.relpath(os.path.join(dirpath, name), root).replace(os.sep, '/')
             if visible is not None and rel not in visible:
                 continue
-            if not wanted(rel) and not (maybe_script(rel) and script_route(read_head(Path(dirpath) / name))):
+            if not wanted(rel) and not (maybe_script(rel) and script_route(read_head(Path(dirpath) / name))) and not chat_export(rel, Path(dirpath) / name):
                 continue
             if os.path.splitext(name)[1] in MINIFIED_EXTS and minified(Path(dirpath) / name):
                 continue
@@ -228,6 +265,8 @@ PATH_RE = re.compile(r'[\w@.\-/+]+\.(?:' + '|'.join(sorted({re.escape(e[1:]) for
 DOTTED_RE = re.compile(r'\b[A-Za-z_]\w*(?:\.\w+)+\b')
 KNOWN_EXTS = {e.lower() for e in CODE_EXTS | generic.CODE | generic.CONFIG} | {'.json', '.sh', '.txt', '.lock', '.xml', '.csv'}
 
+FRONTMATTER_RE = re.compile(r'\A(?:\ufeff)?---[ \t]*\r?\n.*?\r?\n(?:---|\.\.\.)[ \t]*(?:\r?\n|\Z)', re.S)
+
 
 def declare_docs(root, files, g, issues):
     texts = {}
@@ -236,7 +275,8 @@ def declare_docs(root, files, g, issues):
         if raw is None:
             continue
         text = raw.decode('utf-8', errors='replace')
-        title = next((line.strip().lstrip('#=*- ').strip() for line in text.splitlines() if line.strip().lstrip('#=*- ').strip()), '')
+        body = FRONTMATTER_RE.sub('', text, count=1)
+        title = next((line.strip().lstrip('#=*- ').strip() for line in body.splitlines() if line.strip().lstrip('#=*- ').strip()), '')
         g.node(f'd:{rel}', kind='doc', name=rel.rsplit('/', 1)[-1], file=rel, line=1, lang='md', hash=digest(raw),
                end=text.count('\n') + 1, doc=title[:200])
         texts[rel] = text
@@ -309,6 +349,20 @@ def covering_dir(files):
     return max(found, key=lambda d: (d.count('/'), dirs[d], d)) if found else ''
 
 
+def units(g):
+    return {nid: m.get('unit') or nid if m.get('unit') or not m['file'] or m['kind'] in CONTENT_KINDS else ('d:' if m['kind'] in ('doc', 'section') else 'm:') + m['file']
+            for nid, m in g.nodes.items()}
+
+
+def content_name(members, g, degree):
+    kinds = Counter(g.nodes[n]['kind'] for n in members)
+    if sum(kinds[k] for k in CONTENT_KINDS) * 2 < len(members):
+        return None
+    named = [n for n in members if g.nodes[n]['kind'] in ('person', 'concept') and not g.nodes[n].get('owner')]
+    named = named or [n for n in members if g.nodes[n]['kind'] in ('conversation', 'event')]
+    return g.nodes[max(named, key=lambda n: (degree[n], n))]['name'][:60] if named else None
+
+
 def community_name(members_files, project='(raíz)'):
     files = sorted(set(members_files))
     tops = Counter(f.split('/', 1)[0] for f in files if '/' in f)
@@ -362,7 +416,7 @@ def common_prefix_len(a, b):
 
 
 def detect_communities(g):
-    file_of = {nid: ('d:' if m['kind'] == 'doc' else 'm:') + m['file'] for nid, m in g.nodes.items()}
+    file_of = units(g)
     files = sorted(set(file_of.values()))
     index = {f: i for i, f in enumerate(files)}
     w = Counter()
@@ -626,7 +680,7 @@ def layout(g, community, seed=7):
     for (a, b, kind), n in g.edges.items():
         if community[a] == community[b]:
             adj[a][b] += EDGE_WEIGHT[kind] * n
-    file_of = {nid: ('d:' if m['kind'] == 'doc' else 'm:') + m['file'] for nid, m in g.nodes.items()}
+    file_of = units(g)
     work = sum(layout_sizes(nodes, file_of) ** 2 for nodes in members.values())
     niter = int(min(600, max(40, LAYOUT_BUDGET / max(1, work))))
     node_pos = {}
@@ -700,7 +754,7 @@ def reuse_layout(g, community, previous):
             {i: members[c] for i, c in enumerate(order)}) if order == list(range(len(order))) else None
 
 
-def analyze(root, project=None, exclude=(), skip_tests=False, git=True, previous=None, scip=None):
+def analyze(root, project=None, exclude=(), skip_tests=False, git=True, previous=None, scip=None, memories=None, overlay_ops=None):
     root = Path(root)
     if not root.is_dir():
         raise CortexError(f'no existe la carpeta «{root}»')
@@ -716,7 +770,9 @@ def analyze(root, project=None, exclude=(), skip_tests=False, git=True, previous
     script_names = {f: {'py': 'Python', 'ts': 'JavaScript'}.get(r) or LANGUAGE_NAMES.get(langs.LANGS[r]['exts'][0], r)
                     for f, r in scripts.items()}
     other = [f for f in files if (langs.lang_of(f) or f in overrides) and not generic.claims(f)]
-    rest = [f for f in files if generic.claims(f) or (os.path.splitext(f)[1] not in CODE_EXTS and not langs.lang_of(f) and f not in scripts)]
+    rest = [f for f in files if generic.claims(f) or (os.path.splitext(f)[1] not in CODE_EXTS and os.path.splitext(f)[1].lower() not in CONTENT_EXTS
+                                                      and not langs.lang_of(f) and f not in scripts and not chat_only(f))]
+    texts_in = [f for f in files if os.path.splitext(f)[1].lower() in CONTENT_EXTS | DOCS | {'.json'}]
     issues = Issues()
     g = Graph()
     texts = declare_docs(root, md, g, issues)
@@ -729,6 +785,12 @@ def analyze(root, project=None, exclude=(), skip_tests=False, git=True, previous
     generic.link_tables(g, tables)
     deps.link_dependencies(root, files, g, issues, read_source)
     bridges.link_bridges(root, files, g, issues, read_source)
+    gone = brain.forgotten(project) if project else set()
+    records = {r['id']: r for r in content.link_content(root, texts_in, g, issues, read_source) or () if r['id'] not in gone}
+    records.update({r['id']: r for r in memories or ()})
+    if records:
+        brain.link_memories(g, [records[k] for k in sorted(records)])
+    files += overlay.link_overlay(g, overlay_ops, issues, root, exclude)
     if scip:
         from . import scip as scip_index
         scip_index.apply_scip(g, root, scip)
@@ -740,7 +802,7 @@ def analyze(root, project=None, exclude=(), skip_tests=False, git=True, previous
         if not meta.get('hash'):
             meta['hash'] = digest(f"{nid}|{meta.get('version', '')}|{meta.get('route', '')}")
     if not g.nodes:
-        raise CortexError('no hay archivos de código ni documentos para analizar en esa carpeta')
+        raise CortexError('no hay código, documentos, notas, conversaciones ni recuerdos para analizar en esa carpeta')
 
     g.edges = Counter(dict(sorted(g.edges.items())))
     community = detect_communities(g)
@@ -756,9 +818,11 @@ def analyze(root, project=None, exclude=(), skip_tests=False, git=True, previous
     project_name = project or root.resolve().name
     communities = []
     for c in range(len(centers)):
-        hub = max((n for n in members[c] if g.nodes[n]['kind'] in ('module', 'doc')), key=lambda n: (degree[n], n), default=members[c][0])
+        hub = max((n for n in members[c] if g.nodes[n]['kind'] in ('module', 'doc')), key=lambda n: (degree[n], n), default=None)
+        topical = content_name(members[c], g, degree) or overlay.label(members[c], g, degree)
+        hub = hub if hub and not topical else max(members[c], key=lambda n: (degree[n], n))
         communities.append({
-            'id': c, 'name': community_name([g.nodes[n]['file'] for n in members[c]], project_name), 'hub': g.nodes[hub]['name'],
+            'id': c, 'name': topical or community_name([g.nodes[n]['file'] for n in members[c]], project_name), 'hub': g.nodes[hub]['name'],
             'size': len(members[c]), 'center': rounded(centers[c]), 'radius': round(float(radius[c]), 3),
             'color': PALETTE[c % len(PALETTE)],
         })
@@ -798,7 +862,8 @@ def visible_edges(g, community, ids):
     for (a, b, kind), n in g.edges.items():
         fa, fb = g.nodes[a]['file'], g.nodes[b]['file']
         if kind in BRIDGE_KINDS:
-            bridges_out.append({'a': ids[a], 'b': ids[b], 'kind': kind, 'w': n})
+            if kind not in ('depends', 'env') or community[a] == community[b]:
+                bridges_out.append({'a': ids[a], 'b': ids[b], 'kind': kind, 'w': n})
             continue
         if kind == 'cochange':
             continue
@@ -815,7 +880,8 @@ def visible_edges(g, community, ids):
             keep[key] = (a, b, kind, keep.get(key, (0, 0, 0, 0))[3] + n)
     out = [{'a': ids[a], 'b': ids[b], 'kind': kind, 'w': n} for a, b, kind, n in keep.values()]
     for links in cross.values():
-        for (a, b), n in links.most_common(2):
+        total = sum(links.values())
+        for (a, b), n in links.most_common(1 + (total >= 4) + (total >= 12)):
             out.append({'a': ids[a], 'b': ids[b], 'kind': 'import', 'w': n})
     return bridges_out + out
 

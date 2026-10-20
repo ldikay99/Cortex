@@ -36,7 +36,7 @@ BUILD_MARKERS = {'Cargo.toml', 'go.mod', 'package.json', 'pom.xml', 'build.gradl
                  'Makefile'}
 BUILD_SUFFIXES = ('.csproj',)
 GO_DECLS = {'short_var_declaration', 'var_spec', 'range_clause', 'parameter_declaration', 'variadic_parameter_declaration',
-            'type_switch_statement', 'type_spec'}
+            'type_switch_statement', 'type_spec', 'const_spec'}
 GO_BUILTIN_TYPES = set('''bool byte complex64 complex128 error float32 float64 int int8 int16 int32 int64 rune string uint
     uint8 uint16 uint32 uint64 uintptr any comparable'''.split())
 GO_BUILTIN_FUNCS = set('''append cap clear close complex copy delete imag len make max min new panic print println real
@@ -53,6 +53,8 @@ GO_TYPE_NODES = {'generic_type', 'qualified_type', 'type_identifier', 'pointer_t
 GO_SCOPES = {'block', 'if_statement', 'for_statement', 'expression_switch_statement', 'type_switch_statement',
              'select_statement', 'expression_case', 'default_case', 'communication_case', 'type_case', 'func_literal',
              'function_declaration', 'method_declaration'}
+PREPROC_RE = re.compile(rb'^(?:\xef\xbb\xbf)?[ \t]*#[ \t]*(if|elif|else|endif)\b([^\r\n]*)', re.M)
+BLANK_BYTES = bytes(b if b in (10, 13) else 32 for b in range(256))
 FOREIGN = ('?',)
 PATH_GROUPS = {'c': ('c', 'objc'), 'objc': ('c', 'objc')}
 C_STD_HEADERS = set('''assert.h complex.h ctype.h errno.h fenv.h float.h inttypes.h iso646.h limits.h locale.h math.h
@@ -82,7 +84,11 @@ BUILTINS = {family: set(words.split()) for family, words in {
         map_err unwrap_err send recv spawn format print println eprintln write_all read_to_string read_to_end
         parent file_name file_stem extension exists is_dir is_file canonicalize display to_path_buf as_os_str to_str
         String Vec Option Result Box Rc Arc HashMap HashSet BTreeMap BTreeSet VecDeque Path PathBuf Cow Mutex RwLock
-        Self Some None Ok Err Default Clone Debug Display Iterator From Into AsRef Send Sync Sized Fn FnMut FnOnce''',
+        Self Some None Ok Err Default Clone Debug Display Iterator From Into AsRef Send Sync Sized Fn FnMut FnOnce
+        max_by min_by max_by_key min_by_key or_default sum product fold count last nth position enumerate zip rev skip
+        step_by chain cycle flat_map flatten filter_map take_while skip_while peekable fuse inspect partition reduce
+        for_each try_fold try_for_each max min cloned copied dedup retain truncate drain reserve resize sort_unstable
+        sort_by_key windows chunks split_at swap first''',
     'c': '''begin end size push_back emplace_back push_front emplace insert erase find clear empty data c_str length at
         front back reserve resize swap reset get release lock unlock load store count append substr str first second
         printf sprintf snprintf fprintf vsnprintf puts malloc free calloc realloc memcpy memset memmove memcmp strlen
@@ -119,7 +125,8 @@ BUILTINS = {family: set(words.split()) for family, words in {
     'go': '''String Error Close Read Write Lock Unlock RLock RUnlock Len Less Swap Done Wait Add Err Unwrap Is As Value
         Deadline Load Store Do Bytes Reset WriteString WriteByte WriteRune Flush Seek Sync Next Scan Get Set Del
         MatchString FindStringSubmatch ReplaceAllString WithLabelValues DeleteLabelValues Inc Dec Observe''',
-    'ruby': '''class to_s to_sym to_i to_f to_a to_h to_str to_proc inspect each each_with_index each_pair map collect
+    'ruby': '''class to_s to_sym to_i to_f to_a to_h to_str to_proc to_ary to_hash has_key? each_key each_value close read write
+        rewind gets inspect each each_with_index each_pair map collect
         select filter reject find detect each_with_object inject reduce include? is_a? kind_of? respond_to? send
         public_send freeze frozen? dup clone merge merge! key? fetch keys values push pop shift unshift first last join
         split strip gsub sub length size empty? nil? present? blank? call puts print require require_relative raise
@@ -128,7 +135,8 @@ BUILTINS = {family: set(words.split()) for family, words in {
         times format to_json hash eql? equal? instance_of? method_missing super new delete_if keep_if sort! map! select!
         reject! uniq! compact! flatten! each_key each_value transform_values transform_keys dig slice except union
         upcase downcase capitalize bytesize encoding force_encoding start_with? end_with? match match? scan
-        strftime iso8601 httpdate to_date to_time succ pred''',
+        strftime iso8601 httpdate to_date to_time succ pred name update replace clear store concat insert index values_at
+        reverse string''',
     'perl': '''reverse join split warn die say print printf sprintf push pop shift unshift keys values each map grep sort
         scalar defined ref bless exists delete length substr index rindex lc uc lcfirst ucfirst chomp chop chr ord
         wantarray local return eval open close binmode sprintf abs int sqrt time localtime gmtime sleep exit
@@ -294,9 +302,51 @@ def go_collect(u, n, owner_id, in_fn):
         if not in_fn and name is not None and kind is not None:
             u.gtypes.setdefault(text(name, u.src), kind)
     elif in_fn:
-        u.decls[owner_id].append(n)
-    elif n.type == 'var_spec':
-        u.gvars.append(n)
+        if n.type != 'const_spec':
+            u.decls[owner_id].append(n)
+    elif n.type in ('var_spec', 'const_spec'):
+        if n.type == 'var_spec':
+            u.gvars.append(n)
+        u.values.update(text(c, u.src) for c in n.children_by_field_name('name'))
+
+
+GO_NAMED = {'const_spec', 'var_spec', 'parameter_declaration', 'variadic_parameter_declaration', 'function_declaration',
+            'method_declaration', 'type_spec', 'labeled_statement', 'field_declaration', 'import_spec', 'package_clause',
+            'method_elem', 'type_parameter_declaration'}
+
+
+def go_value_ref(node):
+    """Identificador que nombra un valor ya declarado (`Run: emptyRun`, `x := Constante`), no uno que se declara."""
+    parent = node.parent
+    if parent is None or parent.type in GO_NAMED and node in parent.children_by_field_name('name'):
+        return False
+    if parent.type == 'call_expression' and parent.child_by_field_name('function') == node:
+        return False
+    if parent.type == 'expression_list' and parent.parent is not None and parent.parent.type in ('short_var_declaration', 'range_clause'):
+        return parent.parent.child_by_field_name('left') != parent
+    if parent.type == 'literal_element' and parent.parent is not None and parent.parent.type == 'keyed_element':
+        return parent.parent.named_children[0] != parent
+    return True
+
+
+def go_shadowed(node, name, src):
+    """`name` declarado por un literal de función que rodea a `node` (parámetro o variable de su cuerpo antes de usarse):
+    el entorno de las funciones con nombre no cubre las de nivel de paquete (`var f = func(x T) {…}`)."""
+    cur = node.parent
+    while cur is not None:
+        if cur.type == 'func_literal':
+            for p in cur.named_children:
+                if p.type == 'parameter_list' and any(text(x, src) == name for d in p.named_children for x in d.children_by_field_name('name')):
+                    return True
+        if cur.type == 'block':
+            for stmt in cur.named_children:
+                if stmt.start_byte >= node.start_byte:
+                    break
+                left = stmt.child_by_field_name('left') if stmt.type == 'short_var_declaration' else None
+                if left is not None and any(text(x, src) == name for x in left.named_children):
+                    return True
+        cur = cur.parent
+    return False
 
 
 def go_tag(word):
@@ -347,6 +397,163 @@ def go_enabled(rel, src):
     return expr, all(t in GO_ENV for t in tags) and go_constraint(expr)
 
 
+def preprocessor_groups(src):
+    """Grupos `#if … #elif … #else … #endif` (también anidados): lista de ramas `(inicio, fin, condición)` en bytes, cada
+    una desde su directiva hasta la siguiente, y la posición del `#endif`."""
+    groups, stack = [], []
+    for m in PREPROC_RE.finditer(src):
+        word, cond = m.group(1), m.group(2).strip()
+        if word == b'if':
+            stack.append([(m.start(), cond)])
+        elif not stack:
+            continue
+        elif word != b'endif':
+            stack[-1].append((m.start(), cond if word == b'elif' else b'else'))
+        else:
+            starts = stack.pop()
+            groups.append(([(s, starts[i + 1][0] if i + 1 < len(starts) else m.start(), c) for i, (s, c) in enumerate(starts)],
+                           m.start()))
+    return groups
+
+
+def first_branch(branches):
+    """Rama que se conserva sin conocer los símbolos definidos: la primera, salvo `#if false`/`#if 0`."""
+    if branches[0][2] not in (b'false', b'0'):
+        return 0
+    return len(branches) - 1 if branches[-1][2] == b'else' else None
+
+
+DOTNET_TFM = re.compile(r'(NET|NETCOREAPP)(\d+)_(\d+)(_OR_GREATER)?|NETCOREAPP|NETSTANDARD[\w]*|NETFRAMEWORK|NET\d+|NET')
+DOTNET_LATEST = (9, 0)
+PREPROC_TOKEN = re.compile(r'\s*(\|\||&&|==|!=|!|\(|\)|\w+)')
+
+
+def dotnet_symbol(word):
+    """Valor de un símbolo de marco de destino en el .NET actual (`NET`, `NET8_0_OR_GREATER`, `NETSTANDARD2_0`…), o None
+    si no es uno de ellos (símbolo propio del proyecto)."""
+    m = DOTNET_TFM.fullmatch(word)
+    if not m:
+        return None
+    if m.group(2):
+        version = (int(m.group(2)), int(m.group(3)))
+        if m.group(1) == 'NETCOREAPP':
+            return version <= (3, 1) if m.group(4) else False
+        return version <= DOTNET_LATEST if m.group(4) else version == DOTNET_LATEST
+    return word in ('NET', 'NETCOREAPP')
+
+
+def preproc_value(cond):
+    """Evalúa una condición de `#if` con lógica de tres valores (True, False o None si depende de un símbolo propio)."""
+    tokens = PREPROC_TOKEN.findall(cond.decode('utf-8', 'replace').split('//')[0])
+    pos = [0]
+
+    def peek():
+        return tokens[pos[0]] if pos[0] < len(tokens) else None
+
+    def atom():
+        tok = peek()
+        pos[0] += 1
+        if tok == '!':
+            value = atom()
+            return None if value is None else not value
+        if tok == '(':
+            value = disjunction()
+            pos[0] += 1
+            return value
+        if tok in ('true', 'false') or tok and tok.isdigit():
+            return tok not in ('false', '0')
+        return dotnet_symbol(tok) if tok else None
+
+    def comparison():
+        left = atom()
+        while peek() in ('==', '!='):
+            op = tokens[pos[0]]
+            pos[0] += 1
+            right = atom()
+            left = None if left is None or right is None else (left == right) == (op == '==')
+        return left
+
+    def conjunction():
+        value = comparison()
+        while peek() == '&&':
+            pos[0] += 1
+            other = comparison()
+            value = False if value is False or other is False else (None if value is None or other is None else True)
+        return value
+
+    def disjunction():
+        value = conjunction()
+        while peek() == '||':
+            pos[0] += 1
+            other = conjunction()
+            value = True if value is True or other is True else (None if value is None or other is None else False)
+        return value
+
+    return disjunction() if tokens else None
+
+
+def dotnet_branch(branches):
+    """Rama de C# que se conserva: las condiciones sobre el marco de destino se evalúan para el .NET actual (el código
+    de compatibilidad de `#if !NET` o `#if NETFRAMEWORK` no se usa); con un símbolo propio, la primera rama posible."""
+    for i, (_, _, cond) in enumerate(branches):
+        value = True if cond == b'else' else preproc_value(cond)
+        if value is not False:
+            return i
+    return None
+
+
+CS_REF_PARTIAL = re.compile(rb'\bref(\s+)partial(\s+)(?=struct\b)')
+
+
+def csharp_fixups(src):
+    """`ref partial struct` (el orden que exige C#) no lo acepta la gramática; `partial ref struct`, de igual longitud, sí."""
+    return CS_REF_PARTIAL.sub(lambda m: b'partial' + m.group(1) + b'ref' + m.group(2), src) if b'partial' in src else src
+
+
+KT_WHERE_STATEMENT = re.compile(rb'(?m)^([ \t]*)[ \t](?=where[ \t]*(?:\?\.|\.|!!|=(?!=)|\[))')
+KT_ACCESSOR_ANNOTATION = re.compile(rb'(?m)^[ \t]*((?:@[\w.]+(?:\([^()\n]*\))?[ \t]+)+)(?=(?:(?:private|protected|internal|public)[ \t]+)?'
+                                    rb'(?:get|set)\b)')
+KT_LINE_BREAKS = (b'{', b';', b'(', b',', b'=', b'.', b'+', b'-', b'*', b'/', b'&', b'|', b'?', b':', b'<', b'>', b'!')
+
+
+def kotlin_fixups(src):
+    """Dos fallos de la gramática de Kotlin que rompen el resto del archivo, corregidos sin mover posiciones:
+    `where` (palabra clave suave) usado como variable al principio de una sentencia (`where?.let { … }`), que se
+    separa de la sentencia anterior con `;`, y las anotaciones de un accesor (`@Synchronized set(value)`), que se
+    vuelven espacios."""
+    if b'where' in src:
+        def separate(m):
+            before = src[:m.start()].rstrip()
+            return m.group(1) + (b' ' if before.endswith(KT_LINE_BREAKS) else b';')
+        src = KT_WHERE_STATEMENT.sub(separate, src)
+    if b'@' in src:
+        src = KT_ACCESSOR_ANNOTATION.sub(lambda m: m.group(0)[:m.start(1) - m.start()] + b' ' * len(m.group(1)), src)
+    return src
+
+
+def blank_branches(src, choose=first_branch):
+    """Deja una sola rama de cada `#if` (las demás se vuelven espacios, conservando posiciones y saltos de línea):
+    una cabecera partida por `#if`/`#else` rompe el árbol sintáctico."""
+    if b'#if' not in src:
+        return src
+    out = bytearray(src)
+
+    def blank(start, end):
+        out[start:end] = bytes(out[start:end]).translate(BLANK_BYTES)
+
+    for branches, endif in preprocessor_groups(src):
+        keep = choose(branches)
+        for i, (start, end, _) in enumerate(branches):
+            blank(start, end if i != keep else line_end(src, start))
+        blank(endif, line_end(src, endif))
+    return bytes(out)
+
+
+def line_end(src, pos):
+    end = src.find(b'\n', pos)
+    return len(src) if end < 0 else end
+
+
 def lua_function_name(node, src):
     name = node.child_by_field_name('name')
     if name is None:
@@ -380,6 +587,58 @@ def rust_bases(node, src):
     return base_names(node.child_by_field_name('trait'), src)[:1]
 
 
+def nested_item(lang, node):
+    """Declaración con nombre dentro del cuerpo de una función: ítems de Rust (`fn`, `struct`, `impl` locales) y funciones
+    locales de Dart (`int inner(x) {…}`). Son definiciones propias, aunque solo se vean en ese bloque."""
+    if lang == 'rust':
+        return node.type in RUST_NESTED_ITEMS
+    if lang == 'dart':
+        parent = node.parent
+        return node.type == 'function_signature' and parent is not None and parent.type == 'lambda_expression' and \
+            parent.parent is not None and parent.parent.type == 'local_function_declaration'
+    return False
+
+
+def rust_supertraits(node, src):
+    """`trait A: B + C {}`: los métodos de B y C están disponibles en A."""
+    bounds = node.child_by_field_name('bounds') if node.type == 'trait_item' else None
+    return [last_name(c, src) for c in (bounds.named_children if bounds is not None else ())
+            if c.type in ('type_identifier', 'scoped_type_identifier', 'generic_type') and last_name(c, src)]
+
+
+def rust_associated(node):
+    """`type Item = …;` dentro de un `impl` o `trait`: tipo asociado, no un alias de tipo propio."""
+    parent = node.parent
+    return node.type == 'type_item' and parent is not None and parent.type == 'declaration_list' and \
+        parent.parent is not None and parent.parent.type in ('impl_item', 'trait_item')
+
+
+def in_macro(node):
+    """Dentro de los argumentos de una macro invocada (no en atributos ni en `macro_rules!`)."""
+    cur, seen = node.parent, False
+    while cur is not None:
+        if cur.type in RUST_MACRO_SKIP:
+            return False
+        seen = seen or cur.type == 'macro_invocation'
+        cur = cur.parent
+    return seen
+
+
+def rust_macro_callee(node, src):
+    """Llamada escrita como fichas en una macro: `f(…)`, `A::f(…)`, `x.f(…)` (la ficha es el `(…)`)."""
+    prev = node.prev_sibling
+    if not text(node, src).startswith('(') or prev is None or prev.type != 'identifier' or not in_macro(node):
+        return []
+    parts, cur = [text(prev, src)], prev.prev_sibling
+    while cur is not None and cur.type in ('::', '.'):
+        head = cur.prev_sibling
+        if head is None or head.type not in ('identifier', 'self', 'crate', 'super'):
+            break
+        parts.insert(0, text(head, src))
+        cur = head.prev_sibling
+    return parts
+
+
 def go_imports(node, src):
     path = node.child_by_field_name('path')
     if path is None:
@@ -389,6 +648,9 @@ def go_imports(node, src):
 
 
 def rust_imports(node, src):
+    if node.type == 'extern_crate_declaration':
+        name, alias = node.child_by_field_name('name'), node.child_by_field_name('alias')
+        return [('rustcrate', [text(name, src)], text(alias, src) if alias is not None else None)] if name is not None else []
     if node.type == 'mod_item':
         if node.child_by_field_name('body') is not None:
             return []
@@ -398,9 +660,16 @@ def rust_imports(node, src):
     if arg is None:
         return []
     out = []
+    inline, cur = 0, node.parent  # `mod tests { use super::x; }`: `super` es el módulo del archivo, no su padre
+    while cur is not None:
+        inline += cur.type == 'mod_item' and cur.child_by_field_name('body') is not None
+        cur = cur.parent
     for spec in expand(re.sub(r'\s+', ' ', text(arg, src)), '::'):
         path, alias = split_alias(spec, ' as ')
         segs = [s for s in path.split('::') if s]
+        lead = next((i for i, x in enumerate(segs) if x != 'super'), len(segs))
+        if inline and lead:
+            segs = segs[min(lead, inline):] if lead > inline else ['self'] + segs[lead:]
         if segs and segs[-1] == 'self':
             segs = segs[:-1]
         if segs and segs[-1] != '*':
@@ -435,6 +704,45 @@ def csharp_imports(node, src):
     return [('fqn', raw, alias), ('pkg', raw, None)]
 
 
+def kt_class_name(node, src):
+    """Nombre de una clase u objeto de Kotlin; en `typealias X = …` el nombre es el primer identificador."""
+    name = node.child_by_field_name('name')
+    if node.type == 'type_alias':
+        name = next((c for c in node.named_children if c.type == 'identifier'), None)
+    return last_name(name, src)
+
+
+def php_bases(node, src):
+    """Los traits que la clase incorpora con `use T;` (sus métodos tienen prioridad), luego `extends` e `implements`."""
+    names = []
+    body = node.child_by_field_name('body')
+    for c in (body.named_children if body is not None else ()):
+        if c.type == 'use_declaration':
+            for x in base_names(c, src):
+                add(names, x)
+    for c in node.named_children:
+        if c.type in ('base_clause', 'class_interface_clause'):
+            for x in base_names(c, src):
+                add(names, x)
+    return names
+
+
+PHP_MAGIC = re.compile(rb'@method[ \t]+(?:static[ \t]+)?(?:([^\n(]*?)[ \t]+)?(\w+)[ \t]*\(')
+
+
+def php_magic_methods(node, src):
+    """Métodos mágicos que declara el PHPDoc de la clase (`@method Tipo nombre(…)`, servidos por `__call`):
+    (nombre, línea, tipo de retorno)."""
+    prev = node.prev_named_sibling
+    if prev is None or prev.type != 'comment' or not text(prev, src).startswith('/**'):
+        return []
+    out = []
+    for m in PHP_MAGIC.finditer(src, prev.start_byte, prev.end_byte):
+        out.append((m.group(2).decode('utf-8', 'replace'), src.count(b'\n', 0, m.start()) + 1,
+                    (m.group(1) or b'').decode('utf-8', 'replace') or None))
+    return out
+
+
 def php_imports(node, src):
     if node.type != 'namespace_use_declaration':
         target = string_value(node, src)
@@ -455,6 +763,44 @@ def include_imports(node, src):
     if path.type == 'system_lib_string':
         return [('angle', text(path, src).strip().strip('<>').strip(), None)]
     return [('relpath', strip_quotes(text(path, src)), None)]
+
+
+def cfg_value(pred):
+    """Valor de un predicado `cfg(…)` en Linux x86-64 (el entorno de los índices): True, False o None si no se sabe."""
+    pred = pred.strip()
+    m = re.fullmatch(r'(not|any|all)\s*\((.*)\)', pred, re.S)
+    if m:
+        parts, depth, cur = [], 0, ''
+        for c in m.group(2):
+            depth += (c == '(') - (c == ')')
+            if c == ',' and depth == 0:
+                parts.append(cur)
+                cur = ''
+            else:
+                cur += c
+        values = [cfg_value(p) for p in parts + [cur] if p.strip()]
+        if m.group(1) == 'not':
+            return None if not values or values[0] is None else not values[0]
+        if m.group(1) == 'any':
+            return True if True in values else None if None in values else False
+        return False if False in values else None if None in values else True
+    if pred in ('unix', 'target_family = "unix"'):
+        return True
+    if pred in ('windows', 'target_family = "windows"', 'target_family = "wasm"'):
+        return False
+    m = re.fullmatch(r'target_os\s*=\s*"(\w+)"', pred)
+    return m.group(1) == 'linux' if m else None
+
+
+def rust_cfg_off(node, src):
+    """Ítem con `#[cfg(…)]` que no se compila en Linux (`#[cfg(windows)]`): si tiene un gemelo activo, el nodo es ese."""
+    prev = node.prev_named_sibling
+    while prev is not None and prev.type in ('attribute_item', 'line_comment', 'block_comment'):
+        m = re.fullmatch(r'#\[\s*cfg\s*\((.*)\)\s*\]', text(prev, src).strip(), re.S) if prev.type == 'attribute_item' else None
+        if m and cfg_value(m.group(1)) is False:
+            return True
+        prev = prev.prev_named_sibling
+    return False
 
 
 def rust_test(node, src):
@@ -505,14 +851,215 @@ def type_ref(node, src, parents):
     return prefix, text(node, src)
 
 
+def ruby_accessors(node, src):
+    return [name for name, _ in ruby_accessor_sites(node, src)]
+
+
+def ruby_accessor_sites(node, src):
+    """(método, línea del símbolo) que declara una llamada en el cuerpo de una clase: `attr_reader :a` (`a`),
+    `attr_accessor :a` (`a`, `a=`) y los delegadores de `Forwardable` (`def_delegators :obj, :a, :b`;
+    `def_delegator :obj, :m, :alias`). La línea es la del símbolo, que puede ir en otra línea de la llamada."""
+    method, args = node.child_by_field_name('method'), node.child_by_field_name('arguments')
+    kind = text(method, src) if method is not None and node.child_by_field_name('receiver') is None else ''
+    if args is None:
+        return []
+    if kind in RUBY_DELEGATORS:
+        # solo en el cuerpo de la clase (dentro de un bloque cualquiera, `self` es otro objeto)
+        holder = node.parent.parent if node.parent is not None and node.parent.type == 'body_statement' else None
+        if holder is None or holder.type not in ('class', 'module', 'singleton_class') and \
+                not (holder.type == 'do_block' and holder.parent is not None and holder.parent.parent is not None and
+                     ruby_struct_class(holder.parent.parent, src)):
+            return []
+        kids = args.named_children
+        if len(kids) < 2 or any(a.type != 'simple_symbol' for a in kids[1:]):
+            return []
+        names = [(text(a, src)[1:], a.start_point[0] + 1) for a in kids[1:]]
+        return names if kind.endswith('s') else names[-1:] if len(names) == 2 else names[:1]
+    if kind not in RUBY_ACCESSORS:
+        return []
+    return [(text(a, src).lstrip(':') + suffix, a.start_point[0] + 1) for a in args.named_children if a.type == 'simple_symbol'
+            for suffix in RUBY_ACCESSORS[kind]]
+
+
+def ruby_struct_class(node, src):
+    """`Stub = Struct.new(:host, :path) do … end` (o `Data.define(:a)`): la constante es una clase con un accesor por
+    miembro y los métodos del bloque. Devuelve (nombre, accesores, bloque) o None."""
+    if node.type != 'assignment':
+        return None
+    left, right = node.child_by_field_name('left'), node.child_by_field_name('right')
+    if left is None or left.type != 'constant' or right is None or right.type != 'call':
+        return None
+    recv, method = right.child_by_field_name('receiver'), right.child_by_field_name('method')
+    if recv is None or method is None:
+        return None
+    kind = (text(recv, src).removeprefix('::'), text(method, src))
+    if kind not in (('Struct', 'new'), ('Data', 'define')):
+        return None
+    args = right.child_by_field_name('arguments')
+    names = [text(a, src)[1:] for a in (args.named_children if args is not None else ()) if a.type == 'simple_symbol']
+    block = right.child_by_field_name('block')
+    body = block.child_by_field_name('body') if block is not None else None
+    own = {text(m.child_by_field_name('name'), src) for m in (body.named_children if body is not None else ())
+           if m.type == 'method' and m.child_by_field_name('name') is not None}
+    suffixes = ('',) if kind[0] == 'Data' else ('', '=')
+    return text(left, src), [n + x for n in names for x in suffixes if n + x not in own], body
+
+
+def ruby_function_name(node, src):
+    """Nombre tal cual: `body=` (escritura), `<=>`, `[]`, `call!`."""
+    name = node.child_by_field_name('name')
+    return None, (text(name, src) if name is not None and name.type in ('setter', 'operator') else last_name(name, src) if name is not None else None)
+
+
+def ruby_singleton(node):
+    """`def self.x` o un `def` dentro de `class << self`: método de la clase, no de sus instancias."""
+    if node.type == 'singleton_method':
+        return True
+    cur = node.parent
+    while cur is not None and cur.type not in ('class', 'module'):
+        if cur.type == 'singleton_class':
+            return True
+        cur = cur.parent
+    return False
+
+
+def ruby_owner_name(node, src):
+    cur = node.parent
+    while cur is not None and cur.type not in ('class', 'module'):
+        cur = cur.parent
+    return last_name(cur.child_by_field_name('name'), src) if cur is not None else None
+
+
+def ruby_instance_methods(root, src):
+    """(clase, método) de instancia: un método de clase homónimo (`def self.call` junto a `def call`) es otro nodo."""
+    out, stack = set(), [root]
+    while stack:
+        n = stack.pop()
+        stack.extend(n.named_children)
+        if n.type == 'method' and not ruby_singleton(n):
+            owner, name = ruby_owner_name(n, src), ruby_function_name(n, src)[1]
+            if owner and name:
+                out.add((owner, name))
+    return out
+
+
+def ruby_alias(node, src):
+    """`alias nuevo viejo` o `alias_method :nuevo, :viejo`: (nuevo, viejo)."""
+    if node.type == 'alias':
+        names = [text(c, src).lstrip(':') for c in node.named_children]
+        return tuple(names) if len(names) == 2 else None
+    method, args = node.child_by_field_name('method'), node.child_by_field_name('arguments')
+    if method is None or text(method, src) != 'alias_method' or args is None or node.child_by_field_name('receiver') is not None:
+        return None
+    names = [text(a, src).lstrip(':').strip('\'"') for a in args.named_children if a.type in ('simple_symbol', 'string')]
+    return tuple(names) if len(names) == 2 else None
+
+
+def ruby_mixins(node, src):
+    """`include M`, `extend M`, `prepend M` en el cuerpo de una clase: M aporta métodos como una base."""
+    method, args = node.child_by_field_name('method'), node.child_by_field_name('arguments')
+    if node.type != 'call' or method is None or args is None or node.child_by_field_name('receiver') is not None or \
+            text(method, src) not in ('include', 'extend', 'prepend'):
+        return []
+    return [last_name(a, src) for a in args.named_children if a.type in ('constant', 'scope_resolution') and last_name(a, src)]
+
+
+def ruby_locals(scope, src):
+    key = (id(src), scope.start_byte, scope.end_byte)
+    if RUBY_LOCALS.get('src') is not src:
+        RUBY_LOCALS.clear()
+        RUBY_LOCALS['src'] = src
+    if key not in RUBY_LOCALS:
+        found, stack = set(), list(scope.named_children)
+        while stack:
+            n = stack.pop()
+            if n.type in RUBY_BOUNDARIES or n.type in RUBY_BLOCKS:
+                if n.type in RUBY_BLOCKS:
+                    params = n.child_by_field_name('parameters')
+                    stack += [params] if params is not None and n is not scope else []
+                continue
+            if n.type in RUBY_BINDERS:
+                targets = [n.child_by_field_name('left')] if n.type in ('assignment', 'operator_assignment') else [n]
+                for target in targets:
+                    if target is not None and target.type in ('element_reference', 'call'):
+                        stack.append(target)
+                    elif target is not None and target.type == 'identifier':
+                        found.add(text(target, src))
+                    elif target is not None:
+                        found.update(text(x, src) for x in target.named_children if x.type == 'identifier')
+                        stack += [x for x in target.named_children if x.type != 'identifier']
+            stack += n.named_children
+        params = scope.child_by_field_name('parameters')
+        if params is not None:
+            found.update(text(x, src) for x in params.named_children if x.type == 'identifier')
+            found.update(text(x.child_by_field_name('name'), src) for x in params.named_children if x.child_by_field_name('name') is not None)
+        RUBY_LOCALS[key] = found
+    return RUBY_LOCALS[key]
+
+
+def ruby_bare(node, src):
+    if RUBY_BARE.get('src') is not src:
+        RUBY_BARE.clear()
+        RUBY_BARE['src'] = src
+    key = (node.start_byte, node.end_byte)
+    if key not in RUBY_BARE:
+        RUBY_BARE[key] = ruby_bare_name(node, src)
+    return list(RUBY_BARE[key])
+
+
+def ruby_bare_name(node, src):
+    parent = node.parent
+    default = parent is not None and parent.type in ('optional_parameter', 'keyword_parameter', 'pair') and \
+        parent.child_by_field_name('value') == node
+    if parent is None or parent.type in RUBY_NOT_CALLS and not default or parent.type == 'call' and parent.child_by_field_name('method') == node:
+        return []
+    if parent.type in ('assignment', 'operator_assignment') and parent.child_by_field_name('left') == node:
+        return []
+    name, scope = text(node, src), parent
+    while scope is not None:
+        if (scope.type in RUBY_BLOCKS or scope.type in RUBY_BOUNDARIES) and name in ruby_locals(scope, src):
+            return []
+        if scope.type in RUBY_BOUNDARIES:
+            break
+        scope = scope.parent
+    return [name]
+
+
+def ruby_struct_members(node, src):
+    """Accesores que genera `class X < Struct.new(:a, :b)` (o `Data.define(:a)`): no son nodos, pero un método del
+    proyecto con ese nombre deja de ser el único candidato para un receptor sin tipo."""
+    sup = node.child_by_field_name('superclass')
+    call = sup.named_children[0] if sup is not None and sup.named_children else None
+    head = (call.child_by_field_name('receiver'), call.child_by_field_name('method')) if call is not None and call.type == 'call' else ()
+    if None in head or tuple(text(x, src) for x in head) not in (('Struct', 'new'), ('Data', 'define')):
+        return set()
+    args = call.child_by_field_name('arguments')
+    names = {text(a, src).lstrip(':') for a in (args.named_children if args is not None else ()) if a.type == 'simple_symbol'}
+    return names | {x + '=' for x in names}
+
+
+def ruby_index(node, src):
+    """`self[k]` y `self[k] = v` llaman a los métodos `[]` y `[]=` de la propia clase."""
+    obj, parent = node.child_by_field_name('object'), node.parent
+    if obj is None or obj.type != 'self':
+        return []
+    write = parent is not None and parent.type in ('assignment', 'operator_assignment') and parent.child_by_field_name('left') == node
+    return ['self', '[]=' if write else '[]']
+
+
 def ruby_import(node, src):
     method = node.child_by_field_name('method')
     if method is None or node.child_by_field_name('receiver') is not None:
         return []
     kind = text(method, src)
-    if kind not in ('require', 'require_relative', 'load'):
+    if kind not in ('require', 'require_relative', 'load', 'autoload'):
         return []
-    target = string_value(node.child_by_field_name('arguments') or node, src)
+    args = node.child_by_field_name('arguments')
+    if kind == 'autoload':
+        found = [a for a in args.named_children if a.type == 'string'] if args is not None else []
+        target = strip_quotes(text(found[-1], src)) if found else None
+    else:
+        target = string_value(args or node, src)
     if not target:
         return []
     return [('relpath' if kind != 'require' else 'suffix', target, None)]
@@ -543,9 +1090,11 @@ def bash_import(node, src):
 
 
 def dart_body(node):
-    holder = node.parent if node.parent is not None and node.parent.type == 'method_signature' else node
-    after = holder.next_named_sibling
-    return after if after is not None and after.type == 'function_body' else None
+    """Cuerpo de la función y, en un constructor, su lista de inicialización (`: _x = Scanner(s), super(…)`)."""
+    holder = node.parent if node.parent is not None and node.parent.type in ('method_signature', 'declaration') else node
+    after = holder.next_named_sibling if holder.type != 'declaration' else None
+    parts = [after] if after is not None and after.type == 'function_body' else []
+    return parts + [c for c in (holder.named_children if holder is not node else ()) if c.type in ('initializers', 'redirection')]
 
 
 def dart_invokes(node):
@@ -569,6 +1118,74 @@ def dart_callee(node, src):
     return parts[-2:]
 
 
+def dart_generic_parts(node, src):
+    """`Caja<T>(x)`, `Caja<T>(a: x).m()` o `Clase.crear<T>(x)`: la gramática de Dart lo lee como dos comparaciones
+    (`Caja < T > (x)`); escrito sin espacios y con un nombre de clase (o un miembro de una clase), es la llamada
+    genérica. Devuelve (partes del nombre, nodo de los argumentos) o None."""
+    kids = node.named_children
+    if len(kids) < 3 or kids[1].type != 'relational_operator' or text(kids[1], src) != '>' or \
+            kids[2].type not in ('parenthesized_expression', 'record_literal') or kids[1].end_byte != kids[2].start_byte or \
+            kids[0].type != 'relational_expression' or any(k.type != 'selector' for k in kids[3:]):
+        return None
+    inner = kids[0].named_children
+    if len(inner) < 3 or inner[0].type != 'identifier' or inner[-2].type != 'relational_operator' or \
+            text(inner[-2], src) != '<' or inner[-3].end_byte != inner[-2].start_byte or \
+            inner[-1].start_byte != inner[-2].end_byte or inner[-1].type not in ('identifier', 'type_identifier') or \
+            kids[1].start_byte != inner[-1].end_byte:
+        return None
+    parts = [text(inner[0], src)]
+    for sel in inner[1:-2]:
+        found = leaves(sel, src) if sel.type == 'selector' and not dart_invokes(sel) else None
+        if not found:
+            return None
+        parts.append(found[-1])
+    if len(parts) > 2 or not parts[0].lstrip('_')[:1].isupper():
+        return None
+    return parts, kids[2]
+
+
+def dart_generic_call(node, src):
+    found = dart_generic_parts(node, src)
+    return found[0] if found else []
+
+
+def dart_constructor_call(node, src):
+    """`_Wrapper<T>.seeded(x)`: constructor con nombre de una clase genérica (`constructor_invocation`)."""
+    tid = next((c for c in node.named_children if c.type == 'type_identifier'), None)
+    name = next((c for c in node.named_children if c.type == 'identifier'), None)
+    return [text(tid, src), text(name, src)] if tid is not None and name is not None else []
+
+
+def dart_delegation(node, src):
+    """`: super._(…)` o `: this._(…)` en un constructor: llamada al constructor con nombre de la base o de la propia clase."""
+    head = node.named_children[0] if node.named_children else None
+    name = next((c for c in node.named_children if c.type == 'identifier'), None)
+    if head is None or head.type not in ('super', 'this') or name is None or not any(c.type == 'arguments' for c in node.named_children):
+        return []
+    return [head.type, text(name, src)]
+
+
+def dart_cascade(node, src):
+    """`..metodo(…)` de una cascada: llamada sobre el receptor de la cascada."""
+    sel = next((c for c in node.named_children if c.type == 'cascade_selector'), None)
+    if sel is None or not any(c.type == 'argument_part' for c in node.named_children):
+        return []
+    name = next((c for c in sel.named_children if c.type == 'identifier'), None)
+    return ['', text(name, src)] if name is not None else []
+
+
+def dart_function_name(node, src):
+    """Los constructores con nombre (`A.empty(…)`, `factory A.from(…)`) se llaman como su segunda parte."""
+    if node.type in ('constructor_signature', 'factory_constructor_signature', 'constant_constructor_signature'):
+        idents = [c for c in node.named_children if c.type == 'identifier']
+        return None, text(idents[-1], src) if idents else None
+    if node.type == 'operator_signature':
+        params = node.child_by_field_name('parameters') or next((c for c in node.named_children if c.type == 'formal_parameter_list'), None)
+        head = src[node.start_byte:params.start_byte if params is not None else node.end_byte].decode('utf-8', 'replace')
+        return None, head.rsplit('operator', 1)[-1].strip() or None
+    return None, last_name(node.child_by_field_name('name'), src)
+
+
 def dart_bases(node, src):
     kinds = {'superclass', 'interfaces', 'mixins'} | ({'type_identifier'} if node.type == 'mixin_declaration' else set())
     return [x for c in node.named_children if c.type in kinds for x in base_names(c, src)]
@@ -581,8 +1198,13 @@ def dart_import(node, src):
     alias = next((text(c, src) for c in node.named_children if c.type == 'identifier'), None)
     if target.startswith('package:'):
         pkg, _, path = target[len('package:'):].partition('/')
-        return [('dartpkg', (pkg, path), alias)] if path else []
-    return [('relpath', target, alias)]
+        out = [('dartpkg', (pkg, path), alias)] if path else []
+    else:
+        out = [('relpath', target, alias)]
+    shown = tuple(text(i, src) for c in node.named_children if c.type == 'combinator' and text(c, src).startswith('show')
+                  for i in c.named_children if i.type == 'identifier')
+    # la clase de directiva (import, export, part, part of) y los nombres de `show`, para `Linker.dart_scopes`
+    return out + [('dartdir', (node.type,) + out[0][:2], shown)] if out else []
 
 
 EX_DEFS = {'def', 'defp', 'defmacro', 'defmacrop', 'defguard', 'defguardp', 'defdelegate', 'defn', 'defnp'}
@@ -1133,8 +1755,24 @@ ANNOTATED = {'java', 'kotlin', 'scala', 'groovy', 'dart', 'swift'}
 MOD_TYPES = {'modifiers', 'modifier', 'visibility_modifier', 'access_modifier', 'storage_class_specifier', 'visibility'}
 MOD_WORDS = {'pub', 'public', 'private', 'protected', 'internal', 'static', 'local', 'open', 'fileprivate', 'external'}
 EX_PRIVATE = {'defp', 'defmacrop', 'defguardp', 'defnp'}
+RUBY_LOCALS = {}
+RUBY_BARE = {}
+RUBY_BLOCKS = {'block', 'do_block', 'lambda'}
+RUBY_BOUNDARIES = {'method', 'singleton_method', 'class', 'module', 'singleton_class', 'program'}
+RUBY_BINDERS = {'assignment', 'operator_assignment', 'exception_variable', 'for', 'block_parameters', 'lambda_parameters',
+                'method_parameters'}
+RUBY_NOT_CALLS = {'method', 'singleton_method', 'method_parameters', 'block_parameters', 'lambda_parameters', 'keyword_parameter',
+                  'optional_parameter', 'splat_parameter', 'hash_splat_parameter', 'block_parameter', 'left_assignment_list',
+                  'rest_assignment', 'exception_variable', 'for', 'alias', 'undef', 'destructured_left_assignment',
+                  'destructured_parameter', 'pair', 'block_argument', 'setter'}
+RUBY_ACCESSORS = {'attr_reader': ('',), 'attr_writer': ('=',), 'attr_accessor': ('', '=')}
+RUBY_DELEGATORS = {'def_delegators', 'def_instance_delegators', 'def_delegator', 'def_instance_delegator'}
 RUBY_SECTIONS = {'private', 'protected', 'public', 'module_function', 'private_class_method'}
 JAVA_DEFAULT = {'java': 'internal'}
+TYPED_LANGS = {'java', 'kotlin', 'rust', 'dart', 'php', 'csharp', 'ruby'}
+RUST_NESTED_ITEMS = {'function_item', 'struct_item', 'enum_item', 'union_item', 'trait_item', 'impl_item', 'type_item'}
+RUST_MACRO_SKIP = {'attribute_item', 'inner_attribute_item', 'attribute', 'macro_definition', 'macro_rule'}
+CALLS_KOTLIN = {'call_expression': (None,), 'constructor_invocation': (None,), 'constructor_delegation_call': (None,)}
 C_SYSTEM = ('sys/', 'bits/', 'linux/', 'arpa/', 'netinet/', 'net/', 'mach/', 'mach-o/', 'asm/', 'machine/')
 EXTERN_STD = {
     'swift': STD_ROOTS['swift'] | {'XCTest', 'Darwin', 'Glibc', 'os', 'CoreGraphics', 'CoreData', 'CoreFoundation',
@@ -1199,19 +1837,38 @@ def decorated(node):
     return 'annotation' in node.type or 'attribute' in node.type or 'comment' in node.type
 
 
-def header_start(node):
+def header_anchor(node):
+    """Primer elemento de la declaración tras sus anotaciones o atributos (`@Deprecated(…)`, `[Attr]`)."""
     skipped = False
     for c in node.children:
         if c.type in ('modifiers', 'modifier') and c.child_count:
             inner = next((x for x in c.children if not decorated(x)), None)
             if inner is not None:
-                return inner.start_byte if inner.start_byte > c.start_byte else (c.start_byte if skipped else node.start_byte)
+                return inner if inner.start_byte > c.start_byte else (c if skipped else node)
             skipped = True
             continue
         if not decorated(c):
-            return c.start_byte if skipped else node.start_byte
+            return c if skipped else node
         skipped = True
-    return node.start_byte
+    return node
+
+
+def header_start(node):
+    return header_anchor(node).start_byte
+
+
+def decl_line(node):
+    """Línea de una definición: la de su declaración, sin las anotaciones o atributos que la preceden (como el `def` de
+    Python tras sus decoradores); un bloque de anotaciones largo no aleja la definición de su nombre."""
+    return header_anchor(node).start_point[0] + 1
+
+
+def placed(node, line=None):
+    """Posición de un nodo: `line` es su primera línea, con las anotaciones o atributos (`@Query("…")`, que los puentes
+    leen dentro del rango del nodo), y `decl` la de la declaración cuando es otra."""
+    start = line or node.start_point[0] + 1
+    decl = line or decl_line(node)
+    return {'line': start, 'decl': decl} if decl != start else {'line': start}
 
 
 def signature(node, src, lang, anchor):
@@ -1503,10 +2160,10 @@ LANGS = {
     ),
     'rust': dict(
         exts=('.rs',), grammar=('tree_sitter_rust', 'language'), family='rust',
-        classes={'struct_item', 'enum_item', 'trait_item', 'union_item'},
+        classes={'struct_item', 'enum_item', 'trait_item', 'union_item', 'type_item'}, class_bases=rust_supertraits,
         functions={'function_item', 'function_signature_item'}, owner=rust_owner, owner_bases=rust_bases,
-        calls={'call_expression': ('function',), 'struct_expression': ('name',)},
-        imports={'use_declaration': rust_imports, 'mod_item': rust_imports},
+        calls={'call_expression': ('function',), 'struct_expression': ('name',), 'token_tree': rust_macro_callee},
+        imports={'use_declaration': rust_imports, 'mod_item': rust_imports, 'extern_crate_declaration': rust_imports},
         types=({'type_identifier'}, None), tests=rust_test,
     ),
     'java': dict(
@@ -1514,14 +2171,17 @@ LANGS = {
         classes={'class_declaration', 'interface_declaration', 'enum_declaration', 'record_declaration',
                  'annotation_type_declaration'},
         functions={'method_declaration'}, bases={'superclass', 'super_interfaces'},
-        calls={'method_invocation': ('object', 'name'), 'object_creation_expression': ('type',)},
+        calls={'method_invocation': ('object', 'name'), 'object_creation_expression': ('type',),
+               'explicit_constructor_invocation': ('constructor',)},
+        anonymous={'enum_constant', 'object_creation_expression'},
         imports={'import_declaration': dotted_imports(r'^import (static )?', ' as ', {'*'})},
         package={'package_declaration'}, types=({'type_identifier'}, None),
     ),
     'kotlin': dict(
         exts=('.kt', '.kts'), grammar=('tree_sitter_kotlin', 'language'), family='jvm',
-        classes={'class_declaration', 'object_declaration'}, functions={'function_declaration'},
-        bases={'delegation_specifiers', 'delegation_specifier'}, calls=CALLS_JVM,
+        classes={'class_declaration', 'object_declaration', 'companion_object', 'type_alias'}, functions={'function_declaration'},
+        class_name=kt_class_name, bases={'delegation_specifiers', 'delegation_specifier'}, calls=CALLS_KOTLIN,
+        anonymous={'object_literal'},
         imports={'import': dotted_imports(r'^import ', ' as ', {'*'})}, package={'package_header'},
         types=({'identifier'}, {'user_type'}),
     ),
@@ -1536,9 +2196,10 @@ LANGS = {
     'csharp': dict(
         exts=('.cs',), grammar=('tree_sitter_c_sharp', 'language'), family='csharp',
         classes={'class_declaration', 'interface_declaration', 'struct_declaration', 'record_declaration',
-                 'enum_declaration'},
+                 'enum_declaration', 'delegate_declaration'},
         functions={'method_declaration'}, bases={'base_list'},
-        calls={'invocation_expression': ('function',), 'object_creation_expression': ('type',)},
+        calls={'invocation_expression': ('function',), 'object_creation_expression': ('type',),
+               'constructor_initializer': (None,), 'attribute': ('name',)},
         imports={'using_directive': csharp_imports},
         package={'namespace_declaration', 'file_scoped_namespace_declaration'},
         types=({'identifier'}, {'generic_name', 'type_argument_list', 'qualified_name', 'nullable_type', 'array_type',
@@ -1547,9 +2208,10 @@ LANGS = {
     'php': dict(
         exts=('.php',), grammar=('tree_sitter_php', 'language_php'), family='php',
         classes={'class_declaration', 'interface_declaration', 'trait_declaration', 'enum_declaration'},
-        functions={'method_declaration', 'function_definition'}, bases={'base_clause', 'class_interface_clause'},
+        functions={'method_declaration', 'function_definition'}, class_bases=php_bases,
         calls={'function_call_expression': ('function',), 'member_call_expression': ('object', 'name'),
-               'scoped_call_expression': ('scope', 'name'), 'object_creation_expression': (None,)},
+               'nullsafe_member_call_expression': ('object', 'name'), 'scoped_call_expression': ('scope', 'name'),
+               'object_creation_expression': (None,), 'attribute': (None,)},
         imports={'namespace_use_declaration': php_imports, 'require_expression': php_imports,
                  'require_once_expression': php_imports, 'include_expression': php_imports,
                  'include_once_expression': php_imports},
@@ -1558,7 +2220,8 @@ LANGS = {
     'ruby': dict(
         exts=('.rb', '.rake', '.gemspec', '.ru', '.podspec', '.jbuilder', '.thor'), grammar=('tree_sitter_ruby', 'language'), family='ruby',
         classes={'class', 'module'}, namespaces={'module'}, functions={'method', 'singleton_method'}, bases={'superclass'},
-        calls={'call': ('receiver', 'method')}, imports={'call': ruby_import},
+        fn_name=ruby_function_name,
+        calls={'call': ('receiver', 'method'), 'identifier': ruby_bare, 'element_reference': ruby_index}, imports={'call': ruby_import},
     ),
     'c': dict(
         exts=('.c',), grammar=('tree_sitter_c', 'language'), family='c',
@@ -1593,10 +2256,13 @@ LANGS = {
     'dart': dict(
         exts=('.dart',), grammar=('tree_sitter_dart', 'language'), family='dart',
         classes={'class_definition', 'mixin_declaration', 'enum_declaration', 'extension_declaration',
-                 'extension_type_declaration'}, class_name=first_ident, class_bases=dart_bases,
+                 'extension_type_declaration', 'type_alias'}, class_name=first_ident, class_bases=dart_bases,
         functions={'function_signature', 'getter_signature', 'setter_signature', 'constructor_signature',
                    'factory_constructor_signature', 'constant_constructor_signature', 'operator_signature'},
-        body=dart_body, calls={'selector': dart_callee, 'new_expression': (None,), 'const_object_expression': (None,)},
+        fn_name=dart_function_name, body=dart_body,
+        calls={'selector': dart_callee, 'new_expression': (None,), 'const_object_expression': (None,),
+               'cascade_section': dart_cascade, 'initializer_list_entry': dart_delegation, 'redirection': dart_delegation,
+               'relational_expression': dart_generic_call, 'constructor_invocation': dart_constructor_call},
         imports={'import_specification': dart_import, 'library_export': dart_import, 'part_directive': dart_import,
                  'part_of_directive': dart_import},
         types=({'type_identifier'}, None),
@@ -1763,10 +2429,15 @@ class Unit:
         self.foreign = set()
         self.fnodes = {}
         self.decls = defaultdict(list)
+        self.values = set()
+        self.selectors = []
         self.gtypes = {}
         self.gvars = []
+        self.idents = []
         self.build = None
         self.enabled = True
+        self.class_ctx = {}
+        self.class_keys = {}
 
 
 class Family:
@@ -1778,17 +2449,29 @@ class Family:
         self.methods_by_name = defaultdict(list)
         self.by_package = defaultdict(list)
         self.fqn = {}
+        self.method_aliases = []
+        self.ruby_roots = set()
+        self.dynamic = set()
 
 
 def read_unit(g, family, rel, lang, src, digest, skip_tests=False):
     spec = LANGS[lang]
+    raw = src
+    if b'\0' in src:
+        src = src.replace(b'\0', b' ')  # tree-sitter corta el análisis en un byte NUL (aunque esté en un comentario)
+    if lang == 'csharp':
+        src = csharp_fixups(blank_branches(src, dotnet_branch))
+    elif lang == 'kotlin':
+        src = kotlin_fixups(src)
     tree = parser_for(lang).parse(src)
-    mid = g.node(f'm:{rel}', kind='module', name=rel.rsplit('/', 1)[-1], file=rel, line=1, lang=lang, hash=digest(src))
+    mid = g.node(f'm:{rel}', kind='module', name=rel.rsplit('/', 1)[-1], file=rel, line=1, lang=lang, hash=digest(raw))
     g.nodes[mid].setdefault('end', line_count(src))
     found = module_doc(src, lang)
     if found:
         g.nodes[mid].setdefault('doc', found)
     u = Unit(rel, lang, src, mid)
+    if lang == 'ruby':
+        u.tree = tree
     classes, functions = spec['classes'], spec['functions']
     calls, imports, packages = spec['calls'], spec.get('imports', {}), spec.get('package', set())
     bases, namespaces = spec.get('bases', set()), spec.get('namespaces', set())
@@ -1797,27 +2480,37 @@ def read_unit(g, family, rel, lang, src, digest, skip_tests=False):
     type_idents, type_parents = spec.get('types', (set(), None))
     refs, is_test = spec.get('refs', set()), spec.get('tests') if skip_tests else None
     collect_types, collect = spec.get('collect', (set(), None))
+    anonymous = spec.get('anonymous', set())
     spaces, detached = set(), {}
+    shadowed = ruby_instance_methods(tree.root_node, src) if lang == 'ruby' else set()
     if lang == 'go':
         u.build, u.enabled = go_enabled(rel, src)
 
-    def declare_method(owner, name, node, cid):
-        fid = g.node(f'f:{rel}:{owner}.{name}', kind='method', name=f'{owner}.{name}', file=rel,
-                     line=node.start_point[0] + 1, lang=lang, hash=digest(src[node.start_byte:node.end_byte]),
+    def declare_method(owner, name, node, cid, line=None):
+        key = f'{owner}.self.{name}' if lang == 'ruby' and (owner, name) in shadowed and ruby_singleton(node) else f'{owner}.{name}'
+        fid = g.node(f'f:{rel}:{key}', kind='method', name=key, file=rel,
+                     **placed(node, line), lang=lang, hash=digest(src[node.start_byte:node.end_byte]),
                      **describe(node, src, lang, 'method', name))
         g.edge(cid or mid, fid, 'contains')
         add(family.methods[(owner, name)], fid)
         add(family.methods_by_name[name], fid)
         return fid
 
-    stack = [(tree.root_node, None, None, mid, False)]
-    while stack:
+    stack, later = [(tree.root_node, None, None, mid, False)], [] if lang == 'rust' else None
+    while stack or later:
+        if not stack:
+            stack, later = later[::-1], None
         n, ctx, ctx_id, owner_id, in_fn = stack.pop()
+        if later is not None and n.type in RUST_NESTED_ITEMS and rust_cfg_off(n, src):
+            later.append((n, ctx, ctx_id, owner_id, in_fn))
+            continue
         if n.id in detached:
             ctx, ctx_id, owner_id, in_fn = *detached.pop(n.id), True
         t = n.type
         if is_test and is_test(n, src):
             continue
+        if in_fn and nested_item(lang, n):
+            ctx, ctx_id, in_fn = None, None, False
         if t in type_idents:
             found = type_ref(n, src, type_parents)
             if found:
@@ -1826,8 +2519,13 @@ def read_unit(g, family, rel, lang, src, digest, skip_tests=False):
             operand, field = n.child_by_field_name('operand'), n.child_by_field_name('field')
             if operand is not None and field is not None and operand.type == 'identifier':
                 u.refs.setdefault((text(operand, src), text(field, src)), None)
+            if lang == 'go' and in_fn and not (n.parent is not None and n.parent.type == 'call_expression' and
+                                               n.parent.child_by_field_name('function') == n):
+                u.selectors.append((owner_id, n))
         if t in calls:
             u.calls.append((owner_id, ctx, n))
+        if lang == 'go' and t == 'identifier' and go_value_ref(n):
+            u.idents.append((owner_id, n))
         if t in collect_types:
             collect(u, n, owner_id, in_fn)
         if t in imports:
@@ -1840,6 +2538,19 @@ def read_unit(g, family, rel, lang, src, digest, skip_tests=False):
                 found = doc_paragraph(comment_lines(src, n.start_byte, lang), lang)
                 if found:
                     g.nodes[mid]['doc'] = found
+        if not in_fn and lang == 'ruby' and t in ('call', 'alias') and ctx:
+            for name, line in ruby_accessor_sites(n, src):
+                declare_method(ctx, name, n, ctx_id, line)
+            pair = ruby_alias(n, src)
+            if pair:
+                family.method_aliases.append((ctx, *pair))
+            mixins = ruby_mixins(n, src)
+            if mixins:
+                u.bases.append((ctx, ctx_id, mixins))
+        if not in_fn and t in anonymous:
+            for c in reversed(n.named_children):
+                stack.append((c, ctx, ctx_id, owner_id, True))
+            continue
         if not in_fn:
             owner = owner_of(n, src) if owner_of else None
             if owner:
@@ -1850,18 +2561,57 @@ def read_unit(g, family, rel, lang, src, digest, skip_tests=False):
                 for c in reversed(n.named_children):
                     stack.append((c, owner, None, owner_id, False))
                 continue
-            if t in classes:
+            struct = ruby_struct_class(n, src) if lang == 'ruby' and t == 'assignment' else None
+            if struct:
+                name, accessors, body = struct
+                key = name if u.class_ctx.setdefault(name, ctx) == ctx else f'{ctx}.{name}'
+                u.class_keys[n.start_byte] = key
+                cid = g.node(f'c:{rel}:{key}', kind='class', name=name, file=rel, **placed(n), lang=lang,
+                             hash=digest(src[n.start_byte:n.end_byte]), **describe(n, src, lang, 'class', name))
+                g.edge(ctx_id or mid, cid, 'contains')
+                add(family.classes_by_name[name], cid)
+                if ctx is None:
+                    family.ruby_roots.add(name)
+                if ctx is None or ctx_id in spaces:
+                    u.top.setdefault(name, cid)
+                    add(u.top_classes, name)
+                for accessor in accessors:
+                    declare_method(key, accessor, n, cid)
+                # nombres de datos genéricos (`query`, `host`): no son el único candidato para un receptor sin tipo
+                family.dynamic.update(accessors)
+                for c in reversed(body.named_children if body is not None else ()):
+                    stack.append((c, key, cid, cid, False))
+                continue
+            if t in classes and not (lang == 'rust' and rust_associated(n)):
                 name = class_name(n, src) if class_name else last_name(n.child_by_field_name('name'), src)
                 if name:
-                    cid = g.node(f'c:{rel}:{name}', kind='class', name=name, file=rel, line=n.start_point[0] + 1, lang=lang,
+                    key = name
+                    if lang == 'ruby':
+                        key = name if u.class_ctx.setdefault(name, ctx) == ctx else f'{ctx}.{name}'
+                        u.class_keys[n.start_byte] = key
+                        family.dynamic.update(ruby_struct_members(n, src))
+                    cid = g.node(f'c:{rel}:{key}', kind='class', name=name, file=rel, **placed(n), lang=lang,
                                  hash=digest(src[n.start_byte:n.end_byte]), **describe(n, src, lang, 'class', name))
                     g.edge(ctx_id or mid, cid, 'contains')
                     add(family.classes_by_name[name], cid)
+                    if ctx is None:
+                        family.ruby_roots.add(name)
                     if t in namespaces:
                         spaces.add(cid)
                     if ctx is None or ctx_id in spaces:
                         u.top.setdefault(name, cid)
                         add(u.top_classes, name)
+                    if lang == 'php':
+                        body = n.child_by_field_name('body')
+                        real = {text(m.child_by_field_name('name'), src) for m in (body.named_children if body is not None else ())
+                                if m.type == 'method_declaration' and m.child_by_field_name('name') is not None}
+                        for magic, line, _ in php_magic_methods(n, src):
+                            if magic not in real:
+                                fid = g.node(f'f:{rel}:{name}.{magic}', kind='method', name=f'{name}.{magic}', file=rel, line=line,
+                                             end=line, lang=lang, hash=digest(magic.encode()), vis='public')
+                                g.edge(cid, fid, 'contains')
+                                add(family.methods[(name, magic)], fid)
+                                add(family.methods_by_name[magic], fid)
                     if class_bases:
                         names = class_bases(n, src)
                     else:
@@ -1869,7 +2619,7 @@ def read_unit(g, family, rel, lang, src, digest, skip_tests=False):
                     if names:
                         u.bases.append((name, cid, names))
                     for c in reversed(n.named_children):
-                        stack.append((c, name, cid, cid, False))
+                        stack.append((c, key, cid, cid, False))
                     continue
             if t in functions:
                 owner, name = fn_name(n, src) if fn_name else (None, last_name(n.child_by_field_name('name'), src))
@@ -1878,16 +2628,21 @@ def read_unit(g, family, rel, lang, src, digest, skip_tests=False):
                     if owner:
                         fid = declare_method(owner, name, n, ctx_id if owner == ctx else None)
                     else:
-                        fid = g.node(f'f:{rel}:{name}', kind='function', name=name, file=rel, line=n.start_point[0] + 1,
+                        fid = g.node(f'f:{rel}:{name}', kind='function', name=name, file=rel, **placed(n),
                                      lang=lang, hash=digest(src[n.start_byte:n.end_byte]),
                                      **describe(n, src, lang, 'function', name))
                         g.edge(mid, fid, 'contains')
                         u.top.setdefault(name, fid)
                         add(family.top_by_name[name], fid)
                     u.fnodes.setdefault(fid, n)
-                    body = body_of(n) if body_of else None
-                    if body is not None:
+                    bodies = list(body_of(n) or ()) if body_of else []
+                    for body in bodies:
                         detached[body.id] = (owner, ctx_id, fid)
+                    last = max(bodies, key=lambda b: b.end_byte) if bodies else None
+                    if last is not None and last.end_byte > n.end_byte:
+                        # Dart: el cuerpo es hermano de la firma; el rango y el hash del nodo lo incluyen
+                        g.nodes[fid]['end'] = max(g.nodes[fid].get('end') or 0, last.end_point[0] + 1)
+                        g.nodes[fid]['hash'] = digest(src[n.start_byte:last.end_byte])
                     for c in reversed(n.named_children):
                         stack.append((c, owner, ctx_id, fid, True))
                     continue
@@ -1917,6 +2672,8 @@ class Linker:
         self.crates = self.find_markers('Cargo.toml', r'^name\s*=\s*"([^"]+)"')
         self.pubs = None
         self.derived = set()
+        self.packages_used = []
+        self.resolved = set()
         self.parents = defaultdict(list)
         self.tails = defaultdict(set)
         for pkg, rels in family.by_package.items():
@@ -1926,9 +2683,11 @@ class Linker:
         self.prefixes = None
         self.dirnames = None
         self.gotypes = None
+        self.go_package_names = {}
         self.govars = None
         self.envs = {}
         self.memo = {}
+        self.typer = None
 
     def find_markers(self, filename, pattern):
         found = {}
@@ -2047,6 +2806,23 @@ class Linker:
                 return found, segs[k:]
         return None, segs
 
+    def rust_follow(self, u, segs):
+        """Como `rust_resolve`, pero atraviesa reexportaciones (`pub use x as y;`, `pub use m::*;`) del archivo hallado."""
+        found, rest = self.rust_resolve(u, segs)
+        for _ in range(4):
+            unit = self.f.units.get(found) if found else None
+            if unit is None or not rest or rest[0] in unit.top or re.search(
+                    rb'\b(fn|struct|enum|trait|type|union|const|static|mod)\s+' + re.escape(rest[0].encode()) + rb'\b', unit.src):
+                break
+            hop = next((v + rest[1:] for kind, v, alias in unit.imports
+                        if kind in ('rust', 'rustcrate') and v and (alias or v[-1]) == rest[0]), None)
+            hops = [hop] if hop else [v + rest for kind, v, _ in unit.imports if kind == 'rustglob' and v]
+            nxt = next(((f, r) for f, r in (self.rust_resolve(unit, h) for h in hops) if f and f != found), None)
+            if nxt is None:
+                break
+            found, rest = nxt
+        return found, rest
+
     def go_module_dir(self, value):
         best = None
         for d, module in self.gomods.items():
@@ -2066,6 +2842,17 @@ class Linker:
                 hit = min(plain, key=lambda r: (-len(self.f.units[r].top) if r in self.f.units else 0, r))
             self.reps[key] = hit
         return self.reps[key]
+
+    def prune_packages(self):
+        if not self.packages_used:
+            return
+        used = defaultdict(set)
+        for (a, b, kind) in self.g.edges:
+            if kind not in ('import', 'contains', 'cochange'):
+                used[self.g.nodes[a].get('file')].add(self.g.nodes[b].get('file'))
+        for rel, rep, targets in self.packages_used:
+            if rep not in used[rel] and (rel, rep) not in self.resolved and any(r in used[rel] or (rel, r) in self.resolved for r in targets):
+                self.g.edges.pop((f'm:{rel}', f'm:{rep}', 'import'), None)
 
     def add_explicit(self, u, rel):
         if rel and rel != u.rel:
@@ -2127,7 +2914,10 @@ class Linker:
                 if targets:
                     declared = [p for r in targets if r in self.f.units for p in self.f.units[r].packages]
                     u.aliases[alias or (declared[0] if declared else value.rsplit('/', 1)[-1])] = ('files', targets)
-                    self.touch(u, self.representative(targets))
+                    rep = self.representative(targets)
+                    if rep not in u.explicit and (u.rel, rep) not in self.derived:
+                        self.packages_used.append((u.rel, rep, targets))
+                    self.touch(u, rep)
             elif kind == 'rustmod':
                 base, here = self.rust_module(u.rel)
                 found = self.rust_file(base, here + [value])
@@ -2137,7 +2927,7 @@ class Linker:
             elif kind in ('rust', 'rustglob'):
                 if not value:
                     continue
-                found, rest = self.rust_resolve(u, value)
+                found, rest = self.rust_follow(u, value)
                 if not found:
                     if kind == 'rust' and alias != '_' and value[0] not in ('crate', 'self', 'super'):
                         u.foreign.add(alias or value[-1])
@@ -2148,7 +2938,7 @@ class Linker:
                 if kind == 'rustglob':
                     u.wide.add(found)
                 elif rest:
-                    u.aliases[alias or rest[-1]] = ('item', found, rest[0])
+                    u.aliases[alias or value[-1]] = ('item', found, rest[0])
                 else:
                     u.aliases[alias or value[-1]] = ('files', [found])
             elif kind == 'fqn':
@@ -2156,14 +2946,19 @@ class Linker:
                 if target:
                     self.add_explicit(u, self.g.nodes[target]['file'])
                     u.aliases[alias or value.rsplit('.', 1)[-1]] = ('def', target)
-                elif '.' in value and self.f.fqn.get(value.rsplit('.', 1)[0]):
-                    owner = self.f.fqn[value.rsplit('.', 1)[0]]
-                    self.add_explicit(u, self.g.nodes[owner]['file'])
+                elif '.' in value and self.fqn_owner(value):
+                    self.add_explicit(u, self.g.nodes[self.fqn_owner(value)]['file'])
                 else:
                     hits = self.suffix(value.replace('.', '/'), exts) if u.lang == 'php' else []
+                    if u.lang == 'php' and '.' not in value:
+                        hits = [h for h in hits if h in self.f.units and not self.f.units[h].packages]
+                        if not hits:
+                            u.foreign.add(alias or value)
                     if len(hits) == 1:
                         self.add_explicit(u, hits[0])
-                    elif value not in self.f.by_package and not self.defined(alias or value.rsplit('.', 1)[-1]):
+                    elif value not in self.f.by_package and (not self.defined(alias or value.rsplit('.', 1)[-1]) or
+                                                             u.lang == 'php' and not hits and not self.internal(u, value)):
+                        # `use GuzzleHttp\Psr7\Request;` tapa la clase `Request` del proyecto en ese archivo
                         u.foreign.add(alias or value.rsplit('.', 1)[-1])
                     if not hits and not self.internal(u, value):
                         self.external(u, value.replace('.', '\\') if u.lang == 'php' else value)
@@ -2263,6 +3058,82 @@ class Linker:
                 elif not hits:
                     self.external(u, value)
 
+    def dart_target(self, u, kind, value):
+        if kind == 'relpath':
+            rel = self.norm(u.rel, value)
+            return rel if rel in self.files else None
+        if self.pubs is None:
+            self.pubs = self.find_markers('pubspec.yaml', r'^name:\s*([\w-]+)')
+        pkg, path = value
+        roots = sorted(d for d, name in self.pubs.items() if name == pkg)
+        return next((c for c in (posixpath.join(d, 'lib', path).lstrip('/') for d in roots) if c in self.files), None)
+
+    def dart_scopes(self):
+        """Ámbito de Dart: un archivo ve lo que reexportan (`export`, en cadena) las bibliotecas que importa; una parte
+        (`part of 'x.dart'`) comparte los imports y prefijos de su biblioteca; y los nombres de `show` son referencias a
+        sus definiciones (dependencia hacia el archivo que las define, aunque llegue a través de un barril)."""
+        units = {u.rel: u for u in self.f.units.values() if u.lang == 'dart'}
+        dirs = {}
+        for rel, u in units.items():
+            # cada directiva deja (relpath|dartpkg, valor, prefijo) seguido de su ('dartdir', (clase, …), nombres de show)
+            dirs[rel] = [(d[1][0], self.dart_target(u, d[1][1], d[1][2]), d[2], prev[2])
+                         for prev, d in zip(u.imports, u.imports[1:]) if d[0] == 'dartdir']
+        memo = {}
+
+        def closure(rel):
+            """[(archivo, nombres visibles o None)] de lo que exporta `rel`, en cadena, con los filtros `show`."""
+            if rel not in memo:
+                memo[rel], seen, queue = [], set(), [(rel, None)]
+                while queue:
+                    cur, names = queue.pop(0)
+                    if (cur, names) in seen or cur not in units or len(seen) > 400:
+                        continue
+                    seen.add((cur, names))
+                    memo[rel].append((cur, names))
+                    for kind, t, shown, _ in dirs[cur]:
+                        if kind == 'library_export' and t:
+                            limit = frozenset(shown) if shown else None
+                            queue.append((t, limit if names is None else names & limit if limit is not None else names))
+            return memo[rel]
+
+        for rel, u in units.items():
+            lib = next((t for kind, t, _, _ in dirs[rel] if kind == 'part_of_directive' and t in units), None)
+            imports = [d for d in dirs[rel] + (dirs[lib] if lib else []) if d[0] == 'import_specification' and d[1]]
+            for kind, target, shown, alias in imports:
+                reach = closure(target)
+                if alias:
+                    if u.aliases.get(alias) in (None, ('files', [target])):
+                        u.aliases[alias] = ('files', [f for f, names in reach if names is None])
+                    continue
+                for f, names in reach:
+                    if f == rel or f in u.explicit:
+                        continue
+                    if names is None:
+                        # al ámbito, no a `explicit`: no hay arista de import hasta que se use un nombre suyo
+                        u.scope.add(f)
+                    else:
+                        for name in names:
+                            if name in self.f.units[f].top:
+                                u.aliases.setdefault(name, ('def', self.f.units[f].top[name]))
+            for kind, target, shown, alias in dirs[rel]:
+                for name in shown if target and kind in ('import_specification', 'library_export') else ():
+                    self.add_explicit(u, next((f for f, names in closure(target) if (names is None or name in names) and
+                                               name in self.f.units[f].top), None))
+            if lib:
+                u.scope.update(f for f in [lib] + [t for kind, t, _, _ in dirs[lib] if kind == 'part_directive' and t]
+                               if f != rel and f not in u.explicit)
+                for alias, spec in units[lib].aliases.items():
+                    u.aliases.setdefault(alias, spec)
+
+    def fqn_owner(self, value):
+        """Declaración del proyecto que contiene a `value` (import de un miembro anidado: `a.B.Companion.C`)."""
+        parts = value.split('.')
+        for i in range(len(parts) - 1, 0, -1):
+            found = self.f.fqn.get('.'.join(parts[:i]))
+            if found:
+                return found
+        return None
+
     def unit_of(self, nid):
         return self.f.units.get(self.g.nodes[nid]['file'])
 
@@ -2277,10 +3148,23 @@ class Linker:
         same = [c for c in cands if self.g.nodes[c]['file'] == rel]
         if len(same) == 1:
             return same[0]
+        partial = self.partial_parts(cands)
+        if partial:
+            return partial
         near = [c for c in cands if os.path.dirname(self.g.nodes[c]['file']) == os.path.dirname(rel)]
         if len(near) == 1:
             return near[0]
         return self.twin(near or cands)
+
+    def partial_parts(self, cands):
+        """Las partes de una misma clase parcial de C# (`partial class X` en varios archivos del mismo espacio de nombres)
+        son un solo tipo: una referencia a él depende de una de ellas (la del primer archivo)."""
+        units = [self.unit_of(c) for c in cands]
+        if any(x is None or x.lang != 'csharp' for x in units) or len({str(self.g.nodes[c]['name']) for c in cands}) != 1 or \
+                len({tuple(x.packages[:1]) for x in units}) != 1 or \
+                not all(re.search(r'\bpartial\b', str(self.g.nodes[c].get('sig', ''))) for c in cands):
+            return None
+        return min(cands, key=lambda c: (self.g.nodes[c]['file'], c))
 
     def twin(self, cands):
         units = [self.unit_of(c) for c in cands]
@@ -2345,7 +3229,7 @@ class Linker:
 
     def qualified(self, u, ctx, qual, name, scoped, root=None):
         if qual in SELF_WORDS:
-            if ctx and (ctx, name) in self.f.methods and qual != 'super':
+            if ctx and (ctx, name) in self.f.methods and qual not in ('super', 'parent'):
                 return self.pick(self.f.methods[(ctx, name)], u.rel), 'local'
             found = self.inherited(ctx, name, u.rel) if ctx else None
             return (found, 'local') if found else (None, None)
@@ -2366,6 +3250,8 @@ class Linker:
             found = self.class_method(target, name, u.rel)
             if found:
                 return found, via
+            if name == 'new' and u.family == 'ruby':
+                return target, via
         if qual[:1].isupper() and (qual, name) in self.f.methods:
             found = self.pick(self.f.methods[(qual, name)], u.rel)
             if found:
@@ -2373,9 +3259,16 @@ class Linker:
         typed = typed or qual in self.f.classes_by_name
         if not typed and qual == (root or qual) and qual[:1].isupper():
             return None, None
+        if u.family == 'ruby' and name == 'new' and qual in self.f.classes_by_name:
+            found = self.pick(self.f.classes_by_name[qual], u.rel)
+            if found:
+                return found, 'wide'
         if name in BUILTINS.get(u.family, ()):
             return None, None
-        if u.family not in STRICT and len(name) > 3 and len(self.f.methods_by_name.get(name, ())) == 1:
+        # Ruby: un receptor sin tipo no se enlaza por nombre único (ronda 7: en los 7 repos de Ruby medidos, 12 aciertos
+        # frente a 47 errores, `File.mtime(path)` → `StaticFile#mtime`, `.order(…)` de ActiveRecord → `Search#order`)
+        if u.family not in STRICT and u.family != 'ruby' and len(name) > 3 and len(self.f.methods_by_name.get(name, ())) == 1 and \
+                name not in self.f.dynamic:
             found = self.f.methods_by_name[name][0]
             if typed or self.reachable(u, self.g.nodes[found]['file']):
                 return found, 'global'
@@ -2392,6 +3285,12 @@ class Linker:
                 return self.go_class(value), 'conv' if via == 'ref' else 'typed', ''
             if kind not in ('unknown', 'iface'):
                 return None, None, ''
+        if u.lang in TYPED_LANGS:
+            target, _ = self.typed(u).call(u, node)
+            if target is False:
+                return None, None, ''
+            if target:
+                return target, 'typed', ''
         fields = LANGS[u.lang]['calls'][node.type]
         parts = []
         if callable(fields):
@@ -2405,7 +3304,24 @@ class Linker:
             leaves(head, u.src, parts)
         if not parts:
             return None, None, ''
+        if u.family == 'ruby' and node.type == 'call':
+            receiver = node.child_by_field_name('receiver')
+            if receiver is not None and receiver.type != 'self' and len(parts) == 1:
+                return None, None, ''
+            if receiver is not None and receiver.type == 'scope_resolution' and receiver.child_by_field_name('scope') is None and \
+                    parts[0] not in self.f.ruby_roots:
+                return None, None, ''
+            if receiver is not None and text(receiver, u.src) == 'self.class' and ctx:
+                found = self.ruby_same_level(u, None, ctx, parts[-1], True)
+                if found:
+                    return found, 'local', parts[-1]
+            if node.parent is not None and node.parent.type == 'assignment' and node.parent.child_by_field_name('left') == node:
+                parts[-1] += '='
         name = parts[-1]
+        if u.family == 'ruby' and len(parts) == 1 and ctx:
+            found = self.ruby_same_level(u, owner_id, ctx, name)
+            if found:
+                return found, 'local', name
         if len(parts) > 1:
             scoped = any(h is not None and h.type in SCOPED for h in heads)
             target, via = self.qualified(u, ctx, parts[-2], name, scoped, parts[0])
@@ -2413,21 +3329,97 @@ class Linker:
             target, via = self.unqualified(u, ctx, name)
         return target, via, '.'.join(parts[-2:])
 
+    def ruby_same_level(self, u, owner_id, ctx, name, level=None):
+        """Entre `def x` y `def self.x` de la misma clase, una llamada sin receptor va al del mismo nivel que el llamador
+        (el cuerpo de la clase cuenta como nivel de clase)."""
+        cands = [c for c in self.f.methods.get((ctx, name), ()) if self.g.nodes[c]['file'] == u.rel]
+        if len(cands) < 2:
+            return None
+        if level is None:
+            level = ruby_singleton(u.fnodes[owner_id]) if owner_id in u.fnodes else True
+        same = [c for c in cands if (ruby_singleton(u.fnodes[c]) if c in u.fnodes else False) == level]
+        return same[0] if len(same) == 1 else None
+
     def link_unit(self, u):
         for owner_id, ctx, node in u.calls:
             target, via, _ = self.resolve_call(u, owner_id, ctx, node)
             if target and target != owner_id:
                 self.g.edge(owner_id, target, 'ref' if via == 'conv' else 'call')
                 self.derive(u, target, via)
+        for owner_id, node in u.selectors:
+            target = self.go_selector(u, owner_id, node)
+            if target and target != owner_id:
+                self.g.edge(owner_id, target, 'ref')
+        for owner_id, node in u.idents:
+            target = self.go_ident(u, owner_id, node)
+            if target and target != owner_id:
+                self.g.edge(owner_id, target, 'ref')
+
+    def go_ident(self, u, owner_id, node):
+        """Constante, variable o función de otro archivo del mismo paquete usada como valor."""
+        name = text(node, u.src)
+        if name in u.top or name in u.values or name == '_' or not u.scope:
+            return None
+        key = os.path.dirname(u.rel)
+        if key not in self.go_package_names:
+            names = self.go_package_names[key] = defaultdict(set)
+            for r in u.scope | {u.rel}:
+                other = self.f.units.get(r)
+                for word in (set(other.top) | other.values) if other is not None else ():
+                    names[word].add(r)
+        if not self.go_package_names[key].get(name, set()) - {u.rel}:
+            return None
+        funcs = self.in_files(name, u.scope)
+        homes = [r for r in sorted(u.scope) if r in self.f.units and name in self.f.units[r].values] if not funcs else []
+        if not funcs and not homes:
+            return None
+        if owner_id in u.fnodes and self.go_local(self.go_env(u, owner_id), name, node.start_byte) or go_shadowed(node, name, u.src):
+            return None
+        if funcs:
+            return self.pick(funcs, u.rel)
+        live = [r for r in homes if self.f.units[r].enabled] or homes
+        return f'm:{live[0]}'
+
+    def go_selector(self, u, owner_id, node):
+        env = self.go_env(u, owner_id)
+        kind, value, _ = self.go_callee(u, env, node, 0)
+        if kind == 'func':
+            return value
+        operand, field = node.child_by_field_name('operand'), node.child_by_field_name('field')
+        if operand is None or field is None or kind != 'unknown' and kind != 'none':
+            return None
+        return self.go_field_owner(self.go_expr(u, env, operand, 1), text(field, u.src))
+
+    def go_field_owner(self, typ, name, depth=0):
+        if not typ or typ == FOREIGN or depth > 3:
+            return None
+        found, node, info = self.go_struct(typ)
+        if found is None or node.type != 'struct_type':
+            return None
+        if name in info[0]:
+            return self.go_class(typ)
+        for kind in info[1]:
+            owner = self.go_field_owner(self.go_type(found, kind), name, depth + 1)
+            if owner:
+                return owner
+        return None
 
     def link_bases(self, u):
         g = self.g
+        if u.lang == 'ruby':
+            for source, target in self.typed(u).bases(u):
+                g.edge(source, target, 'inherits')
+                add(self.parents[source], target)
+            return
         for owner, cid, names in u.bases:
             source = cid or self.pick(self.f.classes_by_name.get(owner, []), u.rel)
             if not source:
                 continue
             for base in names:
-                target, via = self.unqualified(u, None, base)
+                if u.lang == 'php' and base in u.foreign:
+                    continue  # `use Exception;` importa la clase global, no la homónima del espacio de nombres
+                local = [c for c in self.f.classes_by_name.get(base, ()) if self.g.nodes[c]['file'] == u.rel and c != source]
+                target, via = (local[0], 'local') if len(local) == 1 else self.unqualified(u, None, base)
                 if target and target != source and g.nodes[target]['kind'] == 'class':
                     g.edge(source, target, 'inherits')
                     add(self.parents[source], target)
@@ -2479,9 +3471,45 @@ class Linker:
             alias = u.aliases.get(qual)
             if alias and alias[0] == 'files':
                 found = self.pick(self.in_files(name, alias[1]), u.rel)
-                self.touch(u, self.g.nodes[found]['file'] if found else self.representative(alias[1]))
+                rel = self.g.nodes[found]['file'] if found else self.value_file(name, alias[1])
+                self.resolved.add((u.rel, rel))
+                self.touch(u, rel or self.representative(alias[1]))
         for prefix, name in u.types:
-            self.touch(u, self.type_file(u, prefix, name))
+            rel = self.type_file(u, prefix, name)
+            self.resolved.add((u.rel, rel))
+            self.touch(u, rel)
+        if u.lang in TYPED_LANGS:
+            for rel in self.typed(u).members(u):
+                self.touch(u, rel)
+
+    def typed(self, u):
+        """Tipador estático del lenguaje de `u` (Java/Kotlin comparten familia; Rust, Dart y PHP tienen el suyo)."""
+        if self.typer is None:
+            self.typer = {}
+        kind = u.lang if u.lang in ('rust', 'dart', 'php', 'csharp', 'ruby') else 'jvm'
+        if kind not in self.typer:
+            if kind == 'ruby':
+                from .rubytyped import RubyTypes
+                self.typer[kind] = RubyTypes(self)
+            elif kind == 'csharp':
+                from .cstyped import CSharpTypes
+                self.typer[kind] = CSharpTypes(self)
+            elif kind == 'rust':
+                from .rusttyped import RustTypes
+                self.typer[kind] = RustTypes(self)
+            elif kind == 'dart':
+                from .darttyped import DartTypes
+                self.typer[kind] = DartTypes(self)
+            elif kind == 'php':
+                from .phptyped import PhpTypes
+                self.typer[kind] = PhpTypes(self)
+            else:
+                from .typed import JvmTypes
+                self.typer[kind] = JvmTypes(self)
+        return self.typer[kind]
+
+    def value_file(self, name, rels):
+        return next((r for r in sorted(rels) if r in self.f.units and name in self.f.units[r].values), None)
 
     def derive(self, u, target, via):
         if via in ('wide', 'alias'):
@@ -2855,6 +3883,9 @@ def analyze_languages(root, files, g, issues, read_source, describe_failure, dig
         except (RecursionError, ValueError, MemoryError) as exc:
             issues.add(rel, describe_failure(exc))
     for name, family in families.items():
+        for owner, new, old in family.method_aliases:
+            if (owner, new) not in family.methods and (owner, old) in family.methods:
+                family.methods[(owner, new)] = list(family.methods[(owner, old)])
         dirs = defaultdict(list)
         for u in family.units.values():
             dirs[os.path.dirname(u.rel)].append(u.rel)
@@ -2874,6 +3905,8 @@ def analyze_languages(root, files, g, issues, read_source, describe_failure, dig
         linker = Linker(root, g, family, by_family[name], paths)
         for u in family.units.values():
             linker.link_imports(u)
+        if name == 'dart':
+            linker.dart_scopes()
         for u in family.units.values():
             linker.link_bases(u)
         for u in family.units.values():
@@ -2882,3 +3915,4 @@ def analyze_languages(root, files, g, issues, read_source, describe_failure, dig
                 linker.link_types(u)
             except RecursionError as exc:
                 issues.add(u.rel, describe_failure(exc))
+        linker.prune_packages()

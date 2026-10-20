@@ -89,9 +89,9 @@ def test_barrel_reexports_lead_to_the_definition(tmp_path):
     } <= calls
     assert ('m:apps/web/src/use.ts', 'm:packages/math/src/index.ts', 'import') in edges_of(g)
     assert ('m:packages/math/src/index.ts', 'm:packages/math/src/angle.ts', 'import') in edges_of(g)
-    to_barrel = {b for a, b, _ in calls if a == run and b.startswith('m:')}
-    assert to_barrel == {'m:packages/math/src/index.ts'}
-    assert sum(1 for a, b, _ in calls if a == run) == 7
+    assert not {b for a, b, _ in calls if a == run and b.startswith('m:')}
+    assert (run, 'm:packages/math/src/index.ts', 'ref') in edges_of(g)
+    assert sum(1 for a, b, _ in calls if a == run) == 6
 
 
 def chain(depth):
@@ -101,10 +101,10 @@ def chain(depth):
     return files
 
 
-@pytest.mark.parametrize('depth, target', [(5, 'f:src/b5.ts:leaf'), (6, 'm:src/b0.ts')])
-def test_reexports_follow_at_most_five_hops(tmp_path, depth, target):
+@pytest.mark.parametrize('depth, target, kind', [(5, 'f:src/b5.ts:leaf', 'call'), (6, 'm:src/b0.ts', 'ref')])
+def test_reexports_follow_at_most_five_hops(tmp_path, depth, target, kind):
     g = ts_graph(tmp_path / f'chain{depth}', chain(depth))
-    assert ('f:src/use.ts:use', target, 'call') in edges_of(g, 'call')
+    assert ('f:src/use.ts:use', target, kind) in edges_of(g)
 
 
 DYNAMIC = {
@@ -517,3 +517,159 @@ def test_long_signatures_are_clipped_and_doc_tags_dropped(tmp_path):
     meta = g.nodes['f:src/long.ts:wide']
     assert len(meta['sig']) == 300 and meta['sig'].endswith('…')
     assert 'doc' not in meta
+
+
+TYPED = {
+    'src/store.ts': """
+        export class Store {
+          load(id: string): Item { return new Item(); }
+          async fetch(): Promise<Item> { return new Item(); }
+        }
+        export class Item {
+          save() {}
+        }
+        export interface Repo {
+          find(id: string): Item;
+          onChange: (id: string) => void;
+          name: string;
+        }
+        export type Handler = (store: Store, next: () => void) => void;
+        export type Maybe = Store | undefined;
+        export enum Mode { A, B }
+        export function run(handler: Handler) {}
+        export const shared = new Store();
+    """,
+    'src/index.ts': """
+        export { Store, Item } from "./store";
+        export type { Repo, Handler } from "./store";
+    """,
+    'src/app.ts': """
+        import { Store, Repo, Handler } from "./index";
+        import { Maybe, run, shared } from "./store";
+
+        class Service {
+          constructor(private store: Store, public repo: Repo) {}
+          other = new Store();
+          get current(): Store { return this.store; }
+          go(maybe: Maybe) {
+            this.store.load('a').save();
+            this.repo.find('x');
+            this.repo.onChange('x');
+            this.other.load('b');
+            this.current.load('c');
+            maybe!.load('d');
+          }
+          async later() {
+            const item = await this.store.fetch();
+            item.save();
+            const { store } = this;
+            store.load('e');
+          }
+        }
+
+        export const handle: Handler = (s, next) => {
+          s.load('f');
+          next();
+        };
+
+        export function main() {
+          run((s) => s.load('g'));
+          shared.load('h');
+          const load = () => 1;
+          load();
+        }
+    """,
+}
+
+
+def test_local_types_resolve_member_calls(tmp_path):
+    g = ts_graph(tmp_path / 'typed', TYPED)
+    calls = edges_of(g, 'call')
+    store, item, repo = 'f:src/store.ts:Store', 'f:src/store.ts:Item', 'f:src/store.ts:Repo'
+    assert {
+        ('f:src/app.ts:Service.go', f'{store}.load', 'call'),
+        ('f:src/app.ts:Service.go', f'{item}.save', 'call'),
+        ('f:src/app.ts:Service.go', f'{repo}.find', 'call'),
+        ('f:src/app.ts:Service.go', f'{repo}.onChange', 'call'),
+        ('f:src/app.ts:Service.later', f'{store}.fetch', 'call'),
+        ('f:src/app.ts:Service.later', f'{item}.save', 'call'),
+        ('f:src/app.ts:Service.later', f'{store}.load', 'call'),
+        ('f:src/app.ts:handle', f'{store}.load', 'call'),
+        ('f:src/app.ts:main', f'{store}.load', 'call'),
+        ('f:src/app.ts:main', 'f:src/store.ts:run', 'call'),
+    } <= calls
+    assert not any(b == 'f:src/app.ts:load' for _, b, _ in calls)
+
+
+def test_types_interfaces_and_signatures_are_symbols(tmp_path):
+    g = ts_graph(tmp_path / 'typed', TYPED)
+    kinds = {nid: m['kind'] for nid, m in g.nodes.items()}
+    assert kinds['c:src/store.ts:Handler'] == 'class'
+    assert kinds['c:src/store.ts:Mode'] == 'class'
+    assert kinds['f:src/store.ts:Repo.find'] == 'method'
+    assert kinds['f:src/store.ts:Repo.onChange'] == 'method'
+    assert 'f:src/store.ts:Repo.name' not in g.nodes
+    assert ('c:src/store.ts:Repo', 'f:src/store.ts:Repo.find', 'contains') in g.edges
+
+
+def test_imports_through_barrels_reach_the_defining_module(tmp_path):
+    g = ts_graph(tmp_path / 'typed', TYPED)
+    imports = edges_of(g, 'import')
+    assert ('m:src/app.ts', 'm:src/index.ts', 'import') in imports
+    assert ('m:src/app.ts', 'm:src/store.ts', 'import') in imports
+    assert ('m:src/index.ts', 'm:src/store.ts', 'import') in imports
+
+
+AMBIENT = {
+    'src/api.ts': """
+        export abstract class Base {
+          abstract run(x: number): void;
+          start() { this.run(1); }
+        }
+        export function over(a: string): string;
+        export function over(a: number): number;
+        export function over(a: any) { return a; }
+        export namespace Shapes {
+          export interface Circle { r: number }
+          export function area() { return 1; }
+        }
+        declare global {
+          interface Window { app: Base }
+        }
+        declare abstract class Fetcher {
+          fetch(input: string): void
+        }
+        export const pick: (a: number) => number = Math.abs;
+        export interface Overloads {
+          (a: string): Base
+          // second
+          <T>(a: T, b: T): Base
+        }
+        export function after() {}
+    """,
+}
+
+
+def test_ambient_namespaces_overloads_and_abstract_members(tmp_path):
+    g = ts_graph(tmp_path / 'ambient', AMBIENT)
+    nodes = g.nodes
+    assert nodes['f:src/api.ts:Base.run']['kind'] == 'method'
+    assert ('f:src/api.ts:Base.start', 'f:src/api.ts:Base.run', 'call') in g.edges
+    assert nodes['f:src/api.ts:over']['line'] == 5 and nodes['f:src/api.ts:over']['end'] == 7
+    assert {'f:src/api.ts:Shapes.area', 'c:src/api.ts:Shapes.Circle', 'c:src/api.ts:Window', 'c:src/api.ts:Fetcher',
+            'f:src/api.ts:Fetcher.fetch', 'f:src/api.ts:pick', 'f:src/api.ts:after'} <= set(nodes)
+
+
+def test_consts_built_by_local_function_factories_are_functions(tmp_path):
+    g = ts_graph(tmp_path / 'factory', {'src/utils.js': """
+        const typeOfTest = (type) => (thing) => typeof thing === type;
+        function kindOf(name) { return function (thing) { return thing.kind === name; }; }
+        const isFunction = typeOfTest('function');
+        const isCart = kindOf('cart');
+        const answer = Number('42');
+        export function check(x) { return isFunction(x) && isCart(x); }
+    """})
+    assert g.nodes['f:src/utils.js:isFunction']['kind'] == 'function'
+    assert g.nodes['f:src/utils.js:isCart']['kind'] == 'function'
+    assert 'f:src/utils.js:answer' not in g.nodes
+    assert ('f:src/utils.js:check', 'f:src/utils.js:isFunction', 'call') in g.edges

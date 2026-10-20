@@ -4,7 +4,7 @@ import logging
 import os
 import sys
 
-from . import __version__, context, pipeline, query, store
+from . import __version__, brain, context, overlay, pipeline, query, store
 from .analyze import KIND_ES, export_json, export_markdown
 from .errors import CortexError, InvalidInput, NotFound
 
@@ -54,6 +54,70 @@ def show_summary(result):
         for w in result['warnings']:
             print(f"  - {w['file']}: {w['error']}")
     print(f"reporte: {result['report']}")
+
+
+def show_analyze(result):
+    show_summary(result)
+    ai = result.get('ai')
+    if not ai:
+        return
+    if ai.get('note'):
+        print(f"IA: {ai['note']}")
+        return
+    print(f"IA ({ai['model']}): {ai.get('components', 0)} componentes · {ai.get('flows', 0)} flujos · {ai.get('summaries', 0)} resúmenes · "
+          f"{ai.get('edges', 0)} relaciones en {ai['requests']} peticiones")
+    if ai.get('rejected_total'):
+        print(f"IA: {ai['rejected_total']} elementos descartados (ver con --json)")
+    for issue in ai.get('issues') or []:
+        print(f'  - {issue}')
+
+
+def show_graph_add(r):
+    for title, key in (('creados', 'created'), ('actualizados', 'updated'), ('anotados', 'annotated')):
+        print_list(title, r.get(key) or [], str, 30)
+    if r.get('edges'):
+        print(f"relaciones: {len(r['edges'])}")
+    print_list('descartados', r.get('rejected') or [], lambda x: f"{x['section']}[{x['index']}] {x['item']}: {x['reason']}", 30)
+    print(f"grafo: {r['graph']}")
+
+
+def show_graph_remove(r):
+    print_list('quitados', r['removed'], str, 50)
+    print_list('descartados', r['rejected'], lambda x: f"{x['item']}: {x['reason']}", 30)
+    print(f"grafo: {r['graph']}")
+
+
+def show_graph_list(r):
+    c = r['counts']
+    print(f"{r['project']} · v{r['version'] or '—'} · {r['total']['nodes']} nodos · {r['total']['edges']} relaciones · "
+          f"{r['total']['annotations']} anotaciones del agente{' · actualizando' if r.get('refreshing') else ''}")
+    if c['nodes']:
+        print('por tipo: ' + ', '.join(f'{kind_es(k)} {v}' for k, v in sorted(c['nodes'].items())))
+    print_list('nodos', r['nodes'], lambda n: f"{n['id']} · {kind_es(n.get('kind', ''))} {n.get('name', '')} · {n['status']}", 40)
+    print_list('relaciones', r['edges'], lambda e: f"{e['id']} · {e['a']} -{e['kind']}→ {e['b']} · {e['status']}", 40)
+    print_list('anotaciones', r['annotations'], lambda a: f"{a['id']} · {(a.get('summary') or ', '.join(a.get('tags') or []))[:80]}", 40)
+    print_list('avisos', r.get('issues') or [], str, 20)
+
+
+def show_graph_guide(r):
+    print(f"{r['project']} · v{r['version'] or '—'} · cómo completar el grafo:")
+    for k, step in enumerate(r['steps'], 1):
+        print(f'  {k}. {step}')
+    titles = {'unparsed_files': 'archivos sin analizar', 'files_without_symbols': 'archivos sin símbolos',
+              'communities_without_component': 'comunidades sin componente', 'modules_without_summary': 'archivos sin resumen',
+              'endpoints_without_counterpart': 'endpoints sin pareja', 'topics_without_counterpart': 'tópicos sin pareja',
+              'variables_without_counterpart': 'variables sin pareja'}
+    for key, page in (r.get('worklist') or {}).items():
+        render = (lambda x: f"{x.get('file') or x.get('name')}" + (f" · {x['reason']}" if x.get('reason') else '')
+                  + (f" · {', '.join(x['gaps'])}" if x.get('gaps') else ''))
+        if key == 'communities_without_component':
+            render = lambda x: f"{x['id']} {x['name']} · {x['size']} nodos · {', '.join(x['files'][:3])}"
+        if page['total']:
+            print(f"{titles.get(key, key)} ({page['total']}):")
+            for item in page['items'][:15]:
+                print(f'  - {render(item)}')
+    if r.get('message'):
+        print(r['message'])
 
 
 def show_projects(result):
@@ -294,6 +358,129 @@ def show_watch(r):
         show_summary(r)
 
 
+def show_remember(r):
+    m = r['memory']
+    label = {'new': 'guardado', 'duplicate': 'ya lo sabía', 'updated': 'actualizado', 'forgotten': 'olvidado antes: no se guardó'}
+    print(f"{label.get(r['status'], r['status'])}: {m['text']} · {brain.CATEGORY_ES.get(m['category'], m['category'])} · r:{r['id']}")
+    if m.get('sensitive'):
+        print('aviso: contenía un secreto; se guardó redactado y marcado como sensible')
+    for old in r.get('superseded') or []:
+        print(f'  reemplaza a r:{old}')
+    if r.get('graph', '').startswith('error'):
+        print(f"aviso: el recuerdo se guardó pero no se pudo actualizar el grafo ({r['graph']})", file=sys.stderr)
+
+
+def show_recall(r):
+    print(r['markdown'].rstrip('\n'))
+    print(f"\n({r['tokens']} de {r['budget']} tokens)", file=sys.stderr)
+
+
+def show_forget(r):
+    print(f"olvidado: {', '.join('r:' + i for i in r['forgotten'])}")
+
+
+def show_profile(r):
+    print(r['markdown'].rstrip('\n'))
+
+
+def show_timeline(r):
+    if not r['items']:
+        print('no hay nada fechado' + (f" sobre «{r['about']}»" if r.get('about') else ''))
+        return
+    kinds = {'memory': 'recuerdo', 'conversation': 'conversación', 'event': 'evento'}
+    for item in r['items']:
+        until = f" → {item['until'][:10]}" if item.get('until') else ''
+        print(f"{item['date'][:10]}{until} · {kinds.get(item['kind'], item['kind'])} · {item.get('statement') or item['text']}" + ('' if item.get('active', True) else ' (ya no vigente)'))
+    if r['total'] > len(r['items']):
+        print(f"… {r['total'] - len(r['items'])} más (usa --desde, --hasta o --limit)")
+
+
+def show_import(r):
+    show_summary(r['analysis'])
+    ai = r.get('ai')
+    if ai:
+        if ai.get('note'):
+            print(f"IA: {ai['note']}")
+        else:
+            counts = ai.get('counts') or {}
+            print(f"IA: {ai['extracted']} recuerdos extraídos de {ai['conversations']} conversaciones · "
+                  f"{counts.get('new', 0)} nuevos · {counts.get('updated', 0)} actualizados · {counts.get('duplicate', 0)} repetidos")
+    print(f"recuerdos vigentes: {r['memories']}")
+
+
+def ai_warning(count, chars, model):
+    size = f'{chars:,}'.replace(',', '.')
+    print(f'aviso: se enviará el texto de {count} conversaciones (~{size} caracteres) a la API de Claude (Anthropic) '
+          f'con el modelo {model}. Sale de tu equipo y tiene coste; los secretos se redactan antes de enviar.', file=sys.stderr)
+
+
+def ai_confirm(args):
+    def confirm(count, chars, model):
+        size = f'{chars:,}'.replace(',', '.')
+        print(f'aviso: --ai enviará {count} grupos de archivos (~{size} caracteres de código, con los secretos redactados) a la API de '
+              f'Claude (Anthropic) con el modelo {model}. Sale de tu equipo y tiene coste.', file=sys.stderr)
+        if args.yes or not sys.stdin.isatty():
+            return True
+        try:
+            answer = input('¿continuar? [s/N] ')
+        except EOFError:
+            return False
+        return answer.strip().lower() in ('s', 'si', 'sí', 'y', 'yes')
+    return confirm
+
+
+def command_analyze(args):
+    if not args.ai and (args.model or args.yes):
+        raise InvalidInput('--model y --yes solo tienen sentido con --ai')
+    if args.ai:
+        from . import llm
+        ok, why = llm.available()
+        if not ok:
+            raise InvalidInput(f'--ai no está disponible: {why}')
+    graph = pipeline.analyze_source(args.source, args.name, args.exclude, args.tests, scip=args.scip)
+    if not args.ai:
+        return pipeline.summary(graph)
+    progress = (lambda e: print(f"IA: grupo {e['done']}/{e['total']}", file=sys.stderr)) if not args.quiet else None
+    ai = overlay.ai_enrich(graph['project'], model=args.model, confirm=ai_confirm(args), progress=progress)
+    if not ai.get('note'):
+        graph = pipeline.rebuild(graph['project'])
+    return {**pipeline.summary(graph), 'ai': ai}
+
+
+def read_graph_file(path):
+    try:
+        raw = sys.stdin.read() if path == '-' else open(path, encoding='utf-8').read()
+    except OSError as exc:
+        raise CortexError(f'no se pudo leer «{path}»: {exc.strerror or exc}') from exc
+    try:
+        data = json.loads(raw)
+    except ValueError as exc:
+        raise InvalidInput(f'«{path}» no es JSON válido') from exc
+    if isinstance(data, list):
+        data = {'nodes': data}
+    if not isinstance(data, dict):
+        raise InvalidInput('se esperaba un objeto con nodes, edges, annotations o flows')
+    return data
+
+
+def command_graph_add(args):
+    data = read_graph_file(args.file)
+    return overlay.add(args.project or data.get('project'), data.get('nodes'), data.get('edges'), data.get('annotations'), data.get('flows'),
+                       source='cli', rebuild=not args.no_refresh)
+
+
+def command_import(args):
+    if args.ai:
+        print('aviso: --ai envía tus conversaciones a la nube (API de Claude); requiere ANTHROPIC_API_KEY.', file=sys.stderr)
+    elif args.batch or args.model:
+        raise InvalidInput('--batch y --model solo tienen sentido con --ai')
+    else:
+        print('análisis 100 % local: nada sale de tu equipo (usa --ai para extraer recuerdos con la API de Claude)', file=sys.stderr)
+    progress = (lambda *a: print('IA: ' + ' '.join(str(x) for x in a), file=sys.stderr)) if args.ai else None
+    return brain.import_history(args.source, args.name, ai=args.ai, batch=args.batch, model=args.model, warn=ai_warning,
+                                on_progress=progress)
+
+
 def command_review(args):
     from .mcp_server import run_review
     diff = None
@@ -355,7 +542,7 @@ def command_export(args):
     index = query.load_index(args.project)
     graph = index.graph
     if args.format == 'md':
-        text = export_markdown(graph)
+        text = export_markdown(graph) + overlay.markdown(graph)
     elif args.format == 'json':
         text = json.dumps(export_json(graph), ensure_ascii=False)
     else:
@@ -370,6 +557,10 @@ def command_export(args):
         raise CortexError(f'no se pudo escribir «{args.output}»: {exc.strerror or exc}') from exc
     print(f'exportado {index.project} v{index.version} en {os.path.abspath(args.output)}', file=sys.stderr)
     return None
+
+
+def memory_option(parser):
+    parser.add_argument('--project', '-p', help=f'proyecto de memoria (por defecto «{brain.DEFAULT_PROJECT}»)')
 
 
 def project_option(parser):
@@ -397,7 +588,31 @@ def build_parser():
     p.add_argument('--tests', action='store_true', default=None, help='incluye los tests (por defecto, lo que diga .cortex.toml)')
     p.add_argument('--quiet', '-q', action='store_true', help='no imprime nada (para ganchos de git)')
     p.add_argument('--scip', metavar='RUTA', help='índice SCIP para aristas precisas')
-    p.set_defaults(run=lambda a: pipeline.summary(pipeline.analyze_source(a.source, a.name, a.exclude, a.tests, scip=a.scip)), show=show_summary)
+    p.add_argument('--ai', action='store_true', help='además describe componentes, flujos y archivos con la API de Claude (envía código; requiere ANTHROPIC_API_KEY)')
+    p.add_argument('--model', default=None, help='con --ai, modelo a usar (por defecto $CORTEX_AI_MODEL o el del analizador)')
+    p.add_argument('--yes', '-y', action='store_true', help='con --ai, no pide confirmación antes de enviar')
+    p.set_defaults(run=command_analyze, show=show_analyze)
+
+    p = sub.add_parser('graph', help='el grafo que escribe tu IA: componentes, flujos, relaciones y resúmenes')
+    graph_sub = p.add_subparsers(dest='graph_command', required=True, metavar='acción', parser_class=Parser)
+    g = graph_sub.add_parser('add', help='añade nodos, relaciones, anotaciones y flujos desde un JSON', parents=[common])
+    g.add_argument('file', metavar='ARCHIVO', help='JSON con nodes, edges, annotations y flows (- para la entrada estándar)')
+    project_option(g)
+    g.add_argument('--no-refresh', action='store_true', help='no regenera el grafo ahora (queda pendiente)')
+    g.set_defaults(run=command_graph_add, show=show_graph_add)
+    g = graph_sub.add_parser('remove', help='quita aportaciones del agente por id', parents=[common])
+    g.add_argument('ids', nargs='+', metavar='ID')
+    project_option(g)
+    g.set_defaults(run=lambda a: overlay.remove(a.project, a.ids, rebuild=True), show=show_graph_remove)
+    g = graph_sub.add_parser('list', help='lo que aportaron los agentes', parents=[common])
+    project_option(g)
+    g.add_argument('--limit', type=int, default=200)
+    g.add_argument('--offset', type=int, default=0)
+    g.set_defaults(run=lambda a: overlay.listing(a.project, a.limit, a.offset), show=show_graph_list)
+    g = graph_sub.add_parser('guide', help='cómo completar el grafo y lista de trabajo', parents=[common])
+    project_option(g)
+    g.add_argument('--limit', type=int, default=40)
+    g.set_defaults(run=lambda a: overlay.guide(a.project, a.limit), show=show_graph_guide)
 
     p = sub.add_parser('projects', help='proyectos guardados', parents=[common])
     p.set_defaults(run=lambda a: {'projects': store.list_projects()}, show=show_projects)
@@ -409,10 +624,56 @@ def build_parser():
     p = sub.add_parser('search', help='busca símbolos, archivos y documentos', parents=[common])
     p.add_argument('query')
     project_option(p)
-    p.add_argument('--kind', choices=query.KINDS)
+    p.add_argument('--kind', choices=query.KINDS + tuple(query.KIND_ALIASES), metavar='TIPO',
+                   help='filtra por tipo: ' + ', '.join(query.KINDS) + ' (o persona, tema, recuerdo, conversación, sección, evento)')
     p.add_argument('--limit', type=int, default=20)
     p.add_argument('--offset', type=int, default=0)
     p.set_defaults(run=lambda a: query.search(a.query, a.project, a.kind, a.limit, a.offset), show=show_search)
+
+    p = sub.add_parser('remember', help='guarda un dato sobre ti en tu memoria local', parents=[common])
+    p.add_argument('text', metavar='TEXTO', help='el dato en una frase, por ejemplo «vivo en Madrid»')
+    memory_option(p)
+    p.add_argument('--categoria', choices=brain.CATEGORIES + tuple(brain.CATEGORY_ALIASES), metavar='CATEGORÍA',
+                   help='identity, preference, goal, decision, event, relationship, skill, habit, project, fact o instruction (se deduce si falta)')
+    p.add_argument('--sobre', nargs='*', default=[], metavar='NOMBRE', help='personas o temas a los que se refiere')
+    p.add_argument('--cuando', metavar='FECHA', help='fecha a la que se refiere (AAAA-MM-DD)')
+    p.set_defaults(run=lambda a: brain.remember(a.text, a.project, a.categoria, a.sobre, when=a.cuando), show=show_remember)
+
+    p = sub.add_parser('recall', help='lo que tu memoria sabe sobre una pregunta, ajustado a un presupuesto de tokens', parents=[common])
+    p.add_argument('query', metavar='CONSULTA', help='la pregunta en palabras normales')
+    memory_option(p)
+    p.add_argument('--budget', '-b', type=int, default=2000, help='tokens como máximo (200-20000)')
+    p.add_argument('--en', dest='at', metavar='FECHA', help='lo que era cierto en esa fecha (AAAA-MM-DD)')
+    p.add_argument('--pistas', dest='hints', nargs='*', default=[], metavar='PISTA',
+                   help='palabras extra con menos peso que la pregunta: sinónimos, traducciones o posibles respuestas')
+    p.set_defaults(run=lambda a: brain.recall(a.query, a.project, a.budget, a.at, hints=a.hints), show=show_recall)
+
+    p = sub.add_parser('forget', help='olvida un recuerdo por su id o su texto', parents=[common])
+    p.add_argument('ref', metavar='REF', help='id del recuerdo (r:…) o su texto')
+    memory_option(p)
+    p.set_defaults(run=lambda a: brain.forget_and_refresh(a.ref, a.project), show=show_forget)
+
+    p = sub.add_parser('profile', help='perfil compacto del usuario para usar como instrucciones de sistema', parents=[common])
+    memory_option(p)
+    p.add_argument('--budget', '-b', type=int, default=1500, help='tokens como máximo (200-20000)')
+    p.set_defaults(run=lambda a: brain.profile(a.project, a.budget), show=show_profile)
+
+    p = sub.add_parser('timeline', help='historia fechada: recuerdos, eventos y conversaciones', parents=[common])
+    memory_option(p)
+    p.add_argument('--desde', metavar='FECHA', help='desde esta fecha (AAAA-MM-DD)')
+    p.add_argument('--hasta', metavar='FECHA', help='hasta esta fecha (AAAA-MM-DD)')
+    p.add_argument('--sobre', metavar='NOMBRE', help='solo lo relacionado con una persona, tema o palabra')
+    p.add_argument('--limit', type=int, default=100)
+    p.set_defaults(run=lambda a: brain.timeline(a.project, a.desde, a.hasta, a.sobre, a.limit), show=show_timeline)
+
+    p = sub.add_parser('import', help='importa historiales de chat, notas o documentos en tu memoria (local; --ai usa la nube)',
+                       parents=[common])
+    p.add_argument('source', metavar='RUTA', help='carpeta o archivo (export de ChatGPT, Claude, WhatsApp, Telegram, notas…)')
+    p.add_argument('--name', default=None, help='proyecto de memoria (por defecto «memoria»)')
+    p.add_argument('--ai', action='store_true', help='además envía el texto a la API de Claude para extraer recuerdos (requiere ANTHROPIC_API_KEY)')
+    p.add_argument('--batch', action='store_true', help='con --ai, usa la API por lotes (más barata, más lenta)')
+    p.add_argument('--model', default=None, help='con --ai, modelo a usar (por defecto $CORTEX_AI_MODEL o el del analizador)')
+    p.set_defaults(run=command_import, show=show_import)
 
     p = sub.add_parser('read', help='código exacto de un símbolo', parents=[common])
     p.add_argument('ref', help='clave, nombre o ruta')

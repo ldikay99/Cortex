@@ -1,9 +1,9 @@
 import * as THREE from 'three';
 
-const HEADS = new Set(['module', 'doc']);
+const HEADS = new Set(['module', 'doc', 'conversation']);
 const LOOSE_MAX = 240;
 
-export function createWeaver({ cosmos, spider, speed = 1, onHop, onProgress }) {
+export function createWeaver({ cosmos, spider, speed = 1, instant = false, onHop, onProgress }) {
   const groups = [];
   const regionOf = new Map();
   const known = new Map();
@@ -60,6 +60,15 @@ export function createWeaver({ cosmos, spider, speed = 1, onHop, onProgress }) {
   }
 
   const files = (list) => list.reduce((k, g) => k + (g.loose ? 0 : 1), 0);
+  let onlyChanges = false;
+  const quick = (g) => instant || (onlyChanges && !g.head.status && !g.nodes.some((n) => n.status));
+
+  function place(g) {
+    for (const c of g.community) if (!regionOf.has(c.id)) regionOf.set(c.id, cosmos.addProjectCommunity(c));
+    cosmos.addProjectNode(g.head, regionFor(g.head.c));
+    materialize(g);
+    woven += files([g]);
+  }
 
   function next() {
     const batch = Math.max(1, Math.min(Math.round(6 + 8 * speed), Math.ceil(Math.max(groups.length / 60, total / 160))));
@@ -108,6 +117,9 @@ export function createWeaver({ cosmos, spider, speed = 1, onHop, onProgress }) {
     finish() {
       streamDone = true;
     },
+    set onlyChanges(value) {
+      onlyChanges = !!value;
+    },
     get speed() {
       return speed;
     },
@@ -126,8 +138,15 @@ export function createWeaver({ cosmos, spider, speed = 1, onHop, onProgress }) {
         dwell -= dt;
         return;
       }
+      let placed = 0;
+      while (placed < 400 && groups.length && quick(groups[0])) place(groups.shift()), placed++;
+      if (placed) {
+        flushLate();
+        onProgress(woven, total, streamDone);
+        return;
+      }
       if (!groups.length) flushLate();
-      for (let k = 0; k < 200 && groups.length && !busy && !spider.airborne; k++) next();
+      for (let k = 0; k < 200 && groups.length && !busy && !spider.airborne && !quick(groups[0]); k++) next();
     },
   };
 }

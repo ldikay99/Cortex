@@ -191,3 +191,108 @@ def test_output_is_deterministic(tmp_path):
         scip.apply_scip(g, tmp_path, path)
         runs.append(list(g.edges.items()))
     assert runs[0] == runs[1]
+
+
+TS = 'scip-typescript npm demo 1.0 src/'
+
+
+def test_typescript_symbols_are_normalized():
+    assert scip.kind_of(f'{TS}`a.ts`/') == 'module'
+    assert scip.kind_of('scip-go gomod x v1 `github.com/x/y`/') == 'namespace'
+    assert scip.canonical(f'{TS}`a.ts`/Thing#`<constructor>`().') == f'{TS}`a.ts`/Thing#'
+    assert scip.canonical('scip-python python demo 1.0 `a`/Thing#__init__().') == 'scip-python python demo 1.0 `a`/Thing#__init__().'
+    term = f'{TS}`a.ts`/f.'
+    assert scip.function_term(term, 'var f: (a: number) => void')
+    assert scip.function_term(term, 'var f: <T>(x: T) => T')
+    assert scip.function_term(term, 'var f: { (c: H): void; flush(): void; }')
+    assert scip.function_term(term, '(property) f: ((e: Event) => void) | undefined')
+    assert scip.function_term(term, 'var f: React.MemoExoticComponent<() => Element>')
+    assert not scip.function_term(term, 'var f: (string | number)[]')
+    assert not scip.function_term(term, '(property) f: (() => void)[]')
+    assert not scip.function_term(term, 'var f: { a: number }')
+    assert not scip.function_term('scip-python python demo 1.0 `a`/f.', 'var f: (a: number) => void')
+
+
+def test_generic_and_jsx_calls_are_calls():
+    lines = ['const s = load<{', '  a: 1', '}>(c)', 'if (a < b) {', 'return <Card big />', 'let y: Array<Card> = []']
+    assert scip.called(lines, (0, 10, 0, 14), 'a.ts')
+    assert not scip.called(lines, (3, 4, 3, 5), 'a.ts')
+    assert scip.called(lines, (4, 8, 4, 12), 'a.tsx')
+    assert not scip.called(lines, (5, 13, 5, 17), 'a.tsx')
+    assert not scip.called(lines, (4, 8, 4, 12), 'a.ts')
+
+
+def test_same_line_definitions_are_told_apart_by_name():
+    g = Graph()
+    g.node('m:a.rb', kind='module', name='a.rb', file='a.rb', line=1)
+    g.node('f:a.rb:A.x', kind='method', name='A.x', file='a.rb', line=3)
+    g.node('f:a.rb:A.x=', kind='method', name='A.x=', file='a.rb', line=3)
+    loc = scip.Locator(g, {'a.rb'})
+    assert loc.definition('a.rb', 3, 'scip-ruby gem a 1 A#x().') == 'f:a.rb:A.x'
+    assert loc.definition('a.rb', 3, 'scip-ruby gem a 1 A#`x=`().') == 'f:a.rb:A.x='
+
+
+def test_typescript_constructors_and_function_terms_map_to_cortex_nodes(tmp_path):
+    write(tmp_path, {'src/a.ts': 'export class Thing {\n  constructor() {}\n}\nexport const make = () => new Thing()\n',
+                     'src/b.ts': 'import { make } from "./a"\nexport function run() {\n  return make()\n}\n'})
+    g = Graph()
+    for rel in ('src/a.ts', 'src/b.ts'):
+        g.node(f'm:{rel}', kind='module', name=rel, file=rel, line=1)
+    g.node('c:src/a.ts:Thing', kind='class', name='Thing', file='src/a.ts', line=1, end=3)
+    g.node('f:src/a.ts:Thing.constructor', kind='method', name='Thing.constructor', file='src/a.ts', line=2, end=2)
+    g.node('f:src/a.ts:make', kind='function', name='make', file='src/a.ts', line=4, end=4)
+    g.node('f:src/b.ts:run', kind='function', name='run', file='src/b.ts', line=2, end=4)
+    thing, ctor, make, run = f'{TS}`a.ts`/Thing#', f'{TS}`a.ts`/Thing#`<constructor>`().', f'{TS}`a.ts`/make.', f'{TS}`b.ts`/run().'
+    a = doc('src/a.ts', [occ([0, 13, 18], thing, roles=1), occ([1, 2, 13], ctor, roles=1), occ([3, 13, 17], make, roles=1),
+                         occ([3, 30, 35], ctor)])
+    b = doc('src/b.ts', [occ([0, 9, 13], make), occ([1, 16, 19], run, roles=1), occ([2, 9, 13], make)])
+    scip.apply_scip(g, tmp_path, index(tmp_path, [a, b]))
+    assert ('f:src/a.ts:make', 'c:src/a.ts:Thing', 'call') in g.edges
+    assert ('f:src/b.ts:run', 'f:src/a.ts:make', 'call') in g.edges
+    assert ('f:src/a.ts:make', 'f:src/a.ts:Thing.constructor', 'call') not in g.edges
+
+
+JVM = 'semanticdb maven . . '
+
+
+def test_jvm_constructors_map_to_their_class():
+    assert scip.canonical(f'{JVM}p/Http#Base#`<init>`(+1).') == f'{JVM}p/Http#Base#'
+    assert scip.canonical(f'{JVM}p/Http#`<init>`().') == f'{JVM}p/Http#'
+    assert scip.constructor(f'{JVM}p/Http#`<init>`(+2).')
+    assert not scip.constructor(f'{JVM}p/Http#init().')
+
+
+def test_nested_jvm_owners_match_cortex_innermost_names():
+    g = Graph()
+    g.node('m:a/Http.java', kind='module', name='Http.java', file='a/Http.java', line=1)
+    g.node('c:a/Http.java:Base', kind='class', name='Base', file='a/Http.java', line=3, end=40)
+    g.node('f:a/Http.java:Base.header', kind='method', name='Base.header', file='a/Http.java', line=5, end=8)
+    loc = scip.Locator(g, {'a/Http.java'})
+    assert loc.definition('a/Http.java', 30, f'{JVM}p/Http#Base#header(+1).') == 'f:a/Http.java:Base.header'
+    assert loc.definition('a/Http.java', 30, f'{JVM}p/Http#Base#other().') == 'c:a/Http.java:Base'
+
+
+def test_kotlin_trailing_lambdas_and_generic_calls_are_calls():
+    lines = ['app.get("/") { ctx -> }', 'val k = Key<Long>("x")', 'object : Runnable {']
+    assert scip.called(lines, (0, 4, 0, 7), 'A.kt', block=True)
+    assert scip.called(lines, (1, 8, 1, 11), 'A.kt')
+    assert not scip.called(lines, (2, 9, 2, 17), 'A.kt')
+    assert not scip.called(['run {'], (0, 0, 0, 3), 'a.ts', block=True)
+
+
+def test_rust_analyzer_symbols_map_to_cortex_names():
+    ra = 'rust-analyzer cargo globset 0.4.19 '
+    assert scip.kind_of(f'{ra}glob/impl#[Glob]new().') == 'callable'
+    assert scip.name_of(f'{ra}glob/impl#[Glob]new().') == 'new'
+    assert scip.qualified(f'{ra}glob/impl#[Glob]new().') == 'Glob.new'
+    assert scip.qualified(f"{ra}walk/impl#[`Worker<'s>`][Drop]drop().") == 'Worker.drop'
+    assert scip.kind_of(f'{ra}glob/Strategy#Literal#') == 'term'
+    assert scip.kind_of(f'{ra}matcher/impl#[M][Matcher]Captures#') == 'term'
+    assert scip.kind_of(f'{ra}glob/Strategy#') == 'type'
+    assert scip.qualified(f'{ra}Glob#') == 'Glob'
+
+
+def test_dotnet_constructors_map_to_their_class():
+    sch = 'scip-dotnet nuget . . '
+    assert scip.canonical(f'{sch}Demo/Machine#Rep#`.ctor`(+1).') == f'{sch}Demo/Machine#Rep#'
+    assert scip.constructor(f'{sch}Demo/Machine#`.cctor`().')

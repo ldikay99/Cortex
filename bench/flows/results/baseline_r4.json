@@ -1,0 +1,1655 @@
+{
+ "meta": {
+  "date": "2026-10-20",
+  "note": "Línea base de la ronda 4: Córtex al final de la ronda 3 (results.json de la ronda 3 para los 23 repos previos y ejecución del examen ciego control3).",
+  "seconds": "Tiempo de analyze() en segundos: bridges.py de la ronda 3 (before) frente al de la ronda 4 (after), intercalados dos veces en la misma máquina; mínimo de cada uno."
+ },
+ "results": {
+  "8mb.local": {
+   "flows": 221,
+   "flows_by_kind": {
+    "env": [
+     42,
+     101
+    ],
+    "event": [
+     14,
+     14
+    ],
+    "http": [
+     52,
+     53
+    ],
+    "route": [
+     46,
+     53
+    ]
+   },
+   "found": 154,
+   "matched": 154,
+   "recall": {
+    "env": {
+     "found": 41,
+     "total": 41
+    },
+    "event": {
+     "found": 13,
+     "total": 13
+    },
+    "http": {
+     "found": 54,
+     "total": 54
+    },
+    "route": {
+     "found": 46,
+     "total": 46
+    }
+   },
+   "seconds": 5.11,
+   "split": "control2",
+   "total": 154
+  },
+  "Kavita": {
+   "flows": 6467,
+   "flows_by_kind": {
+    "data": [
+     15,
+     5921
+    ],
+    "event": [
+     0,
+     8
+    ],
+    "http": [
+     15,
+     16
+    ],
+    "route": [
+     31,
+     522
+    ]
+   },
+   "found": 62,
+   "matched": 61,
+   "recall": {
+    "data": {
+     "found": 15,
+     "total": 24
+    },
+    "env": {
+     "found": 1,
+     "total": 6
+    },
+    "event": {
+     "found": 0,
+     "total": 52
+    },
+    "http": {
+     "found": 15,
+     "total": 34
+    },
+    "route": {
+     "found": 31,
+     "total": 32
+    }
+   },
+   "seconds": 144.5,
+   "split": "control3",
+   "total": 148
+  },
+  "NotyKT": {
+   "flows": 73,
+   "flows_by_kind": {
+    "data": [
+     30,
+     31
+    ],
+    "env": [
+     16,
+     17
+    ],
+    "http": [
+     14,
+     14
+    ],
+    "route": [
+     10,
+     10
+    ],
+    "service": [
+     1,
+     1
+    ]
+   },
+   "found": 87,
+   "matched": 71,
+   "recall": {
+    "data": {
+     "found": 26,
+     "total": 26
+    },
+    "env": {
+     "found": 34,
+     "total": 34
+    },
+    "http": {
+     "found": 16,
+     "total": 16
+    },
+    "route": {
+     "found": 10,
+     "total": 10
+    },
+    "service": {
+     "found": 1,
+     "total": 1
+    }
+   },
+   "seconds": 5.2,
+   "split": "control2",
+   "total": 87
+  },
+  "aspire-samples": {
+   "flows": 142,
+   "flows_by_kind": {
+    "data": [
+     15,
+     15
+    ],
+    "env": [
+     26,
+     40
+    ],
+    "event": [
+     10,
+     10
+    ],
+    "http": [
+     15,
+     15
+    ],
+    "route": [
+     18,
+     27
+    ],
+    "rpc": [
+     14,
+     14
+    ],
+    "service": [
+     20,
+     21
+    ]
+   },
+   "found": 115,
+   "matched": 118,
+   "recall": {
+    "data": {
+     "found": 20,
+     "total": 21
+    },
+    "env": {
+     "found": 14,
+     "total": 14
+    },
+    "event": {
+     "found": 10,
+     "total": 11
+    },
+    "http": {
+     "found": 16,
+     "total": 16
+    },
+    "route": {
+     "found": 18,
+     "total": 18
+    },
+    "rpc": {
+     "found": 10,
+     "total": 10
+    },
+    "service": {
+     "found": 27,
+     "total": 27
+    }
+   },
+   "seconds": 7.97,
+   "split": "control",
+   "total": 117
+  },
+  "django-react-blog": {
+   "flows": 79,
+   "flows_by_kind": {
+    "data": [
+     28,
+     29
+    ],
+    "env": [
+     4,
+     6
+    ],
+    "http": [
+     8,
+     9
+    ],
+    "route": [
+     25,
+     25
+    ],
+    "service": [
+     9,
+     10
+    ]
+   },
+   "found": 74,
+   "matched": 74,
+   "recall": {
+    "data": {
+     "found": 29,
+     "total": 29
+    },
+    "env": {
+     "found": 4,
+     "total": 4
+    },
+    "http": {
+     "found": 8,
+     "total": 8
+    },
+    "route": {
+     "found": 22,
+     "total": 22
+    },
+    "service": {
+     "found": 11,
+     "total": 12
+    }
+   },
+   "seconds": 0.86,
+   "split": "control",
+   "total": 75
+  },
+  "eShop": {
+   "flows": 157,
+   "flows_by_kind": {
+    "data": [
+     13,
+     29
+    ],
+    "event": [
+     49,
+     49
+    ],
+    "http": [
+     17,
+     18
+    ],
+    "route": [
+     30,
+     46
+    ],
+    "rpc": [
+     9,
+     15
+    ]
+   },
+   "found": 106,
+   "matched": 118,
+   "recall": {
+    "data": {
+     "found": 18,
+     "total": 18
+    },
+    "event": {
+     "found": 36,
+     "total": 36
+    },
+    "http": {
+     "found": 17,
+     "total": 17
+    },
+    "route": {
+     "found": 29,
+     "total": 30
+    },
+    "rpc": {
+     "found": 6,
+     "total": 6
+    }
+   },
+   "seconds": 10.01,
+   "split": "",
+   "total": 107
+  },
+  "full-stack-fastapi-template": {
+   "flows": 155,
+   "flows_by_kind": {
+    "data": [
+     17,
+     26
+    ],
+    "env": [
+     11,
+     52
+    ],
+    "http": [
+     40,
+     40
+    ],
+    "route": [
+     29,
+     29
+    ],
+    "service": [
+     3,
+     8
+    ]
+   },
+   "found": 114,
+   "matched": 100,
+   "recall": {
+    "data": {
+     "found": 20,
+     "total": 21
+    },
+    "env": {
+     "found": 21,
+     "total": 21
+    },
+    "http": {
+     "found": 40,
+     "total": 40
+    },
+    "route": {
+     "found": 29,
+     "total": 29
+    },
+    "service": {
+     "found": 4,
+     "total": 4
+    }
+   },
+   "seconds": 2.59,
+   "split": "",
+   "total": 115
+  },
+  "full-stack-flutter-app": {
+   "flows": 99,
+   "flows_by_kind": {
+    "data": [
+     56,
+     56
+    ],
+    "http": [
+     17,
+     17
+    ],
+    "route": [
+     25,
+     26
+    ]
+   },
+   "found": 94,
+   "matched": 98,
+   "recall": {
+    "data": {
+     "found": 52,
+     "total": 52
+    },
+    "http": {
+     "found": 17,
+     "total": 17
+    },
+    "route": {
+     "found": 25,
+     "total": 26
+    }
+   },
+   "seconds": 5.74,
+   "split": "control",
+   "total": 95
+  },
+  "ghostfolio": {
+   "flows": 679,
+   "flows_by_kind": {
+    "data": [
+     284,
+     315
+    ],
+    "env": [
+     16,
+     90
+    ],
+    "event": [
+     35,
+     35
+    ],
+    "http": [
+     108,
+     115
+    ],
+    "route": [
+     120,
+     120
+    ],
+    "service": [
+     4,
+     4
+    ]
+   },
+   "found": 452,
+   "matched": 567,
+   "recall": {
+    "data": {
+     "found": 165,
+     "total": 165
+    },
+    "env": {
+     "found": 19,
+     "total": 19
+    },
+    "event": {
+     "found": 36,
+     "total": 36
+    },
+    "http": {
+     "found": 108,
+     "total": 108
+    },
+    "route": {
+     "found": 120,
+     "total": 120
+    },
+    "service": {
+     "found": 4,
+     "total": 4
+    }
+   },
+   "seconds": 18.81,
+   "split": "control",
+   "total": 452
+  },
+  "go-coffeeshop": {
+   "flows": 100,
+   "flows_by_kind": {
+    "data": [
+     21,
+     32
+    ],
+    "env": [
+     14,
+     25
+    ],
+    "event": [
+     8,
+     8
+    ],
+    "http": [
+     4,
+     4
+    ],
+    "route": [
+     5,
+     7
+    ],
+    "rpc": [
+     13,
+     13
+    ],
+    "service": [
+     10,
+     11
+    ]
+   },
+   "found": 82,
+   "matched": 75,
+   "recall": {
+    "data": {
+     "found": 21,
+     "total": 21
+    },
+    "env": {
+     "found": 14,
+     "total": 14
+    },
+    "event": {
+     "found": 8,
+     "total": 12
+    },
+    "http": {
+     "found": 4,
+     "total": 4
+    },
+    "route": {
+     "found": 7,
+     "total": 7
+    },
+    "rpc": {
+     "found": 9,
+     "total": 9
+    },
+    "service": {
+     "found": 19,
+     "total": 19
+    }
+   },
+   "seconds": 1.04,
+   "split": "control",
+   "total": 86
+  },
+  "karakeep": {
+   "flows": 205,
+   "flows_by_kind": {
+    "data": [
+     0,
+     35
+    ],
+    "env": [
+     0,
+     8
+    ],
+    "http": [
+     0,
+     3
+    ],
+    "route": [
+     0,
+     144
+    ],
+    "service": [
+     6,
+     15
+    ]
+   },
+   "found": 6,
+   "matched": 6,
+   "recall": {
+    "data": {
+     "found": 0,
+     "total": 24
+    },
+    "env": {
+     "found": 0,
+     "total": 12
+    },
+    "event": {
+     "found": 0,
+     "total": 32
+    },
+    "http": {
+     "found": 0,
+     "total": 11
+    },
+    "route": {
+     "found": 0,
+     "total": 13
+    },
+    "rpc": {
+     "found": 0,
+     "total": 25
+    },
+    "service": {
+     "found": 6,
+     "total": 29
+    }
+   },
+   "seconds": 27.6,
+   "split": "control3",
+   "total": 146
+  },
+  "koel": {
+   "flows": 317,
+   "flows_by_kind": {
+    "http": [
+     140,
+     143
+    ],
+    "route": [
+     174,
+     174
+    ]
+   },
+   "found": 301,
+   "matched": 314,
+   "recall": {
+    "http": {
+     "found": 142,
+     "total": 142
+    },
+    "route": {
+     "found": 159,
+     "total": 159
+    }
+   },
+   "seconds": 24.1,
+   "split": "",
+   "total": 301
+  },
+  "kotlinconf-app": {
+   "flows": 85,
+   "flows_by_kind": {
+    "data": [
+     14,
+     24
+    ],
+    "env": [
+     13,
+     13
+    ],
+    "http": [
+     13,
+     13
+    ],
+    "route": [
+     31,
+     31
+    ],
+    "service": [
+     4,
+     4
+    ]
+   },
+   "found": 72,
+   "matched": 75,
+   "recall": {
+    "data": {
+     "found": 18,
+     "total": 18
+    },
+    "env": {
+     "found": 6,
+     "total": 6
+    },
+    "http": {
+     "found": 13,
+     "total": 13
+    },
+    "route": {
+     "found": 31,
+     "total": 31
+    },
+    "service": {
+     "found": 4,
+     "total": 4
+    }
+   },
+   "seconds": 5.18,
+   "split": "",
+   "total": 72
+  },
+  "micronaut-microservices-poc": {
+   "flows": 79,
+   "flows_by_kind": {
+    "data": [
+     11,
+     22
+    ],
+    "env": [
+     0,
+     4
+    ],
+    "event": [
+     2,
+     7
+    ],
+    "http": [
+     4,
+     17
+    ],
+    "route": [
+     14,
+     28
+    ],
+    "service": [
+     0,
+     1
+    ]
+   },
+   "found": 32,
+   "matched": 31,
+   "recall": {
+    "data": {
+     "found": 12,
+     "total": 27
+    },
+    "env": {
+     "found": 0,
+     "total": 13
+    },
+    "event": {
+     "found": 2,
+     "total": 10
+    },
+    "http": {
+     "found": 4,
+     "total": 25
+    },
+    "route": {
+     "found": 14,
+     "total": 29
+    },
+    "service": {
+     "found": 0,
+     "total": 19
+    }
+   },
+   "seconds": 4.9,
+   "split": "control3",
+   "total": 123
+  },
+  "microservices-demo": {
+   "flows": 205,
+   "flows_by_kind": {
+    "env": [
+     16,
+     74
+    ],
+    "http": [
+     10,
+     11
+    ],
+    "route": [
+     12,
+     19
+    ],
+    "rpc": [
+     25,
+     84
+    ],
+    "service": [
+     16,
+     17
+    ]
+   },
+   "found": 92,
+   "matched": 79,
+   "recall": {
+    "env": {
+     "found": 29,
+     "total": 29
+    },
+    "http": {
+     "found": 10,
+     "total": 11
+    },
+    "route": {
+     "found": 12,
+     "total": 12
+    },
+    "rpc": {
+     "found": 25,
+     "total": 25
+    },
+    "service": {
+     "found": 16,
+     "total": 16
+    }
+   },
+   "seconds": 3.0,
+   "split": "",
+   "total": 93
+  },
+  "outline": {
+   "flows": 117,
+   "flows_by_kind": {
+    "data": [
+     0,
+     16
+    ],
+    "env": [
+     0,
+     40
+    ],
+    "event": [
+     0,
+     22
+    ],
+    "route": [
+     1,
+     37
+    ],
+    "service": [
+     2,
+     2
+    ]
+   },
+   "found": 3,
+   "matched": 3,
+   "recall": {
+    "data": {
+     "found": 0,
+     "total": 31
+    },
+    "env": {
+     "found": 0,
+     "total": 22
+    },
+    "event": {
+     "found": 0,
+     "total": 51
+    },
+    "http": {
+     "found": 0,
+     "total": 5
+    },
+    "route": {
+     "found": 1,
+     "total": 29
+    },
+    "service": {
+     "found": 2,
+     "total": 2
+    }
+   },
+   "seconds": 22.5,
+   "split": "control3",
+   "total": 140
+  },
+  "papermark": {
+   "flows": 566,
+   "flows_by_kind": {
+    "data": [
+     89,
+     424
+    ],
+    "env": [
+     20,
+     38
+    ],
+    "event": [
+     33,
+     35
+    ],
+    "route": [
+     69,
+     69
+    ]
+   },
+   "found": 206,
+   "matched": 211,
+   "recall": {
+    "data": {
+     "found": 66,
+     "total": 66
+    },
+    "env": {
+     "found": 33,
+     "total": 33
+    },
+    "event": {
+     "found": 38,
+     "total": 38
+    },
+    "route": {
+     "found": 69,
+     "total": 69
+    }
+   },
+   "seconds": 22.47,
+   "split": "control2",
+   "total": 206
+  },
+  "phoenix-realworld": {
+   "flows": 63,
+   "flows_by_kind": {
+    "data": [
+     30,
+     36
+    ],
+    "route": [
+     27,
+     27
+    ]
+   },
+   "found": 56,
+   "matched": 57,
+   "recall": {
+    "data": {
+     "found": 32,
+     "total": 32
+    },
+    "route": {
+     "found": 24,
+     "total": 24
+    }
+   },
+   "seconds": 0.42,
+   "split": "",
+   "total": 56
+  },
+  "plausible-analytics": {
+   "flows": 663,
+   "flows_by_kind": {
+    "data": [
+     26,
+     407
+    ],
+    "env": [
+     2,
+     4
+    ],
+    "event": [
+     14,
+     35
+    ],
+    "route": [
+     46,
+     217
+    ]
+   },
+   "found": 113,
+   "matched": 88,
+   "recall": {
+    "data": {
+     "found": 28,
+     "total": 28
+    },
+    "env": {
+     "found": 31,
+     "total": 31
+    },
+    "event": {
+     "found": 8,
+     "total": 29
+    },
+    "route": {
+     "found": 46,
+     "total": 51
+    }
+   },
+   "seconds": 22.9,
+   "split": "control3",
+   "total": 139
+  },
+  "proshop_mern": {
+   "flows": 79,
+   "flows_by_kind": {
+    "data": [
+     28,
+     28
+    ],
+    "http": [
+     23,
+     23
+    ],
+    "route": [
+     27,
+     28
+    ]
+   },
+   "found": 82,
+   "matched": 78,
+   "recall": {
+    "data": {
+     "found": 32,
+     "total": 32
+    },
+    "http": {
+     "found": 23,
+     "total": 23
+    },
+    "route": {
+     "found": 27,
+     "total": 27
+    }
+   },
+   "seconds": 0.51,
+   "split": "",
+   "total": 82
+  },
+  "quarkus-super-heroes": {
+   "flows": 182,
+   "flows_by_kind": {
+    "data": [
+     31,
+     36
+    ],
+    "env": [
+     2,
+     2
+    ],
+    "event": [
+     8,
+     8
+    ],
+    "http": [
+     13,
+     20
+    ],
+    "route": [
+     40,
+     40
+    ],
+    "rpc": [
+     11,
+     11
+    ],
+    "service": [
+     27,
+     65
+    ]
+   },
+   "found": 138,
+   "matched": 132,
+   "recall": {
+    "data": {
+     "found": 28,
+     "total": 29
+    },
+    "env": {
+     "found": 13,
+     "total": 13
+    },
+    "event": {
+     "found": 6,
+     "total": 6
+    },
+    "http": {
+     "found": 13,
+     "total": 13
+    },
+    "route": {
+     "found": 40,
+     "total": 40
+    },
+    "rpc": {
+     "found": 11,
+     "total": 11
+    },
+    "service": {
+     "found": 27,
+     "total": 27
+    }
+   },
+   "seconds": 9.84,
+   "split": "control2",
+   "total": 139
+  },
+  "rails-realworld": {
+   "flows": 47,
+   "flows_by_kind": {
+    "data": [
+     22,
+     27
+    ],
+    "route": [
+     20,
+     20
+    ]
+   },
+   "found": 41,
+   "matched": 42,
+   "recall": {
+    "data": {
+     "found": 23,
+     "total": 28
+    },
+    "route": {
+     "found": 18,
+     "total": 18
+    }
+   },
+   "seconds": 0.38,
+   "split": "",
+   "total": 46
+  },
+  "realworld-axum-sqlx": {
+   "flows": 72,
+   "flows_by_kind": {
+    "data": [
+     46,
+     46
+    ],
+    "env": [
+     3,
+     3
+    ],
+    "route": [
+     23,
+     23
+    ]
+   },
+   "found": 73,
+   "matched": 72,
+   "recall": {
+    "data": {
+     "found": 47,
+     "total": 47
+    },
+    "env": {
+     "found": 3,
+     "total": 3
+    },
+    "route": {
+     "found": 23,
+     "total": 23
+    }
+   },
+   "seconds": 0.25,
+   "split": "",
+   "total": 73
+  },
+  "redash": {
+   "flows": 233,
+   "flows_by_kind": {
+    "data": [
+     0,
+     75
+    ],
+    "env": [
+     0,
+     138
+    ],
+    "event": [
+     2,
+     2
+    ],
+    "route": [
+     0,
+     11
+    ],
+    "service": [
+     7,
+     7
+    ]
+   },
+   "found": 8,
+   "matched": 9,
+   "recall": {
+    "data": {
+     "found": 0,
+     "total": 23
+    },
+    "env": {
+     "found": 0,
+     "total": 13
+    },
+    "event": {
+     "found": 1,
+     "total": 38
+    },
+    "http": {
+     "found": 0,
+     "total": 28
+    },
+    "route": {
+     "found": 0,
+     "total": 28
+    },
+    "service": {
+     "found": 7,
+     "total": 10
+    }
+   },
+   "seconds": 16.0,
+   "split": "control3",
+   "total": 140
+  },
+  "sb3-course": {
+   "flows": 152,
+   "flows_by_kind": {
+    "data": [
+     10,
+     10
+    ],
+    "env": [
+     4,
+     4
+    ],
+    "event": [
+     2,
+     2
+    ],
+    "http": [
+     5,
+     5
+    ],
+    "route": [
+     8,
+     8
+    ],
+    "service": [
+     24,
+     123
+    ]
+   },
+   "found": 90,
+   "matched": 53,
+   "recall": {
+    "data": {
+     "found": 10,
+     "total": 10
+    },
+    "env": {
+     "found": 41,
+     "total": 41
+    },
+    "event": {
+     "found": 2,
+     "total": 2
+    },
+    "http": {
+     "found": 5,
+     "total": 5
+    },
+    "route": {
+     "found": 8,
+     "total": 8
+    },
+    "service": {
+     "found": 24,
+     "total": 24
+    }
+   },
+   "seconds": 1.22,
+   "split": "control",
+   "total": 90
+  },
+  "spring-petclinic-microservices": {
+   "flows": 109,
+   "flows_by_kind": {
+    "data": [
+     19,
+     43
+    ],
+    "http": [
+     19,
+     19
+    ],
+    "route": [
+     20,
+     20
+    ],
+    "service": [
+     21,
+     27
+    ]
+   },
+   "found": 82,
+   "matched": 79,
+   "recall": {
+    "data": {
+     "found": 20,
+     "total": 20
+    },
+    "env": {
+     "found": 3,
+     "total": 3
+    },
+    "http": {
+     "found": 19,
+     "total": 20
+    },
+    "route": {
+     "found": 19,
+     "total": 19
+    },
+    "service": {
+     "found": 21,
+     "total": 21
+    }
+   },
+   "seconds": 1.5,
+   "split": "",
+   "total": 83
+  },
+  "tchatchers": {
+   "flows": 153,
+   "flows_by_kind": {
+    "data": [
+     30,
+     81
+    ],
+    "env": [
+     11,
+     15
+    ],
+    "event": [
+     22,
+     22
+    ],
+    "http": [
+     13,
+     13
+    ],
+    "route": [
+     14,
+     14
+    ],
+    "service": [
+     8,
+     8
+    ]
+   },
+   "found": 103,
+   "matched": 98,
+   "recall": {
+    "data": {
+     "found": 31,
+     "total": 31
+    },
+    "env": {
+     "found": 11,
+     "total": 11
+    },
+    "event": {
+     "found": 17,
+     "total": 17
+    },
+    "http": {
+     "found": 14,
+     "total": 16
+    },
+    "route": {
+     "found": 14,
+     "total": 14
+    },
+    "service": {
+     "found": 16,
+     "total": 16
+    }
+   },
+   "seconds": 1.51,
+   "split": "control2",
+   "total": 105
+  },
+  "terminus": {
+   "flows": 286,
+   "flows_by_kind": {
+    "data": [
+     78,
+     89
+    ],
+    "env": [
+     11,
+     38
+    ],
+    "event": [
+     16,
+     17
+    ],
+    "route": [
+     40,
+     130
+    ],
+    "service": [
+     10,
+     12
+    ]
+   },
+   "found": 121,
+   "matched": 155,
+   "recall": {
+    "data": {
+     "found": 40,
+     "total": 40
+    },
+    "env": {
+     "found": 21,
+     "total": 21
+    },
+    "event": {
+     "found": 10,
+     "total": 11
+    },
+    "route": {
+     "found": 40,
+     "total": 40
+    },
+    "service": {
+     "found": 10,
+     "total": 10
+    }
+   },
+   "seconds": 6.94,
+   "split": "control2",
+   "total": 122
+  },
+  "wild-workouts": {
+   "flows": 96,
+   "flows_by_kind": {
+    "data": [
+     2,
+     2
+    ],
+    "env": [
+     20,
+     30
+    ],
+    "http": [
+     22,
+     23
+    ],
+    "route": [
+     13,
+     13
+    ],
+    "rpc": [
+     4,
+     11
+    ],
+    "service": [
+     8,
+     17
+    ]
+   },
+   "found": 67,
+   "matched": 69,
+   "recall": {
+    "data": {
+     "found": 2,
+     "total": 6
+    },
+    "env": {
+     "found": 20,
+     "total": 20
+    },
+    "http": {
+     "found": 22,
+     "total": 22
+    },
+    "route": {
+     "found": 11,
+     "total": 11
+    },
+    "rpc": {
+     "found": 6,
+     "total": 6
+    },
+    "service": {
+     "found": 6,
+     "total": 6
+    }
+   },
+   "seconds": 2.19,
+   "split": "",
+   "total": 71
+  },
+  "woodpecker": {
+   "flows": 160,
+   "flows_by_kind": {
+    "data": [
+     0,
+     18
+    ],
+    "env": [
+     0,
+     9
+    ],
+    "http": [
+     0,
+     2
+    ],
+    "route": [
+     41,
+     106
+    ],
+    "rpc": [
+     12,
+     24
+    ],
+    "service": [
+     1,
+     1
+    ]
+   },
+   "found": 55,
+   "matched": 54,
+   "recall": {
+    "data": {
+     "found": 0,
+     "total": 25
+    },
+    "env": {
+     "found": 0,
+     "total": 15
+    },
+    "event": {
+     "found": 0,
+     "total": 12
+    },
+    "http": {
+     "found": 0,
+     "total": 35
+    },
+    "route": {
+     "found": 41,
+     "total": 45
+    },
+    "rpc": {
+     "found": 12,
+     "total": 14
+    },
+    "service": {
+     "found": 2,
+     "total": 3
+    }
+   },
+   "seconds": 24.1,
+   "split": "control3",
+   "total": 149
+  }
+ },
+ "seconds": {
+  "8mb.local": {
+   "after": 6.5,
+   "before": 6.1
+  },
+  "Kavita": {
+   "after": 156.2,
+   "before": 151.1
+  },
+  "NotyKT": {
+   "after": 5.3,
+   "before": 5.5
+  },
+  "aspire-samples": {
+   "after": 8.4,
+   "before": 8.2
+  },
+  "django-react-blog": {
+   "after": 1.0,
+   "before": 0.9
+  },
+  "eShop": {
+   "after": 10.7,
+   "before": 10.1
+  },
+  "full-stack-fastapi-template": {
+   "after": 2.8,
+   "before": 2.6
+  },
+  "full-stack-flutter-app": {
+   "after": 6.5,
+   "before": 6.8
+  },
+  "ghostfolio": {
+   "after": 20.5,
+   "before": 19.5
+  },
+  "go-coffeeshop": {
+   "after": 1.0,
+   "before": 1.0
+  },
+  "karakeep": {
+   "after": 31.1,
+   "before": 28.8
+  },
+  "koel": {
+   "after": 28.6,
+   "before": 26.7
+  },
+  "kotlinconf-app": {
+   "after": 5.7,
+   "before": 5.5
+  },
+  "micronaut-microservices-poc": {
+   "after": 4.8,
+   "before": 5.1
+  },
+  "microservices-demo": {
+   "after": 3.4,
+   "before": 3.1
+  },
+  "outline": {
+   "after": 32.1,
+   "before": 27.4
+  },
+  "papermark": {
+   "after": 27.7,
+   "before": 25.3
+  },
+  "phoenix-realworld": {
+   "after": 0.5,
+   "before": 0.5
+  },
+  "plausible-analytics": {
+   "after": 26.4,
+   "before": 24.0
+  },
+  "proshop_mern": {
+   "after": 0.6,
+   "before": 0.6
+  },
+  "quarkus-super-heroes": {
+   "after": 13.2,
+   "before": 10.4
+  },
+  "rails-realworld": {
+   "after": 0.4,
+   "before": 0.4
+  },
+  "realworld-axum-sqlx": {
+   "after": 0.3,
+   "before": 0.3
+  },
+  "redash": {
+   "after": 18.5,
+   "before": 16.3
+  },
+  "sb3-course": {
+   "after": 1.2,
+   "before": 1.2
+  },
+  "spring-petclinic-microservices": {
+   "after": 1.5,
+   "before": 1.5
+  },
+  "tchatchers": {
+   "after": 1.7,
+   "before": 1.5
+  },
+  "terminus": {
+   "after": 13.0,
+   "before": 10.3
+  },
+  "wild-workouts": {
+   "after": 2.3,
+   "before": 2.3
+  },
+  "woodpecker": {
+   "after": 25.4,
+   "before": 25.1
+  }
+ }
+}

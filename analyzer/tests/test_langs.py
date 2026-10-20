@@ -639,7 +639,7 @@ def test_list_files_skips_vendored_and_built_output(tmp_path):
         'docs/page.mdx': '# Page\n',
         'notes.txt': 'notes\n',
     })
-    assert list_files(root) == ['docs/guide.rst', 'docs/page.mdx', 'src/lib.rs', 'src/main.go', 'web/app.js']
+    assert list_files(root) == ['notes.txt', 'docs/guide.rst', 'docs/page.mdx', 'src/lib.rs', 'src/main.go', 'web/app.js']
 
 
 def test_readme_only_repo(tmp_path):
@@ -651,9 +651,15 @@ def test_readme_only_repo(tmp_path):
 
 
 def test_only_unsupported_files_is_a_clean_error(tmp_path):
-    root = write_repo(tmp_path / 'text', {'notes.txt': 'hola\n', 'data.csv': 'a,b\n'})
-    with pytest.raises(CortexError, match='no hay archivos'):
-        analyze(root, 'text')
+    root = write_repo(tmp_path / 'blobs', {'photo.png': 'x', 'blob.bin': 'y'})
+    with pytest.raises(CortexError, match='no hay código'):
+        analyze(root, 'blobs')
+
+
+def test_plain_text_and_tables_become_documents(tmp_path):
+    root = write_repo(tmp_path / 'text', {'notes.txt': 'hola\n', 'data.csv': 'a,b\n1,2\n'})
+    graph = analyze(root, 'text')
+    assert sorted((n['key'], n['kind']) for n in graph['nodes'] if n['kind'] == 'doc') == [('d:data.csv', 'doc'), ('d:notes.txt', 'doc')]
 
 
 def test_malformed_sources_do_not_crash(tmp_path):

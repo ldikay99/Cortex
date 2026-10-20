@@ -301,3 +301,64 @@ def test_strongly_connected_and_cycle_path():
     comps = query.strongly_connected(graph)
     assert ['a', 'b', 'c'] in comps and ['d'] in comps
     assert query.cycle_path(graph, 'a', {'a', 'b', 'c'}) == ['a', 'b', 'c', 'a']
+
+
+def knowledge():
+    specs = [
+        ('k:chats/c.json#a1', 'conversation', 'Planes de viaje', 'chats/c.json', {'source': 'chatgpt', 'started': '2025-05-01', 'count': 4}),
+        ('u:ana-lopez', 'person', 'Ana López', '', {'aliases': ['Anita']}),
+        ('u:marina', 'person', 'Marina', '', {'owner': True}),
+        ('x:viajes', 'concept', 'viajes', '', {'tag': True}),
+        ('x:japon', 'concept', 'japón', '', {}),
+        ('r:abc123def456', 'memory', 'Quiero viajar a Japón con Ana', '', {
+            'text': 'Quiero viajar a Japón con Ana', 'doc': 'Quiero viajar a Japón con Ana', 'category': 'goal', 'subject': 'user',
+            'confidence': 0.6, 'origin': 'rule', 'valid_from': '2025-05-01', 'source': 'k:chats/c.json#a1', 'msg': 2}),
+        ('r:000000000001', 'memory', 'Quería viajar a Perú', '', {'text': 'Quería viajar a Perú', 'category': 'goal', 'valid_to': '2025-05-01'}),
+        ('s:notas/v.md#japon', 'section', 'Japón', 'notas/v.md', {'end': 9, 'doc': 'Kioto en otoño'}),
+        ('w:2025-11-02:vuelo', 'event', 'Vuelo a Tokio', 'notas/v.md', {'when': '2025-11-02'}),
+    ]
+    nodes = [{'id': i, 'key': k, 'kind': kind, 'name': name, 'file': f, 'line': 1 if f else 0, 'c': 0, 'deg': 1, 'pos': [0, 0, 0], **extra}
+             for i, (k, kind, name, f, extra) in enumerate(specs)]
+    ids = {n['key']: n['id'] for n in nodes}
+    pairs = [('k:chats/c.json#a1', 'u:ana-lopez', 'participant'), ('k:chats/c.json#a1', 'x:viajes', 'mentions'),
+             ('r:abc123def456', 'k:chats/c.json#a1', 'from'), ('r:abc123def456', 'u:ana-lopez', 'about'),
+             ('r:abc123def456', 'r:000000000001', 'supersedes'), ('x:japon', 'x:viajes', 'related'),
+             ('u:ana-lopez', 'w:2025-11-02:vuelo', 'attends'), ('s:notas/v.md#japon', 'x:japon', 'mentions')]
+    graph = {'project': 'brain', 'version': 1, 'stats': {}, 'nodes': nodes,
+             'edges': [{'a': ids[a], 'b': ids[b], 'kind': k, 'w': 1} for a, b, k in pairs],
+             'communities': [{'id': 0, 'name': 'memoria', 'hub': 'c.json', 'size': len(nodes)}]}
+    return query.GraphIndex(graph, {'versions': [{'v': 1, 'date': '2026-01-01T00:00:00+0000'}]})
+
+
+def test_knowledge_kinds_relations_and_spanish_prefixes():
+    index = knowledge()
+    assert {'conversation', 'section', 'person', 'concept', 'memory', 'event'} <= set(query.KINDS)
+    for ref in ('k:chats/c.json#a1', 'r:abc123def456', 'u:ana-lopez', 'x:viajes', 's:notas/v.md#japon', 'w:2025-11-02:vuelo'):
+        assert index.resolve(ref)['key'] == ref
+    memory = index.node('r:abc123def456')
+    assert memory['node']['text'] == 'Quiero viajar a Japón con Ana' and memory['node']['category'] == 'goal'
+    assert memory['node']['msg'] == 2 and memory['node']['source'] == 'k:chats/c.json#a1'
+    assert [n['key'] for n in memory['about']] == ['u:ana-lopez'] and [n['key'] for n in memory['derived_from']] == ['k:chats/c.json#a1']
+    assert [n['key'] for n in memory['supersedes']] == ['r:000000000001']
+    assert [n['key'] for n in index.node('r:000000000001')['superseded_by']] == ['r:abc123def456']
+    ana = index.node('u:ana-lopez')
+    assert [n['key'] for n in ana['memories']] == ['r:abc123def456'] and [n['key'] for n in ana['participates_in']] == ['k:chats/c.json#a1']
+    assert [n['key'] for n in ana['attends']] == ['w:2025-11-02:vuelo'] and ana['node']['aliases'] == ['Anita']
+    chat = index.node('k:chats/c.json#a1')
+    assert [n['key'] for n in chat['participants']] == ['u:ana-lopez'] and [n['key'] for n in chat['derived']] == ['r:abc123def456']
+    assert chat['node']['source'] == 'chatgpt' and chat['node']['count'] == 4
+    assert [n['key'] for n in index.node('x:viajes')['related']] == ['x:japon']
+    assert [n['key'] for n in index.node('x:japon')['mentioned_in']] == ['s:notas/v.md#japon']
+    assert index.brief(index.by_key['r:abc123def456'])['confidence'] == 0.6
+    people = index.search('persona: ana')
+    assert people['kind'] == 'person' and people['query'] == 'ana' and people['results'][0]['key'] == 'u:ana-lopez'
+    assert index.search('Anita', kind='persona')['results'][0]['key'] == 'u:ana-lopez'
+    assert index.search('recuerdo: japón')['results'][0]['key'] == 'r:abc123def456'
+    assert index.search('tema: viajes')['results'][0]['key'] == 'x:viajes'
+    assert index.search('conversación: viaje')['results'][0]['key'] == 'k:chats/c.json#a1'
+    assert index.search('sección: japón')['results'][0]['key'] == 's:notas/v.md#japon'
+    assert index.search('evento: tokio')['results'][0]['key'] == 'w:2025-11-02:vuelo'
+    assert index.search('Error: algo raro')['kind'] is None
+    assert query.normalize_kind('Recuerdos') == 'memory' and query.normalize_kind(None) is None
+    with pytest.raises(InvalidInput, match='tipo inválido'):
+        index.search('x', kind='planeta')

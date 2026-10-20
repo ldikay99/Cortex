@@ -138,7 +138,7 @@ def toml_block(item):
 
 def yaml_document(item):
     args = ', '.join(json.dumps(a, ensure_ascii=False) for a in item['args'])
-    return ('name: Cortex\nversion: 1.1.0\nschema: v1\nmcpServers:\n'
+    return ('name: Cortex\nversion: 1.2.0\nschema: v1\nmcpServers:\n'
             f'  - name: {NAME}\n    type: stdio\n    command: {item["command"]}\n    args: [{args}]\n')
 
 

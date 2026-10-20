@@ -14,7 +14,7 @@ from collections import Counter, defaultdict, deque
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
-from . import context, pipeline, query, store
+from . import brain, context, overlay, pipeline, query, store
 from .analyze import (MAX_NOTEBOOK_BYTES, MAX_SCRIPT_BYTES, SKIP_DIRS, export_json, export_markdown, formats, is_test,
                       list_files, maybe_script, script_route, wanted)
 from .errors import Conflict, CortexError, InvalidInput, NotFound, TooLarge
@@ -432,7 +432,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def get_export_md(self, params):
         g, name = self.current_graph()
-        self.send_file(export_markdown(g).encode(), 'text/markdown', f'{name}-grafo.md')
+        self.send_file((export_markdown(g) + overlay.markdown(g)).encode(), 'text/markdown', f'{name}-grafo.md')
 
     def get_export_json(self, params):
         g, name = self.current_graph()
@@ -541,6 +541,55 @@ class Handler(BaseHTTPRequestHandler):
 
     def get_query_variables(self, params):
         self.send_json(query.variables(project_param(params), params.get('name') or None, params.get('limit'), params.get('offset')))
+
+    def get_query_recall(self, params):
+        self.send_json(brain.recall(params.get('q', ''), project_param(params), params.get('budget'), params.get('at') or None,
+                                    hints=params.get('hints') or None))
+
+    def get_query_profile(self, params):
+        self.send_json(brain.profile(project_param(params), params.get('budget')))
+
+    def get_query_timeline(self, params):
+        self.send_json(brain.timeline(project_param(params), params.get('start') or None, params.get('end') or None,
+                                      params.get('about') or None, params.get('limit')))
+
+    def get_query_memories(self, params):
+        project = brain.project_name(project_param(params))
+        inactive = params.get('inactive') in ('1', 'true', 'yes')
+        items = brain.memories(project, include_inactive=inactive)
+        self.send_json({'project': project, 'total': len(items), 'memories': items})
+
+    def post_memory(self, params):
+        req = self.body_json(64 * 1024)
+        project = req.get('project') if isinstance(req.get('project'), str) and req.get('project') else project_param(params)
+        for label in ('category', 'when', 'subject', 'attribute', 'value'):
+            if req.get(label) is not None and not isinstance(req.get(label), str):
+                raise InvalidInput(f'«{label}» debe ser texto')
+        result = brain.remember(req.get('text'), project, req.get('category'), req.get('about') or (), when=req.get('when'),
+                                confidence=req.get('confidence', 1.0), subject=req.get('subject'), attribute=req.get('attribute'),
+                                value=req.get('value'), sensitive=bool(req.get('sensitive')) or None, rebuild='background')
+        self.send_json(result, 200 if result['status'] == 'duplicate' else 201)
+
+    def post_memory_forget(self, params):
+        req = self.body_json(64 * 1024)
+        project = req.get('project') if isinstance(req.get('project'), str) and req.get('project') else project_param(params)
+        self.send_json(brain.forget_and_refresh(req.get('ref'), project, rebuild='background'))
+
+    def get_overlay(self, params):
+        self.send_json(overlay.listing(project_param(params), params.get('limit'), params.get('offset')))
+
+    def post_overlay(self, params):
+        req = self.body_json(MAX_JSON)
+        project = req.get('project') if isinstance(req.get('project'), str) and req.get('project') else project_param(params)
+        source = req.get('source') if isinstance(req.get('source'), str) else 'http'
+        result = overlay.add(project, req.get('nodes'), req.get('edges'), req.get('annotations'), req.get('flows'), source=source,
+                             rebuild='background')
+        self.send_json(result, 201 if result['created'] or result['edges'] or result['annotated'] or result['updated'] else 200)
+
+    def post_overlay_remove(self, params):
+        req = self.body_json(64 * 1024)
+        project = req.get('project') if isinstance(req.get('project'), str) and req.get('project') else project_param(params)
+        self.send_json(overlay.remove(project, req.get('ids'), rebuild='background'))
 
     def review(self, base, head, project, diff=None):
         from .mcp_server import run_review
@@ -684,6 +733,11 @@ GET_ROUTES = {
     '/api/query/endpoints': Handler.get_query_endpoints,
     '/api/query/variables': Handler.get_query_variables,
     '/api/query/review': Handler.get_query_review,
+    '/api/query/recall': Handler.get_query_recall,
+    '/api/query/profile': Handler.get_query_profile,
+    '/api/query/timeline': Handler.get_query_timeline,
+    '/api/query/memories': Handler.get_query_memories,
+    '/api/overlay': Handler.get_overlay,
 }
 
 POST_ROUTES = {
@@ -694,6 +748,10 @@ POST_ROUTES = {
     '/api/update': Handler.post_update,
     '/api/import': Handler.post_import,
     '/api/query/review': Handler.post_query_review,
+    '/api/memory': Handler.post_memory,
+    '/api/memory/forget': Handler.post_memory_forget,
+    '/api/overlay': Handler.post_overlay,
+    '/api/overlay/remove': Handler.post_overlay_remove,
 }
 
 

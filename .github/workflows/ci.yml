@@ -40,7 +40,7 @@ jobs:
           git config --global user.name "Cortex CI"
           git config --global user.email "ci@users.noreply.github.com"
           git config --global init.defaultBranch main
-      - run: pip install -e "analyzer[dev]"
+      - run: pip install -e "analyzer[dev,all]"
       - name: Pyflakes
         working-directory: analyzer
         run: python -m pyflakes cortex_graph tests

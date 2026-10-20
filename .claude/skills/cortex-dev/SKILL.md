@@ -31,7 +31,13 @@ description: Develop Córtex itself (the 3D web in src/ and the Python analyzer 
 
 | Archivo | Rol |
 | --- | --- |
-| `analyze.py` | Orquesta el análisis (rutas por lenguaje, scripts con shebang, docs), comunidades Leiden con tope por tamaño y nombres por carpeta, layout, exportaciones `grafo.md` / `grafo.json` |
+| `analyze.py` | Orquesta el análisis (rutas por lenguaje, scripts con shebang, docs, contenido), comunidades Leiden con tope por tamaño y nombres por carpeta, layout, exportaciones `grafo.md` / `grafo.json` |
+| `importers.py` | Detecta y lee historiales de chat (ChatGPT, Claude, Claude Code, WhatsApp, Telegram, Slack, Discord, JSON/JSONL, Markdown) y subtítulos `.srt`/`.vtt` |
+| `documents.py` | Extrae texto de PDF, DOCX, ODT, HTML, correo (`.eml`, `.mbox`), calendarios (`.ics`), CSV/TSV y RTF |
+| `extract.py` | Extracción determinista de personas, temas, fechas y frases clave de texto libre, sin modelos |
+| `content.py` | Notas Markdown, Obsidian y Logseq: títulos, `[[wikilinks]]`, `#etiquetas` y frontmatter |
+| `brain.py` | Memoria personal: `remember`, `recall`, `forget`, `profile`, `timeline`, importación, categorías, deduplicación, validez temporal y redacción de secretos |
+| `llm.py` | Cliente opcional de la API de Claude para `import --ai` (modelo `CORTEX_AI_MODEL`, modo por lotes, redacción previa al envío) |
 | `pyast.py` | Python con `ast`: notebooks, raíces de código, herencia en llamadas a `self`, rutas |
 | `tsjs.py` | TS/JS con tree-sitter: alias de tsconfig, workspaces, barrels, `import()`/`require`, clases con métodos y herencia, Vue/Svelte |
 | `common.py` | `Graph`, `Issues`, lectura de archivos, `digest` |
@@ -41,14 +47,14 @@ description: Develop Córtex itself (the 3D web in src/ and the Python analyzer 
 | `pipeline.py` | Fuente local o GitHub (clon superficial), análisis y guardado |
 | `query.py` | Índice y consultas: overview, search, node, file, community, path, impact, changes, report |
 | `server.py` | API HTTP: subida, clon, revisión, análisis, stream, export, `/api/query/*` |
-| `mcp_server.py` | Servidor MCP (FastMCP): 18 herramientas, recursos y prompts |
+| `mcp_server.py` | Servidor MCP (FastMCP): 24 herramientas (18 de código y 6 de memoria), recursos (incluido `cortex://profile/{project}`) y prompts |
 | `search.py`, `context.py` | Búsqueda BM25 y paquetes de contexto con presupuesto; `read_symbol` con redacción de secretos |
 | `bridges.py`, `deps.py` | Puentes entre servicios (HTTP, gRPC, datos, entorno, eventos) y dependencias externas |
 | `gitinfo.py`, `review.py` | Historia de git (churn, co-cambio) y revisión de diffs con riesgo |
 | `config.py`, `watch.py` | `.cortex.toml`, `.cortexignore`, vigilancia y hooks de git |
 | `contextfiles.py`, `clients.py` | AGENTS.md/CLAUDE.md/llms.txt y configuración MCP para cada cliente |
 | `scip.py` | Modo preciso con índices SCIP (`bench/` mide la calidad contra ellos) |
-| `cli.py` | CLI `cortex` |
+| `cli.py` | CLI `cortex`, con los comandos de memoria (`remember`, `recall`, `forget`, `profile`, `timeline`) e `import` |
 | `errors.py` | `CortexError`, `NotFound`, `InvalidInput`, `Conflict` |
 
 Tests: `analyzer/tests/` (pytest) y `tests/e2e/smoke.mjs` (Playwright contra la app levantada).

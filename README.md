@@ -2,10 +2,10 @@
   <img src="docs/media/cover.png" alt="Córtex: teje el grafo de conocimiento de tu código" width="100%" />
 </p>
 
-<h3 align="center">Tu código, convertido en una memoria viva que cualquier IA puede consultar.</h3>
+<h3 align="center">Tu código, tus notas y tus chats, convertidos en una memoria viva que cualquier IA puede consultar.</h3>
 
 <p align="center">
-  <em><b>TL;DR</b>: Córtex turns any repository, in any language, into a living, versioned knowledge graph that AI agents query through MCP, a CLI or HTTP,<br />
+  <em><b>TL;DR</b>: Córtex turns any repository, in any language, and your notes, chats and documents into a living, versioned knowledge graph that AI agents query through MCP, a CLI or HTTP,<br />
   and renders it as a 3D universe woven file by file by a wireframe spider. Deterministic, local, one <code>docker compose up</code> away.</em>
 </p>
 
@@ -14,7 +14,7 @@
   <img src="https://img.shields.io/badge/Python-3.11%2B-8cdcf5?style=flat-square&logo=python&logoColor=white" alt="Python 3.11+" />
   <img src="https://img.shields.io/badge/Three.js-r170-8cdcf5?style=flat-square&logo=threedotjs&logoColor=white" alt="Three.js" />
   <img src="https://img.shields.io/badge/lenguajes-26%2B-8cdcf5?style=flat-square" alt="26+ lenguajes" />
-  <img src="https://img.shields.io/badge/MCP-18%20herramientas-8cdcf5?style=flat-square" alt="MCP" />
+  <img src="https://img.shields.io/badge/MCP-28%20herramientas-8cdcf5?style=flat-square" alt="MCP" />
   <img src="https://img.shields.io/badge/Docker-compose-8cdcf5?style=flat-square&logo=docker&logoColor=white" alt="Docker" />
 </p>
 
@@ -25,7 +25,8 @@
 <p align="center">
   <a href="docs/media/demo.mp4"><b>▶ Ver el video</b></a> &nbsp;·&nbsp;
   <a href="#empieza-en-1-minuto">Empieza en 1 minuto</a> &nbsp;·&nbsp;
-  <a href="#para-tu-ia">Para tu IA</a>
+  <a href="#para-tu-ia">Para tu IA</a> &nbsp;·&nbsp;
+  <a href="#tu-segundo-cerebro">Tu segundo cerebro</a>
 </p>
 
 ---
@@ -39,7 +40,7 @@ Toda IA que entra a un repositorio llega sin memoria. Abre archivos, adivina, vu
 - **Memoria, no búsqueda.** Cada archivo, clase y función con su lugar exacto y sus vínculos. Tu IA deja de adivinar.
 - **Recuerda lo que cambió.** Cada análisis es una versión; lo nuevo, lo modificado y lo que desapareció quedan registrados.
 - **Cualquier stack.** Go, Rust, Java, C#, PHP, Ruby, Swift, Kotlin, C/C++, Python, TypeScript y quince más, junto con su Docker, su CI, su SQL y su Terraform.
-- **Siempre lo mismo.** Sin modelos ni tokens en el análisis: el mismo código, el mismo mapa.
+- **Siempre lo mismo.** Por defecto, sin modelos ni tokens: el mismo código, el mismo mapa.
 - **Un espectáculo.** Tu arquitectura convertida en universo, lista para grabar.
 
 ## Galería
@@ -73,8 +74,10 @@ Tu agente no abre archivos a ciegas: le pide a Córtex **el contexto justo para 
 | «¿Quién usa `axios`?» | `dependencies` |
 | «¿Dónde se lee `DATABASE_URL`?» | `variables` |
 | «¿Hay ciclos, código muerto o puntos calientes?» | `architecture` |
+| «¿Qué sabes de mí sobre esto?» | `recall` → recuerdos vigentes con fecha y fuente, dentro de un presupuesto |
+| «Recuerda que prefiero respuestas cortas» | `remember` (y `forget` para borrarlo) |
 
-18 herramientas MCP, más recursos (`cortex://<proyecto>/overview`) y prompts listos (`orient`, `plan_change`, `review`, `explain`). Lo mismo está en la **CLI** (`cortex … --json`) y en la **API HTTP** (`/api/query/*`).
+28 herramientas MCP (18 de código, 6 de [memoria](#tu-segundo-cerebro): `remember`, `recall`, `forget`, `profile`, `timeline`, `import_history`, y 4 para [que tu IA escriba el grafo](#grafo-hecho-por-tu-ia)), más recursos (`cortex://<proyecto>/overview`, `cortex://profile/<proyecto>`) y prompts listos (`orient`, `plan_change`, `review`, `explain`, `build_graph`). Lo mismo está en la **CLI** (`cortex … --json`) y en la **API HTTP** (`/api/query/*`).
 
 **Conéctalo a tu cliente** con un comando: Claude Code, Claude Desktop, Cursor, VS Code/Copilot, Windsurf/Devin, Zed, Codex, Gemini CLI, Continue o Cline.
 
@@ -83,6 +86,48 @@ cortex mcp-config cursor --mode uvx --install
 ```
 
 **Y que el repo se explique solo**: `cortex context-files` escribe `AGENTS.md`, `CLAUDE.md`, `llms.txt`, reglas de Cursor y de Copilot a partir del grafo, sin tocar lo que ya escribiste.
+
+## Grafo hecho por tu IA
+
+Donde el análisis estático no llega (lenguajes raros, flujos definidos en configuración, procesos de negocio) o cuando quieres más que símbolos, tu IA completa el grafo a su manera: **componentes** (servicios, pantallas, capas, almacenes, sistemas externos), **flujos** con pasos ordenados, relaciones `uses` y resúmenes sobre cualquier nodo. Se guarda en un registro propio (`datos/<proyecto>/agente.jsonl`), crea una versión nueva y se ve en la web igual que lo demás, con su marca «agente» o «IA».
+
+- MCP: `graph_guide` da la lista de trabajo (archivos sin analizar, comunidades sin componente, archivos sin resumen, endpoints o variables sin pareja); `graph_add` añade en lotes validados; `graph_overlay` y `graph_remove` revisan y deshacen. El prompt `build_graph` guía el proceso.
+- CLI: `cortex graph guide|add lote.json|list|remove ID…`. HTTP: `GET/POST /api/overlay`, `POST /api/overlay/remove`.
+- Sin agente: `cortex analyze <carpeta> --ai` pide a la API de Claude componentes, flujos y resúmenes por comunidad (envía código con los secretos redactados; avisa y pide confirmación; requiere `ANTHROPIC_API_KEY`).
+
+Una carpeta con archivos que Córtex no entiende también sirve: cada archivo queda como nodo y tu IA lo describe.
+
+## Tu segundo cerebro
+
+Córtex también guarda lo que sabes de ti. Tus chats, notas y documentos se convierten en una memoria personal que tu IA consulta antes de responder.
+
+- **Recuerda y olvida.** `remember` guarda un dato con su categoría y su fecha; `forget` lo borra, también del texto de versiones anteriores.
+- **Sabe lo vigente.** Un dato nuevo reemplaza al anterior: si te mudas, «vivo en Bogotá» sustituye a «vivo en Madrid». `recall --en AAAA-MM-DD` responde con lo que era cierto en esa fecha.
+- **Responde dentro de tu presupuesto.** `recall` devuelve solo la evidencia que cabe en los tokens que le des, con su fecha y su fuente: primero los recuerdos y después los mensajes más relevantes, agrupados por conversación en orden cronológico (`- AAAA-MM-DD HH:MM Autor: texto`).
+- **Entiende cómo preguntas.** Busca en inglés y español con raíces, sinónimos, nombres de quien habla y fechas. Tu IA puede pasar `hints` (sinónimos, traducciones, posibles respuestas) que cuentan menos que la pregunta; en la CLI es `--pistas`.
+- **Embeddings locales, si quieres.** Con el extra `semantic` (`pip install "cortex-graph[semantic]"`), `recall` suma similitud semántica con un modelo estático pequeño (`minishlab/potion-base-8M`, 30 MB, se descarga una vez). Para conversaciones sobre todo en español, usa `CORTEX_EMBED_MODEL=minishlab/potion-multilingual-128M` (530 MB); `CORTEX_EMBED_MODEL=off` lo desactiva. Sin el extra, todo sigue igual.
+- **Perfil listo para tu IA.** `profile` genera un Markdown compacto para las instrucciones de sistema, y `timeline` ordena tu historia por fechas.
+
+```bash
+cortex import ~/exports                  # chats, notas, PDFs, correos… (carpeta o archivo)
+cortex recall "¿dónde trabajo y con quién?"
+cortex remember "prefiero respuestas cortas" --categoria preference
+cortex profile --budget 800              # perfil para las instrucciones de tu IA
+cortex forget "vivo en Madrid"
+cortex mcp-config claude-code --mode uvx --install   # tu IA ya usa tu memoria
+```
+
+| Fuente | Formatos |
+| --- | --- |
+| Chats | Exportaciones de ChatGPT y Claude, transcripciones de Claude Code (`.jsonl`), WhatsApp, Telegram, Slack, Discord, JSON/JSONL y Markdown genéricos |
+| Notas | Markdown, Obsidian y Logseq: `[[wikilinks]]`, `#etiquetas` y frontmatter |
+| Documentos | PDF (extra `docs`), DOCX, ODT, HTML, RTF, TXT, CSV y TSV |
+| Correo y agenda | `.eml`, `.mbox`, `.ics` |
+| Subtítulos y transcripciones | `.srt`, `.vtt` |
+
+- **Local por defecto.** `cortex import` extrae personas, temas, eventos y recuerdos sin modelos: nada sale de tu equipo.
+- **La nube, solo si la pides.** `cortex import RUTA --ai` envía el texto a la API de Claude para extraer recuerdos. Requiere el extra `ai` (`pip install "cortex-graph[ai]"`) y `ANTHROPIC_API_KEY`; avisa antes de enviar, redacta secretos y usa `claude-opus-5-5` salvo que definas `CORTEX_AI_MODEL`. `--batch` cuesta menos pero tarda más. Con Docker, pasa la clave en el entorno de `docker compose`.
+- **Sin secretos.** Tokens, contraseñas y claves se redactan al guardar. Tu memoria vive en `CORTEX_DATA` o en la carpeta de datos de tu sistema.
 
 ## Empieza en 1 minuto
 
@@ -129,6 +174,7 @@ Configura cada repo con `.cortex.toml` (`name`, `exclude`, `include_tests`, `git
 - **Historia de git:** archivos calientes, quién cambia con quién y riesgo de cada cambio.
 - **Siempre al día:** un repo sin cambios se revisa en milisegundos y, en repos medianos, un cambio pequeño se reanaliza en menos de un segundo.
 - **Calidad medida** contra índices SCIP de compilador: en Python y Go, 98–100 % de precisión y 93–100 % de cobertura en llamadas y dependencias ([`bench/`](bench)).
+- **Memoria medida** en LoCoMo (1 536 preguntas sobre conversaciones largas, todo local y sin IA): `recall` encuentra el 83 %, el 89 % y el 94 % de la evidencia con presupuestos de 1 000, 2 000 y 4 000 tokens, y el 84 %, el 90 % y el 95 % con los embeddings locales opcionales (extra `semantic`). Con 2 000 tokens llega a la sesión correcta en el 97 % de las preguntas, en ~20 ms. Las muestras 5-9, que no se usaron para afinar, dan resultados parecidos ([`bench/memory`](bench/memory)).
 - Comunidades descubiertas solas, con nombre propio; versiones con diff por contenido y un mapa que no se reacomoda.
 
 ## Atajos

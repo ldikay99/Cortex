@@ -15,6 +15,8 @@ services:
     container_name: cortex-analyzer
     environment:
       GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      CORTEX_AI_MODEL: ${CORTEX_AI_MODEL:-}
       CORTEX_DATA: /data
     volumes:
       - ./datos:/data

@@ -14,7 +14,8 @@ from cortex_graph.errors import CortexError, InvalidInput, NotFound
 
 TOOL_NAMES = {'list_projects', 'analyze_project', 'project_overview', 'search_code', 'node_context', 'file_context',
               'community_context', 'find_path', 'impact_analysis', 'changes', 'get_report', 'read_symbol', 'context_for',
-              'architecture', 'dependencies', 'endpoints', 'variables', 'review_changes'}
+              'architecture', 'dependencies', 'endpoints', 'variables', 'review_changes', 'remember', 'recall', 'forget', 'profile',
+              'timeline', 'import_history', 'graph_guide', 'graph_add', 'graph_remove', 'graph_overlay'}
 
 
 @pytest.fixture
@@ -76,7 +77,8 @@ def test_resources_and_prompts(analyzed):
     server = mcp_server.build_server()
     assert [str(r.uri) for r in asyncio.run(server.list_resources())] == ['cortex://projects']
     templates = {t.uriTemplate for t in asyncio.run(server.list_resource_templates())}
-    assert templates == {'cortex://{project}/overview', 'cortex://{project}/report', 'cortex://{project}/community/{id}'}
+    assert templates == {'cortex://{project}/overview', 'cortex://{project}/report', 'cortex://{project}/community/{id}',
+                         'cortex://profile/{project}'}
     projects = json.loads(list(asyncio.run(server.read_resource('cortex://projects')))[0].content)
     assert projects['projects'][0]['project'] == 'demo'
     overview = json.loads(list(asyncio.run(server.read_resource('cortex://demo/overview')))[0].content)
@@ -86,7 +88,7 @@ def test_resources_and_prompts(analyzed):
     community = json.loads(list(asyncio.run(server.read_resource('cortex://demo/community/0')))[0].content)
     assert community['community']['id'] == 0
     prompts = {p.name: p for p in asyncio.run(server.list_prompts())}
-    assert set(prompts) == {'orient', 'plan_change', 'review', 'explain'}
+    assert set(prompts) == {'orient', 'plan_change', 'review', 'explain', 'build_graph'}
     assert [a.name for a in prompts['plan_change'].arguments if a.required] == ['change']
     text = asyncio.run(server.get_prompt('plan_change', {'change': 'rename slugify'})).messages[0].content.text
     assert 'rename slugify' in text and 'impact_analysis' in text and 'context_for' in text
@@ -170,3 +172,45 @@ def test_stdio_handshake(repo, data_dir):
     finally:
         code, stderr = client.close()
     assert code == 0 and 'Traceback' not in stderr and 'Processing request' not in stderr
+
+
+def test_memory_tools(data_dir, monkeypatch):
+    from cortex_graph import brain
+    monkeypatch.setattr(brain, 'external_facts', lambda text, now: {})
+    calls = []
+    monkeypatch.setattr(pipeline, 'rebuild', lambda project, include_tests=None: calls.append(project), raising=False)
+    saved = mcp_server.remember('Vivo en Valencia', about=['Valencia'])
+    assert saved['status'] == 'new' and saved['graph'] in ('actualizando', 'en cola') and saved['project'] == 'memoria'
+    assert mcp_server.remember('vivo en valencia')['status'] == 'duplicate'
+    found = mcp_server.recall('¿dónde vivo?')
+    assert found['items'][0]['id'] == saved['id'] and '## Recuerdos' in found['markdown']
+    hinted = mcp_server.recall('¿cuál es mi ciudad?', hints=['Valencia', 'vivo'])
+    assert hinted['hints'] == ['Valencia', 'vivo'] and hinted['items'][0]['id'] == saved['id']
+    assert '## Quién es' in mcp_server.profile()['markdown']
+    assert mcp_server.timeline()['items'][0]['key'] == f"r:{saved['id']}"
+    assert mcp_server.forget(saved['id'])['forgotten'] == [saved['id']]
+    for _ in range(200):
+        if not brain.rebuilding():
+            break
+        threading.Event().wait(0.02)
+    assert set(calls) == {'memoria'}
+    server = mcp_server.build_server()
+    tools = {t.name: t for t in asyncio.run(server.list_tools())}
+    assert 'durable fact' in tools['remember'].description and 'BEFORE answering' in tools['recall'].description
+    assert 'Claude API' in tools['import_history'].description and 'ANTHROPIC_API_KEY' in tools['import_history'].description
+    assert set(tools['import_history'].inputSchema['properties']) == {'source', 'project', 'ai', 'batch', 'model'}
+    assert set(tools['recall'].inputSchema['properties']) == {'query', 'project', 'budget', 'at', 'hints'}
+    assert 'synonyms, translations' in tools['recall'].description and 'likely answer words' in tools['recall'].description
+    assert tools['forget'].annotations.destructiveHint is True and tools['recall'].annotations.readOnlyHint is True
+    assert 'memory projects' in tools['context_for'].description
+    mcp_server.remember('Me gusta el mar', project='yo')
+    text = list(asyncio.run(server.read_resource('cortex://profile/yo')))[0]
+    assert text.content.startswith('# Perfil · yo') and 'Le gusta el mar' in text.content and text.mime_type == 'text/markdown'
+
+
+def test_import_history_tool_delegates(monkeypatch):
+    from cortex_graph import brain
+    seen = []
+    monkeypatch.setattr(brain, 'import_history', lambda source, project=None, ai=False, batch=False, model=None: seen.append((source, project, ai, batch, model)) or {'ok': True})
+    assert mcp_server.import_history('/tmp/x', ai=True) == {'ok': True}
+    assert seen == [('/tmp/x', None, True, False, None)]

@@ -156,3 +156,8 @@ def by_key(graph):
 def edge_set(graph, edges='edges'):
     nodes = graph['nodes']
     return {(nodes[e['a']]['key'], nodes[e['b']]['key'], e['kind']) for e in graph[edges]}
+
+
+@pytest.fixture(autouse=True)
+def lexical_recall(monkeypatch):
+    monkeypatch.setenv('CORTEX_EMBED_MODEL', 'off')

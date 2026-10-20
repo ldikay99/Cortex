@@ -1,0 +1,1290 @@
+{
+ "meta": {
+  "date": "2026-10-20",
+  "precision": {
+   "estimate": null,
+   "flows": 576,
+   "fp": 0,
+   "fp_rate_unmatched": null,
+   "lower_bound": 0.7760416666666666,
+   "matched": 447,
+   "reviewed": 0,
+   "unmatched": 129
+  }
+ },
+ "results": {
+  "eShop": {
+   "commit": "913acea66708a59595351174cee9b29f37179d29",
+   "flows": 33,
+   "flows_by_kind": {
+    "http": [
+     2,
+     2
+    ],
+    "route": [
+     28,
+     31
+    ]
+   },
+   "fn": {
+    "data · destino sin aristas de flujo": {
+     "examples": [
+      "src/Catalog.API/Apis/CatalogApi.cs:141 → src/Catalog.API/Model/CatalogItem.cs:7 (table CatalogItems (EF DbSet<CatalogItem>))",
+      "src/Catalog.API/Apis/CatalogApi.cs:174 → src/Catalog.API/Model/CatalogItem.cs:7 (table CatalogItems (EF DbSet<CatalogItem>))",
+      "src/Catalog.API/Apis/CatalogApi.cs:212 → src/Catalog.API/Model/CatalogItem.cs:7 (table CatalogItems (EF DbSet<CatalogItem>))",
+      "src/Catalog.API/Apis/CatalogApi.cs:229 → src/Catalog.API/Model/CatalogItem.cs:7 (table CatalogItems (EF DbSet<CatalogItem>))"
+     ],
+     "n": 16
+    },
+    "data · origen y destino sin aristas de flujo": {
+     "examples": [
+      "src/Catalog.API/IntegrationEvents/EventHandling/OrderStatusChangedToPaidIntegrationEventHandler.cs:15 → src/Catalog.API/Model/CatalogItem.cs:7 (table CatalogItems (EF DbSet<CatalogItem>))",
+      "src/Catalog.API/IntegrationEvents/EventHandling/OrderStatusChangedToAwaitingValidationIntegrationEventHandler.cs:17 → src/Catalog.API/Model/CatalogItem.cs:7 (table CatalogItems (EF DbSet<CatalogItem>))"
+     ],
+     "n": 2
+    },
+    "event · destino sin aristas de flujo": {
+     "examples": [
+      "src/Catalog.API/Apis/CatalogApi.cs:399 → src/Webhooks.API/IntegrationEvents/ProductPriceChangedIntegrationEventHandler.cs:5 (event ProductPriceChangedIntegrationEvent)"
+     ],
+     "n": 1
+    },
+    "event · origen y destino sin aristas de flujo": {
+     "examples": [
+      "src/Ordering.API/Application/Commands/CreateOrderCommandHandler.cs:33 → src/Basket.API/IntegrationEvents/EventHandling/OrderStartedIntegrationEventHandler.cs:10 (event OrderStartedIntegrationEvent)",
+      "src/Ordering.API/Application/DomainEventHandlers/ValidateOrAddBuyerAggregateWhenOrderStartedDomainEventHandler.cs:51 → src/WebApp/Services/OrderStatus/IntegrationEvents/EventHandling/OrderStatusChangedToSubmittedIntegrationEventHandler.cs:10 (event OrderStatusChangedToSubmittedIntegrationEvent)",
+      "src/Ordering.API/Application/DomainEventHandlers/OrderStatusChangedToAwaitingValidationDomainEventHandler.cs:34 → src/Catalog.API/IntegrationEvents/EventHandling/OrderStatusChangedToAwaitingValidationIntegrationEventHandler.cs:9 (event OrderStatusChangedToAwaitingValidationIntegrationEvent)",
+      "src/Ordering.API/Application/DomainEventHandlers/OrderStatusChangedToAwaitingValidationDomainEventHandler.cs:34 → src/WebApp/Services/OrderStatus/IntegrationEvents/EventHandling/OrderStatusChangedToAwaitingValidationIntegrationEventHandler.cs:10 (event OrderStatusChangedToAwaitingValidationIntegrationEvent)"
+     ],
+     "n": 35
+    },
+    "http · llamada no detectada": {
+     "examples": [
+      "src/WebAppComponents/Services/CatalogService.cs:14 → src/Catalog.API/Apis/CatalogApi.cs:217 (GET api/catalog/items/{id})",
+      "src/WebAppComponents/Services/CatalogService.cs:20 → src/Catalog.API/Apis/CatalogApi.cs:131 (GET api/catalog/items?pageIndex&pageSize&type&brand)",
+      "src/WebAppComponents/Services/CatalogService.cs:27 → src/Catalog.API/Apis/CatalogApi.cs:208 (GET api/catalog/items/by?ids=)",
+      "src/WebAppComponents/Services/CatalogService.cs:34 → src/Catalog.API/Apis/CatalogApi.cs:286 (GET api/catalog/items/withsemanticrelevance?text=)"
+     ],
+     "n": 15
+    },
+    "route · ruta no detectada": {
+     "examples": [
+      "src/Catalog.API/Apis/CatalogApi.cs:27 → src/Catalog.API/Apis/CatalogApi.cs:131 (GET /api/catalog/items (v2))",
+      "src/Basket.API/Program.cs:12 → src/Basket.API/Grpc/BasketService.cs:8 (gRPC service BasketService registered)"
+     ],
+     "n": 2
+    },
+    "rpc · origen y destino sin aristas de flujo": {
+     "examples": [
+      "src/WebApp/Services/BasketService.cs:11 → src/Basket.API/Grpc/BasketService.cs:13 (Basket.GetBasket)",
+      "src/WebApp/Services/BasketService.cs:34 → src/Basket.API/Grpc/BasketService.cs:36 (Basket.UpdateBasket)",
+      "src/WebApp/Services/BasketService.cs:17 → src/Basket.API/Grpc/BasketService.cs:59 (Basket.DeleteBasket)",
+      "src/ClientApp/Services/Basket/BasketService.cs:46 → src/Basket.API/Grpc/BasketService.cs:13 (Basket.GetBasket)"
+     ],
+     "n": 6
+    }
+   },
+   "found": 30,
+   "matched": 30,
+   "recall": {
+    "data": {
+     "found": 0,
+     "total": 18
+    },
+    "event": {
+     "found": 0,
+     "total": 36
+    },
+    "http": {
+     "found": 2,
+     "total": 17
+    },
+    "route": {
+     "found": 28,
+     "total": 30
+    },
+    "rpc": {
+     "found": 0,
+     "total": 6
+    }
+   },
+   "sample": [
+    {
+     "a": "e:src/WebhookClient/Endpoints/AuthenticationEndpoints.cs:POST /logout",
+     "b": "f:src/WebhookClient/Endpoints/AuthenticationEndpoints.cs:AuthenticationEndpoints.MapAuthenticationEndpoints",
+     "edge": "handles",
+     "from": "src/WebhookClient/Endpoints/AuthenticationEndpoints.cs:12 POST /logout",
+     "kind": "route",
+     "note": "",
+     "to": "src/WebhookClient/Endpoints/AuthenticationEndpoints.cs:10 AuthenticationEndpoints.MapAuthenticationEndpoints",
+     "verdict": null
+    },
+    {
+     "a": "e:src/Catalog.API/Apis/CatalogApi.cs:GET /api/catalog/items",
+     "b": "f:src/Catalog.API/Apis/CatalogApi.cs:CatalogApi.GetAllItems",
+     "edge": "handles",
+     "from": "src/Catalog.API/Apis/CatalogApi.cs:22 GET /api/catalog/items",
+     "kind": "route",
+     "note": "",
+     "to": "src/Catalog.API/Apis/CatalogApi.cs:130 CatalogApi.GetAllItems",
+     "verdict": null
+    },
+    {
+     "a": "e:src/WebhookClient/Endpoints/WebhookEndpoints.cs:ANY /check",
+     "b": "f:src/WebhookClient/Endpoints/WebhookEndpoints.cs:WebhookEndpoints.MapWebhookEndpoints",
+     "edge": "handles",
+     "from": "src/WebhookClient/Endpoints/WebhookEndpoints.cs:16 ANY /check",
+     "kind": "route",
+     "note": "",
+     "to": "src/WebhookClient/Endpoints/WebhookEndpoints.cs:8 WebhookEndpoints.MapWebhookEndpoints",
+     "verdict": null
+    }
+   ],
+   "seconds": 0.0,
+   "stack": "ASP.NET Core 8 / Aspire: minimal APIs, gRPC, RabbitMQ integration events, EF Core, Blazor WebApp, MAUI (HybridApp, ClientApp)",
+   "total": 107,
+   "unmatched": 3
+  },
+  "full-stack-fastapi-template": {
+   "commit": "b1125d8839482cb7bbae603ddc6d0081bf87532e",
+   "flows": 24,
+   "flows_by_kind": {
+    "env": [
+     0,
+     1
+    ],
+    "route": [
+     23,
+     23
+    ]
+   },
+   "fn": {
+    "data · destino sin aristas de flujo": {
+     "examples": [
+      "backend/app/api/routes/users.py:42 → backend/app/models.py:51 (table user (SQLModel User))",
+      "backend/app/api/routes/users.py:46 → backend/app/models.py:51 (table user (SQLModel User))",
+      "backend/app/api/routes/users.py:169 → backend/app/models.py:51 (table user (SQLModel User))",
+      "backend/app/api/routes/users.py:197 → backend/app/models.py:51 (table user (SQLModel User))"
+     ],
+     "n": 14
+    },
+    "data · origen y destino sin aristas de flujo": {
+     "examples": [
+      "backend/app/core/db.py:25 → backend/app/models.py:51 (table user (SQLModel User))",
+      "backend/app/api/deps.py:41 → backend/app/models.py:51 (table user (SQLModel User))",
+      "backend/app/crud.py:11 → backend/app/models.py:51 (table user (SQLModel User))",
+      "backend/app/crud.py:35 → backend/app/models.py:51 (table user (SQLModel User))"
+     ],
+     "n": 7
+    },
+    "env · destino sin aristas de flujo": {
+     "examples": [
+      "compose.yml:31 → .env:17 (env POSTGRES_PASSWORD)",
+      "frontend/src/main.tsx:18 → frontend/.env:1 (env VITE_API_URL)",
+      "frontend/tests/utils/mailpit.ts:20 → frontend/.env:2 (env MAILPIT_HOST)"
+     ],
+     "n": 3
+    },
+    "env · origen y destino sin aristas de flujo": {
+     "examples": [
+      "backend/app/core/config.py:23 → .env:6 (env SECRET_KEY)",
+      "backend/app/core/config.py:29 → .env:4 (env PROJECT_NAME)",
+      "backend/app/core/config.py:65 → .env:7 (env FIRST_SUPERUSER)",
+      "backend/app/core/config.py:66 → .env:8 (env FIRST_SUPERUSER_PASSWORD)"
+     ],
+     "n": 17
+    },
+    "http · llamada no detectada": {
+     "examples": [
+      "frontend/src/client/sdk.gen.ts:31 → backend/app/api/routes/login.py:24 (POST /api/v1/login/access-token)",
+      "frontend/src/client/sdk.gen.ts:49 → backend/app/api/routes/login.py:46 (POST /api/v1/login/test-token)",
+      "frontend/src/client/sdk.gen.ts:62 → backend/app/api/routes/login.py:54 (POST /api/v1/password-recovery/{email})",
+      "frontend/src/client/sdk.gen.ts:75 → backend/app/api/routes/login.py:78 (POST /api/v1/reset-password/)"
+     ],
+     "n": 40
+    },
+    "route · ruta no detectada": {
+     "examples": [
+      "backend/app/api/main.py:7 → backend/app/api/routes/login.py:20 (include_router(login.router) under /api/v1)",
+      "backend/app/api/main.py:8 → backend/app/api/routes/users.py:29 (include_router(users.router) under /api/v1)",
+      "backend/app/api/main.py:9 → backend/app/api/routes/utils.py:8 (include_router(utils.router) under /api/v1)",
+      "backend/app/api/main.py:10 → backend/app/api/routes/items.py:10 (include_router(items.router) under /api/v1)"
+     ],
+     "n": 6
+    },
+    "service · destino sin aristas de flujo": {
+     "examples": [
+      "compose.yml:34 → compose.yml:20 (adminer depends_on db)",
+      "compose.override.yml:91 → compose.yml:49 (frontend URL -> backend service)"
+     ],
+     "n": 2
+    },
+    "service · origen y destino sin aristas de flujo": {
+     "examples": [
+      "compose.yml:49 → compose.yml:20 (backend depends_on db)",
+      "compose.override.yml:85 → compose.yml:49 (playwright depends_on backend)"
+     ],
+     "n": 2
+    }
+   },
+   "found": 24,
+   "matched": 23,
+   "recall": {
+    "data": {
+     "found": 0,
+     "total": 21
+    },
+    "env": {
+     "found": 1,
+     "total": 21
+    },
+    "http": {
+     "found": 0,
+     "total": 40
+    },
+    "route": {
+     "found": 23,
+     "total": 29
+    },
+    "service": {
+     "found": 0,
+     "total": 4
+    }
+   },
+   "sample": [
+    {
+     "a": "m:frontend/src/main.tsx",
+     "b": "v:VITE_API_URL",
+     "edge": "env",
+     "from": "frontend/src/main.tsx:1 main.tsx",
+     "kind": "env",
+     "note": "",
+     "to": ".github/workflows/deploy.yml:36 VITE_API_URL",
+     "verdict": null
+    }
+   ],
+   "seconds": 0.0,
+   "stack": "FastAPI + SQLModel/Postgres (Python) + React/TypeScript con cliente OpenAPI generado, docker compose",
+   "total": 115,
+   "unmatched": 1
+  },
+  "koel": {
+   "commit": "dce85c40e8881f732dec8e2b50741214993e2b19",
+   "flows": 234,
+   "flows_by_kind": {
+    "http": [
+     67,
+     79
+    ],
+    "route": [
+     155,
+     155
+    ]
+   },
+   "fn": {
+    "http · llamada no detectada": {
+     "examples": [
+      "resources/assets/js/composables/useOfflinePlayback.ts:103 → app/Http/Controllers/API/FetchSongsByIdsController.php:16 (POST /api/songs/by-ids)",
+      "resources/assets/js/services/QueuePlaybackService.ts:39 → app/Http/Controllers/API/UpdatePlaybackStatusController.php:16 (PUT /api/queue/playback-status)",
+      "resources/assets/js/services/uploadService.ts:249 → app/Http/Controllers/API/Upload/FetchDuplicateUploadsController.php:14 (GET /api/duplicate-uploads)",
+      "resources/assets/js/services/uploadService.ts:253 → app/Http/Controllers/API/Upload/KeepDuplicateUploadController.php:16 (POST /api/duplicate-uploads/{})"
+     ],
+     "n": 15
+    },
+    "http · otro endpoint o endpoint sin handler": {
+     "examples": [
+      "resources/assets/js/services/authService.ts:29 → app/Http/Controllers/API/Auth/LoginWithCredentialsController.php:17 (POST /api/me)",
+      "resources/assets/js/services/authService.ts:47 → app/Http/Controllers/API/Auth/TwoFactor/EnrollController.php:18 (POST /api/me/two-factor)",
+      "resources/assets/js/services/authService.ts:50 → app/Http/Controllers/API/Auth/TwoFactor/ConfirmController.php:19 (POST /api/me/two-factor/confirm)",
+      "resources/assets/js/services/authService.ts:52 → app/Http/Controllers/API/Auth/TwoFactor/DisableController.php:19 (DELETE /api/me/two-factor)"
+     ],
+     "n": 59
+    },
+    "route · endpoint sin handler": {
+     "examples": [
+      "routes/api.base.php:132 → app/Http/Controllers/API/Auth/Passkey/LoginController.php:19 (POST /api/me/passkey-login)",
+      "routes/api.base.php:249 → app/Http/Controllers/API/PlaylistFolderPlaylistController.php:26 (DELETE /api/playlist-folders/{playlistFolder}/playlists)",
+      "routes/api.base.php:372 → app/Http/Controllers/API/LambdaSongController.php:19 (POST /api/os/s3/song)",
+      "routes/api.base.php:373 → app/Http/Controllers/API/LambdaSongController.php:39 (DELETE /api/os/s3/song)"
+     ],
+     "n": 4
+    },
+    "route · handler distinto": {
+     "examples": [
+      "routes/api.base.php:131 → app/Http/Controllers/API/Auth/Passkey/LoginOptionsController.php:14 (GET /api/me/passkey-login-options)",
+      "routes/api.base.php:183 → app/Http/Controllers/API/ScrobbleController.php:17 (POST /api/songs/{song}/scrobble)",
+      "routes/api.base.php:280 → app/Http/Controllers/API/Auth/TwoFactor/EnrollController.php:18 (POST /api/me/two-factor)",
+      "routes/api.base.php:281 → app/Http/Controllers/API/Auth/TwoFactor/ConfirmController.php:19 (POST /api/me/two-factor/confirm)"
+     ],
+     "n": 7
+    }
+   },
+   "found": 216,
+   "matched": 222,
+   "recall": {
+    "http": {
+     "found": 68,
+     "total": 142
+    },
+    "route": {
+     "found": 148,
+     "total": 159
+    }
+   },
+   "sample": [
+    {
+     "a": "m:resources/assets/js/services/authService.ts",
+     "b": "e:routes/api.base.php:POST /api/radio/me/two-factor",
+     "edge": "http",
+     "from": "resources/assets/js/services/authService.ts:1 authService.ts",
+     "kind": "http",
+     "note": "",
+     "to": "routes/api.base.php:280 POST /api/radio/me/two-factor",
+     "verdict": null
+    },
+    {
+     "a": "m:resources/assets/js/services/signedUrlService.spec.ts",
+     "b": "e:routes/api.base.php:GET /api/radio/songs/:song/play-url",
+     "edge": "http",
+     "from": "resources/assets/js/services/signedUrlService.spec.ts:1 signedUrlService.spec.ts",
+     "kind": "http",
+     "note": "",
+     "to": "routes/api.base.php:185 GET /api/radio/songs/:song/play-url",
+     "verdict": null
+    },
+    {
+     "a": "m:resources/assets/js/services/http.spec.ts",
+     "b": "e:routes/api.base.php:PUT /api/radio/queue/state",
+     "edge": "http",
+     "from": "resources/assets/js/services/http.spec.ts:1 http.spec.ts",
+     "kind": "http",
+     "note": "",
+     "to": "routes/api.base.php:168 PUT /api/radio/queue/state",
+     "verdict": null
+    },
+    {
+     "a": "m:resources/assets/js/stores/radioStationStore.ts",
+     "b": "e:routes/api.base.php:GET /api/radio/radio/stations/:radioStation/stream-url",
+     "edge": "http",
+     "from": "resources/assets/js/stores/radioStationStore.ts:1 radioStationStore.ts",
+     "kind": "http",
+     "note": "",
+     "to": "routes/api.base.php:353 GET /api/radio/radio/stations/:radioStation/stream-url",
+     "verdict": null
+    },
+    {
+     "a": "m:resources/assets/js/services/passkeyService.ts",
+     "b": "e:routes/api.base.php:GET /api/radio/me/passkeys/confirmation-options",
+     "edge": "http",
+     "from": "resources/assets/js/services/passkeyService.ts:1 passkeyService.ts",
+     "kind": "http",
+     "note": "",
+     "to": "routes/api.base.php:286 GET /api/radio/me/passkeys/confirmation-options",
+     "verdict": null
+    },
+    {
+     "a": "m:resources/assets/js/services/authService.ts",
+     "b": "e:routes/api.base.php:POST /api/radio/me/two-factor/confirm",
+     "edge": "http",
+     "from": "resources/assets/js/services/authService.ts:1 authService.ts",
+     "kind": "http",
+     "note": "",
+     "to": "routes/api.base.php:281 POST /api/radio/me/two-factor/confirm",
+     "verdict": null
+    }
+   ],
+   "seconds": 0.0,
+   "stack": "Laravel (PHP) API + Vue 3/TypeScript SPA",
+   "total": 301,
+   "unmatched": 12
+  },
+  "kotlinconf-app": {
+   "commit": "907ce238e1ffe2472991eeb2d2bfa386bdb4ea8f",
+   "flows": 0,
+   "flows_by_kind": {},
+   "fn": {
+    "data · origen sin aristas de flujo": {
+     "examples": [
+      "backend/src/main/kotlin/org/jetbrains/kotlinconf/backend/schema/Users.kt:6 → backend/src/main/resources/db/migrations/V001__initial_schema.sql:4 (table Users (Exposed object -> migration))",
+      "backend/src/main/kotlin/org/jetbrains/kotlinconf/backend/schema/Votes.kt:7 → backend/src/main/resources/db/migrations/V001__initial_schema.sql:12 (table Votes (Exposed object -> migration))",
+      "backend/src/main/kotlin/org/jetbrains/kotlinconf/backend/schema/Feedback.kt:7 → backend/src/main/resources/db/migrations/V001__initial_schema.sql:23 (table Feedback (Exposed object -> migration))",
+      "backend/src/main/kotlin/org/jetbrains/kotlinconf/backend/schema/SignedPolicies.kt:9 → backend/src/main/resources/db/migrations/V002__add_year_and_signed_policies.sql:13 (table SignedPolicies (Exposed object -> migration))"
+     ],
+     "n": 4
+    },
+    "data · origen y destino sin aristas de flujo": {
+     "examples": [
+      "backend/src/main/kotlin/org/jetbrains/kotlinconf/backend/repositories/KotlinConfRepository.kt:119 → backend/src/main/kotlin/org/jetbrains/kotlinconf/backend/schema/Users.kt:6 (table Users)",
+      "backend/src/main/kotlin/org/jetbrains/kotlinconf/backend/repositories/KotlinConfRepository.kt:125 → backend/src/main/kotlin/org/jetbrains/kotlinconf/backend/schema/Users.kt:6 (table Users)",
+      "backend/src/main/kotlin/org/jetbrains/kotlinconf/backend/repositories/KotlinConfRepository.kt:128 → backend/src/main/kotlin/org/jetbrains/kotlinconf/backend/schema/Users.kt:6 (table Users)",
+      "backend/src/main/kotlin/org/jetbrains/kotlinconf/backend/repositories/KotlinConfRepository.kt:139 → backend/src/main/kotlin/org/jetbrains/kotlinconf/backend/schema/SignedPolicies.kt:9 (table SignedPolicies)"
+     ],
+     "n": 14
+    },
+    "env · origen y destino sin aristas de flujo": {
+     "examples": [
+      "backend/src/main/kotlin/org/jetbrains/kotlinconf/backend/utils/ConferenceConfig.kt:10 → backend/src/main/resources/application.yaml:33 (env ADMIN_SECRET (ktor config service.secret))",
+      "backend/src/main/kotlin/org/jetbrains/kotlinconf/backend/utils/ConferenceConfig.kt:16 → backend/src/main/resources/application.yaml:21 (env CONFERENCE_BASE_URL (ktor config conference.baseUrl))",
+      "backend/src/main/kotlin/org/jetbrains/kotlinconf/backend/repositories/KotlinConfRepository.kt:36 → backend/src/main/resources/application.yaml:24 (env DB0_HOST (ktor config database.host))",
+      "backend/src/main/kotlin/org/jetbrains/kotlinconf/backend/repositories/KotlinConfRepository.kt:44 → backend/src/main/resources/application.yaml:25 (env DB0_USERNAME (ktor config database.user))"
+     ],
+     "n": 6
+    },
+    "http · llamada no detectada": {
+     "examples": [
+      "app/shared/src/commonMain/kotlin/org/jetbrains/kotlinconf/network/YearlyApi.kt:46 → backend/src/main/kotlin/org/jetbrains/kotlinconf/backend/routes/ScheduleRoutes.kt:28 (GET /{year}/conference)",
+      "app/shared/src/commonMain/kotlin/org/jetbrains/kotlinconf/network/YearlyApi.kt:50 → backend/src/main/kotlin/org/jetbrains/kotlinconf/backend/routes/ConferenceInfoRoutes.kt:31 (GET /{year}/conference-info)",
+      "app/shared/src/commonMain/kotlin/org/jetbrains/kotlinconf/network/YearlyApi.kt:54 → backend/src/main/kotlin/org/jetbrains/kotlinconf/backend/routes/GoldenKodeeRoutes.kt:22 (GET /{year}/golden-kodee)",
+      "app/shared/src/commonMain/kotlin/org/jetbrains/kotlinconf/network/YearlyApi.kt:64 → backend/src/main/kotlin/org/jetbrains/kotlinconf/backend/routes/UserRoutes.kt:24 (POST /{year}/sign)"
+     ],
+     "n": 13
+    },
+    "route · ruta no detectada": {
+     "examples": [
+      "backend/src/main/kotlin/org/jetbrains/kotlinconf/backend/routes/UserRoutes.kt:24 → backend/src/main/kotlin/org/jetbrains/kotlinconf/backend/routes/UserRoutes.kt:24 (POST /{year}/sign)",
+      "backend/src/main/kotlin/org/jetbrains/kotlinconf/backend/routes/UserRoutes.kt:39 → backend/src/main/kotlin/org/jetbrains/kotlinconf/backend/routes/UserRoutes.kt:39 (GET /{year}/sign)",
+      "backend/src/main/kotlin/org/jetbrains/kotlinconf/backend/routes/ScheduleRoutes.kt:28 → backend/src/main/kotlin/org/jetbrains/kotlinconf/backend/routes/ScheduleRoutes.kt:28 (GET /{year}/conference)",
+      "backend/src/main/kotlin/org/jetbrains/kotlinconf/backend/routes/ConferenceInfoRoutes.kt:31 → backend/src/main/kotlin/org/jetbrains/kotlinconf/backend/routes/ConferenceInfoRoutes.kt:31 (GET /{year}/conference-info)"
+     ],
+     "n": 31
+    },
+    "service · origen y destino sin aristas de flujo": {
+     "examples": [
+      "backend/src/main/resources/application.yaml:10 → backend/src/main/kotlin/org/jetbrains/kotlinconf/backend/RoutesModule.kt:19 (ktor modules list -> routesModule)",
+      "backend/src/main/resources/application.yaml:7 → backend/src/main/kotlin/org/jetbrains/kotlinconf/backend/DiModule.kt:17 (ktor modules list -> diModule)",
+      "backend/src/main/resources/application.yaml:9 → backend/src/main/kotlin/org/jetbrains/kotlinconf/backend/PluginsModule.kt:29 (ktor modules list -> pluginsSetup)",
+      "backend/src/main/resources/application.yaml:8 → backend/src/main/kotlin/org/jetbrains/kotlinconf/backend/StartupModule.kt:10 (ktor modules list -> startupModule)"
+     ],
+     "n": 4
+    }
+   },
+   "found": 0,
+   "matched": 0,
+   "recall": {
+    "data": {
+     "found": 0,
+     "total": 18
+    },
+    "env": {
+     "found": 0,
+     "total": 6
+    },
+    "http": {
+     "found": 0,
+     "total": 13
+    },
+    "route": {
+     "found": 0,
+     "total": 31
+    },
+    "service": {
+     "found": 0,
+     "total": 4
+    }
+   },
+   "sample": [],
+   "seconds": 0.0,
+   "stack": "Kotlin Multiplatform (Android/iOS/desktop/web, Ktor client) + backend Ktor + Exposed/Postgres + admin SPA Kotlin/JS",
+   "total": 72,
+   "unmatched": 0
+  },
+  "microservices-demo": {
+   "commit": "38e7348eb289eb5b87c0c6e8cb19ced0449dc389",
+   "flows": 107,
+   "flows_by_kind": {
+    "env": [
+     14,
+     60
+    ],
+    "http": [
+     7,
+     8
+    ],
+    "route": [
+     11,
+     14
+    ],
+    "rpc": [
+     25,
+     25
+    ]
+   },
+   "fn": {
+    "env · origen sin aristas de flujo": {
+     "examples": [
+      "src/cartservice/src/Startup.cs:29 → kubernetes-manifests/cartservice.yaml:50 (env REDIS_ADDR)",
+      "src/adservice/src/main/java/hipstershop/AdService.java:54 → kubernetes-manifests/adservice.yaml:50 (env PORT)"
+     ],
+     "n": 2
+    },
+    "http · llamada no detectada": {
+     "examples": [
+      "src/loadgenerator/locustfile.py:35 → src/frontend/handlers.go:59 (GET /)",
+      "src/frontend/templates/assistant.html:134 → src/frontend/handlers.go:451 (POST /bot)",
+      "src/frontend/templates/assistant.html:165 → src/frontend/handlers.go:430 (GET /product-meta/{ids})",
+      "src/frontend/handlers.go:465 → src/shoppingassistantservice/shoppingassistantservice.py:65 (POST / (shopping assistant))"
+     ],
+     "n": 4
+    },
+    "route · endpoint sin handler": {
+     "examples": [
+      "src/shoppingassistantservice/shoppingassistantservice.py:65 → src/shoppingassistantservice/shoppingassistantservice.py:66 (POST /)"
+     ],
+     "n": 1
+    },
+    "service · destino sin aristas de flujo": {
+     "examples": [
+      "kubernetes-manifests/cartservice.yaml:50 → kubernetes-manifests/cartservice.yaml:144 (cartservice -> redis-cart:6379 via REDIS_ADDR)"
+     ],
+     "n": 1
+    },
+    "service · origen y destino sin aristas de flujo": {
+     "examples": [
+      "kubernetes-manifests/frontend.yaml:69 → kubernetes-manifests/productcatalogservice.yaml:69 (frontend -> productcatalogservice:3550 via PRODUCT_CATALOG_SERVICE_ADDR)",
+      "kubernetes-manifests/frontend.yaml:71 → kubernetes-manifests/currencyservice.yaml:70 (frontend -> currencyservice:7000 via CURRENCY_SERVICE_ADDR)",
+      "kubernetes-manifests/frontend.yaml:73 → kubernetes-manifests/cartservice.yaml:70 (frontend -> cartservice:7070 via CART_SERVICE_ADDR)",
+      "kubernetes-manifests/frontend.yaml:75 → kubernetes-manifests/recommendationservice.yaml:73 (frontend -> recommendationservice:8080 via RECOMMENDATION_SERVICE_ADDR)"
+     ],
+     "n": 15
+    }
+   },
+   "found": 70,
+   "matched": 57,
+   "recall": {
+    "env": {
+     "found": 27,
+     "total": 29
+    },
+    "http": {
+     "found": 7,
+     "total": 11
+    },
+    "route": {
+     "found": 11,
+     "total": 12
+    },
+    "rpc": {
+     "found": 25,
+     "total": 25
+    },
+    "service": {
+     "found": 0,
+     "total": 16
+    }
+   },
+   "sample": [
+    {
+     "a": "f:src/productcatalogservice/catalog_loader.go:loadCatalogFromAlloyDB",
+     "b": "v:ALLOYDB_SECRET_NAME",
+     "edge": "env",
+     "from": "src/productcatalogservice/catalog_loader.go:85 loadCatalogFromAlloyDB",
+     "kind": "env",
+     "note": "",
+     "to": "kustomize/components/alloydb/kustomization.yaml:40 ALLOYDB_SECRET_NAME",
+     "verdict": null
+    },
+    {
+     "a": "m:src/emailservice/email_server.py",
+     "b": "v:COLLECTOR_SERVICE_ADDR",
+     "edge": "env",
+     "from": "src/emailservice/email_server.py:1 email_server.py",
+     "kind": "env",
+     "note": "",
+     "to": "kustomize/components/google-cloud-operations/kustomization.yaml:33 COLLECTOR_SERVICE_ADDR",
+     "verdict": null
+    },
+    {
+     "a": "m:src/paymentservice/index.js",
+     "b": "v:COLLECTOR_SERVICE_ADDR",
+     "edge": "env",
+     "from": "src/paymentservice/index.js:1 index.js",
+     "kind": "env",
+     "note": "",
+     "to": "kustomize/components/google-cloud-operations/kustomization.yaml:33 COLLECTOR_SERVICE_ADDR",
+     "verdict": null
+    },
+    {
+     "a": "m:src/paymentservice/index.js",
+     "b": "v:OTEL_SERVICE_NAME",
+     "edge": "env",
+     "from": "src/paymentservice/index.js:1 index.js",
+     "kind": "env",
+     "note": "",
+     "to": "kustomize/components/google-cloud-operations/kustomization.yaml:35 OTEL_SERVICE_NAME",
+     "verdict": null
+    },
+    {
+     "a": "f:src/frontend/handlers.go:frontendServer.homeHandler",
+     "b": "v:ENV_PLATFORM",
+     "edge": "env",
+     "from": "src/frontend/handlers.go:59 frontendServer.homeHandler",
+     "kind": "env",
+     "note": "",
+     "to": "helm-chart/templates/frontend.yaml:111 ENV_PLATFORM",
+     "verdict": null
+    },
+    {
+     "a": "f:src/productcatalogservice/catalog_loader.go:loadCatalog",
+     "b": "v:ALLOYDB_CLUSTER_NAME",
+     "edge": "env",
+     "from": "src/productcatalogservice/catalog_loader.go:33 loadCatalog",
+     "kind": "env",
+     "note": "",
+     "to": "kustomize/components/alloydb/kustomization.yaml:64 ALLOYDB_CLUSTER_NAME",
+     "verdict": null
+    }
+   ],
+   "seconds": 0.0,
+   "stack": "Go + C# + Node.js + Python + Java; gRPC entre servicios, frontend Go con templates HTML/JS, k8s",
+   "total": 93,
+   "unmatched": 50
+  },
+  "phoenix-realworld": {
+   "commit": "8620fb2829703051cdbd032f93be6cd941c4810e",
+   "flows": 0,
+   "flows_by_kind": {},
+   "fn": {
+    "data · origen y destino sin aristas de flujo": {
+     "examples": [
+      "lib/real_world/blog/article.ex:15 → priv/repo/migrations/20170426154053_create_blog_article.exs:5 (table articles (Ecto schema Article))",
+      "lib/real_world/accounts/user.ex:12 → priv/repo/migrations/20170426142928_create_users_table.exs:5 (table users (Ecto schema User))",
+      "lib/real_world/blog/favorite.ex:13 → priv/repo/migrations/20171020203610_create_favorites.exs:5 (table favorites (Ecto schema Favorite))",
+      "lib/real_world/accounts/user_follower.ex:12 → priv/repo/migrations/20170517195903_create_user_followers_table.exs:6 (table user_followers (Ecto schema UserFollower))"
+     ],
+     "n": 32
+    },
+    "route · ruta no detectada": {
+     "examples": [
+      "lib/real_world_web/router.ex:21 → lib/real_world_web/controllers/article_controller.ex:29 (GET /articles/feed)",
+      "lib/real_world_web/router.ex:23 → lib/real_world_web/controllers/article_controller.ex:20 (GET /articles)",
+      "lib/real_world_web/router.ex:23 → lib/real_world_web/controllers/article_controller.ex:38 (POST /articles)",
+      "lib/real_world_web/router.ex:23 → lib/real_world_web/controllers/article_controller.ex:56 (GET /articles/:id)"
+     ],
+     "n": 24
+    }
+   },
+   "found": 0,
+   "matched": 0,
+   "recall": {
+    "data": {
+     "found": 0,
+     "total": 32
+    },
+    "route": {
+     "found": 0,
+     "total": 24
+    }
+   },
+   "sample": [],
+   "seconds": 0.0,
+   "stack": "Elixir Phoenix 1.3 + Ecto + Guardian; solo backend",
+   "total": 56,
+   "unmatched": 0
+  },
+  "proshop_mern": {
+   "commit": "1d20b5b09e796e2f00779306c390360e9e573276",
+   "flows": 47,
+   "flows_by_kind": {
+    "http": [
+     23,
+     23
+    ],
+    "route": [
+     23,
+     24
+    ]
+   },
+   "fn": {
+    "data · destino sin aristas de flujo": {
+     "examples": [
+      "backend/controllers/productController.js:20 → backend/models/productModel.js:73 (collection products (mongoose Product))",
+      "backend/controllers/productController.js:21 → backend/models/productModel.js:73 (collection products (mongoose Product))",
+      "backend/controllers/productController.js:32 → backend/models/productModel.js:73 (collection products (mongoose Product))",
+      "backend/controllers/productController.js:46 → backend/models/productModel.js:73 (collection products (mongoose Product))"
+     ],
+     "n": 24
+    },
+    "data · origen y destino sin aristas de flujo": {
+     "examples": [
+      "backend/seeder.js:17 → backend/models/orderModel.js:76 (collection orders (mongoose Order))",
+      "backend/seeder.js:18 → backend/models/productModel.js:73 (collection products (mongoose Product))",
+      "backend/seeder.js:19 → backend/models/userModel.js:43 (collection users (mongoose User))",
+      "backend/seeder.js:21 → backend/models/userModel.js:43 (collection users (mongoose User))"
+     ],
+     "n": 8
+    },
+    "route · handler distinto": {
+     "examples": [
+      "backend/server.js:29 → backend/routes/uploadRoutes.js:4 (mount /api/upload -> uploadRoutes)"
+     ],
+     "n": 1
+    },
+    "route · ruta no detectada": {
+     "examples": [
+      "backend/server.js:26 → backend/routes/productRoutes.js:2 (mount /api/products -> productRoutes)",
+      "backend/server.js:27 → backend/routes/userRoutes.js:2 (mount /api/users -> userRoutes)",
+      "backend/server.js:28 → backend/routes/orderRoutes.js:2 (mount /api/orders -> orderRoutes)"
+     ],
+     "n": 3
+    }
+   },
+   "found": 46,
+   "matched": 46,
+   "recall": {
+    "data": {
+     "found": 0,
+     "total": 32
+    },
+    "http": {
+     "found": 23,
+     "total": 23
+    },
+    "route": {
+     "found": 23,
+     "total": 27
+    }
+   },
+   "sample": [
+    {
+     "a": "e:backend/server.js:GET /",
+     "b": "m:backend/server.js",
+     "edge": "handles",
+     "from": "backend/server.js:45 GET /",
+     "kind": "route",
+     "note": "",
+     "to": "backend/server.js:1 server.js",
+     "verdict": null
+    }
+   ],
+   "seconds": 0.0,
+   "stack": "Node.js/Express + Mongoose (MongoDB) + React/Redux (axios)",
+   "total": 82,
+   "unmatched": 1
+  },
+  "rails-realworld": {
+   "commit": "a2ae4fff78b3337683cea988c023281dcb5551b9",
+   "flows": 19,
+   "flows_by_kind": {
+    "route": [
+     19,
+     19
+    ]
+   },
+   "fn": {
+    "data · destino sin aristas de flujo": {
+     "examples": [
+      "app/controllers/articles_controller.rb:5 → app/models/article.rb:1 (ActiveRecord Article (table articles))",
+      "app/controllers/articles_controller.rb:17 → app/models/article.rb:1 (ActiveRecord Article (table articles))",
+      "app/controllers/articles_controller.rb:27 → app/models/article.rb:1 (ActiveRecord Article (table articles))",
+      "app/controllers/articles_controller.rb:30 → app/models/article.rb:1 (ActiveRecord Article (table articles))"
+     ],
+     "n": 19
+    },
+    "data · origen y destino sin aristas de flujo": {
+     "examples": [
+      "app/models/article.rb:1 → db/schema.rb:16 (table articles (ActiveRecord Article))",
+      "app/models/comment.rb:1 → db/schema.rb:30 (table comments (ActiveRecord Comment))",
+      "app/models/favorite.rb:1 → db/schema.rb:41 (table favorites (ActiveRecord Favorite))",
+      "app/models/follow.rb:1 → db/schema.rb:51 (table follows (ActiveRecord Follow))"
+     ],
+     "n": 9
+    },
+    "route · ruta no detectada": {
+     "examples": [
+      "config/routes.rb:3 → app/controllers/sessions_controller.rb:2 (POST /api/users/login)"
+     ],
+     "n": 1
+    }
+   },
+   "found": 17,
+   "matched": 19,
+   "recall": {
+    "data": {
+     "found": 0,
+     "total": 28
+    },
+    "route": {
+     "found": 17,
+     "total": 18
+    }
+   },
+   "sample": [],
+   "seconds": 0.0,
+   "stack": "Ruby on Rails 4 API (Devise, acts_as_follower, acts_as_taggable_on) + jbuilder; solo backend",
+   "total": 46,
+   "unmatched": 0
+  },
+  "realworld-axum-sqlx": {
+   "commit": "f1b25654773228297e35c292f357d33b7121a101",
+   "flows": 27,
+   "flows_by_kind": {
+    "data": [
+     5,
+     8
+    ],
+    "route": [
+     19,
+     19
+    ]
+   },
+   "fn": {
+    "data · conectados por separado, sin camino": {
+     "examples": [
+      "src/http/users.rs:71 → migrations/2_user.sql:5 (table user)",
+      "src/http/users.rs:103 → migrations/2_user.sql:5 (table user)",
+      "src/http/users.rs:135 → migrations/2_user.sql:5 (table user)",
+      "src/http/users.rs:178 → migrations/2_user.sql:5 (table user)"
+     ],
+     "n": 36
+    },
+    "data · origen sin aristas de flujo": {
+     "examples": [
+      "src/http/articles/mod.rs:506 → migrations/4_article.sql:1 (table article)",
+      "src/http/articles/mod.rs:506 → migrations/4_article.sql:42 (table article_favorite)",
+      "src/http/articles/mod.rs:506 → migrations/3_follow.sql:1 (table follow)",
+      "src/http/articles/mod.rs:506 → migrations/2_user.sql:5 (table user)"
+     ],
+     "n": 4
+    },
+    "env · origen sin aristas de flujo": {
+     "examples": [
+      "src/config.rs:19 → .env.sample:5 (env DATABASE_URL (clap env))",
+      "src/config.rs:26 → .env.sample:14 (env HMAC_KEY (clap env))",
+      "src/main.rs:23 → .env.sample:24 (env RUST_LOG (read by env_logger))"
+     ],
+     "n": 3
+    },
+    "route · handler distinto": {
+     "examples": [
+      "src/http/articles/mod.rs:38 → src/http/articles/comments.rs:12 (merge comments::router)"
+     ],
+     "n": 1
+    },
+    "route · ruta no detectada": {
+     "examples": [
+      "src/http/mod.rs:97 → src/http/users.rs:12 (mount users::router)",
+      "src/http/mod.rs:98 → src/http/profiles.rs:12 (merge profiles::router)",
+      "src/http/mod.rs:99 → src/http/articles/mod.rs:16 (merge articles::router)"
+     ],
+     "n": 3
+    }
+   },
+   "found": 26,
+   "matched": 24,
+   "recall": {
+    "data": {
+     "found": 7,
+     "total": 47
+    },
+    "env": {
+     "found": 0,
+     "total": 3
+    },
+    "route": {
+     "found": 19,
+     "total": 23
+    }
+   },
+   "sample": [
+    {
+     "a": "c:migrations/4_article.sql:article_comment",
+     "b": "c:migrations/2_user.sql:user",
+     "edge": "ref",
+     "from": "migrations/4_article.sql:63 article_comment",
+     "kind": "data",
+     "note": "",
+     "to": "migrations/2_user.sql:5 user",
+     "verdict": null
+    },
+    {
+     "a": "c:migrations/4_article.sql:article_favorite",
+     "b": "c:migrations/2_user.sql:user",
+     "edge": "ref",
+     "from": "migrations/4_article.sql:42 article_favorite",
+     "kind": "data",
+     "note": "",
+     "to": "migrations/2_user.sql:5 user",
+     "verdict": null
+    },
+    {
+     "a": "c:migrations/3_follow.sql:follow",
+     "b": "c:migrations/2_user.sql:user",
+     "edge": "ref",
+     "from": "migrations/3_follow.sql:1 follow",
+     "kind": "data",
+     "note": "",
+     "to": "migrations/2_user.sql:5 user",
+     "verdict": null
+    }
+   ],
+   "seconds": 0.0,
+   "stack": "Rust: axum + sqlx (queries inline) + Postgres; solo backend",
+   "total": 73,
+   "unmatched": 3
+  },
+  "spring-petclinic-microservices": {
+   "commit": "1d76b00d683e86b62867a6bf59530f8ab301244f",
+   "flows": 39,
+   "flows_by_kind": {
+    "data": [
+     0,
+     16
+    ],
+    "http": [
+     7,
+     7
+    ],
+    "route": [
+     15,
+     16
+    ]
+   },
+   "fn": {
+    "data · destino sin aristas de flujo": {
+     "examples": [
+      "spring-petclinic-customers-service/src/main/java/org/springframework/samples/petclinic/customers/web/OwnerResource.java:61 → spring-petclinic-customers-service/src/main/java/org/springframework/samples/petclinic/customers/model/Owner.java:39 (entity Owner via repository)",
+      "spring-petclinic-customers-service/src/main/java/org/springframework/samples/petclinic/customers/web/OwnerResource.java:69 → spring-petclinic-customers-service/src/main/java/org/springframework/samples/petclinic/customers/model/Owner.java:39 (entity Owner via repository)",
+      "spring-petclinic-customers-service/src/main/java/org/springframework/samples/petclinic/customers/web/OwnerResource.java:77 → spring-petclinic-customers-service/src/main/java/org/springframework/samples/petclinic/customers/model/Owner.java:39 (entity Owner via repository)",
+      "spring-petclinic-customers-service/src/main/java/org/springframework/samples/petclinic/customers/web/OwnerResource.java:86 → spring-petclinic-customers-service/src/main/java/org/springframework/samples/petclinic/customers/model/Owner.java:39 (entity Owner via repository)"
+     ],
+     "n": 10
+    },
+    "data · origen sin aristas de flujo": {
+     "examples": [
+      "spring-petclinic-customers-service/src/main/java/org/springframework/samples/petclinic/customers/model/Owner.java:38 → spring-petclinic-customers-service/src/main/resources/db/hsqldb/schema.sql:11 (table owners (entity -> schema))",
+      "spring-petclinic-customers-service/src/main/java/org/springframework/samples/petclinic/customers/model/Pet.java:35 → spring-petclinic-customers-service/src/main/resources/db/hsqldb/schema.sql:21 (table pets (entity -> schema))",
+      "spring-petclinic-customers-service/src/main/java/org/springframework/samples/petclinic/customers/model/PetType.java:26 → spring-petclinic-customers-service/src/main/resources/db/hsqldb/schema.sql:5 (table types (entity -> schema))",
+      "spring-petclinic-vets-service/src/main/java/org/springframework/samples/petclinic/vets/model/Vet.java:37 → spring-petclinic-vets-service/src/main/resources/db/hsqldb/schema.sql:5 (table vets (entity -> schema))"
+     ],
+     "n": 6
+    },
+    "data · origen y destino sin aristas de flujo": {
+     "examples": [
+      "spring-petclinic-customers-service/src/main/java/org/springframework/samples/petclinic/customers/web/PetResource.java:82 → spring-petclinic-customers-service/src/main/java/org/springframework/samples/petclinic/customers/model/PetType.java:27 (entity PetType via repository)",
+      "spring-petclinic-customers-service/src/main/java/org/springframework/samples/petclinic/customers/web/PetResource.java:86 → spring-petclinic-customers-service/src/main/java/org/springframework/samples/petclinic/customers/model/Pet.java:36 (entity Pet via repository)",
+      "spring-petclinic-customers-service/src/main/java/org/springframework/samples/petclinic/customers/web/PetResource.java:97 → spring-petclinic-customers-service/src/main/java/org/springframework/samples/petclinic/customers/model/Pet.java:36 (entity Pet via repository)",
+      "spring-petclinic-visits-service/src/main/java/org/springframework/samples/petclinic/visits/web/VisitResource.java:74 → spring-petclinic-visits-service/src/main/java/org/springframework/samples/petclinic/visits/model/Visit.java:33 (entity Visit via repository)"
+     ],
+     "n": 4
+    },
+    "env · origen sin aristas de flujo": {
+     "examples": [
+      "spring-petclinic-genai-service/src/main/resources/application.yml:17 → docker-compose.yml:86 (env AZURE_OPENAI_KEY)",
+      "spring-petclinic-genai-service/src/main/resources/application.yml:18 → docker-compose.yml:87 (env AZURE_OPENAI_ENDPOINT)",
+      "spring-petclinic-genai-service/src/main/resources/application.yml:25 → docker-compose.yml:85 (env OPENAI_API_KEY)"
+     ],
+     "n": 3
+    },
+    "http · llamada no detectada": {
+     "examples": [
+      "spring-petclinic-api-gateway/src/main/resources/static/scripts/pages/PetFormPage.js:25 → spring-petclinic-customers-service/src/main/java/org/springframework/samples/petclinic/customers/web/PetResource.java:51 (GET /api/customer/petTypes)",
+      "spring-petclinic-api-gateway/src/main/resources/static/scripts/pages/PetFormPage.js:28 → spring-petclinic-customers-service/src/main/java/org/springframework/samples/petclinic/customers/web/PetResource.java:90 (GET /api/customer/owners/{ownerId}/pets/{petId})",
+      "spring-petclinic-api-gateway/src/main/resources/static/scripts/pages/PetFormPage.js:37 → spring-petclinic-customers-service/src/main/java/org/springframework/samples/petclinic/customers/web/OwnerResource.java:68 (GET /api/customer/owners/{ownerId})",
+      "spring-petclinic-api-gateway/src/main/resources/static/scripts/pages/PetFormPage.js:61 → spring-petclinic-customers-service/src/main/java/org/springframework/samples/petclinic/customers/web/PetResource.java:57 (POST /api/customer/owners/{ownerId}/pets)"
+     ],
+     "n": 13
+    },
+    "route · handler distinto": {
+     "examples": [
+      "spring-petclinic-visits-service/src/main/java/org/springframework/samples/petclinic/visits/web/VisitResource.java:72 → spring-petclinic-visits-service/src/main/java/org/springframework/samples/petclinic/visits/web/VisitResource.java:73 (GET pets/visits)"
+     ],
+     "n": 1
+    },
+    "route · ruta no detectada": {
+     "examples": [
+      "spring-petclinic-api-gateway/src/main/resources/application.yml:24 → spring-petclinic-vets-service/src/main/resources/application.yml:3 (gateway Path=/api/vet/** -> vets-service)",
+      "spring-petclinic-api-gateway/src/main/resources/application.yml:30 → spring-petclinic-visits-service/src/main/resources/application.yml:3 (gateway Path=/api/visit/** -> visits-service)",
+      "spring-petclinic-api-gateway/src/main/resources/application.yml:36 → spring-petclinic-customers-service/src/main/resources/application.yml:3 (gateway Path=/api/customer/** -> customers-service)",
+      "spring-petclinic-api-gateway/src/main/resources/application.yml:42 → spring-petclinic-genai-service/src/main/resources/application.yml:5 (gateway Path=/api/genai/** -> genai-service)"
+     ],
+     "n": 4
+    },
+    "service · origen y destino sin aristas de flujo": {
+     "examples": [
+      "spring-petclinic-api-gateway/src/main/resources/application.yml:22 → spring-petclinic-vets-service/src/main/resources/application.yml:3 (gateway route /api/vet/** -> lb://vets-service (StripPrefix=2))",
+      "spring-petclinic-api-gateway/src/main/resources/application.yml:28 → spring-petclinic-visits-service/src/main/resources/application.yml:3 (gateway route /api/visit/** -> lb://visits-service (StripPrefix=2))",
+      "spring-petclinic-api-gateway/src/main/resources/application.yml:34 → spring-petclinic-customers-service/src/main/resources/application.yml:3 (gateway route /api/customer/** -> lb://customers-service (StripPrefix=2))",
+      "spring-petclinic-api-gateway/src/main/resources/application.yml:40 → spring-petclinic-genai-service/src/main/resources/application.yml:5 (gateway route /api/genai/** -> lb://genai-service (StripPrefix=2))"
+     ],
+     "n": 21
+    }
+   },
+   "found": 21,
+   "matched": 22,
+   "recall": {
+    "data": {
+     "found": 0,
+     "total": 20
+    },
+    "env": {
+     "found": 0,
+     "total": 3
+    },
+    "http": {
+     "found": 7,
+     "total": 20
+    },
+    "route": {
+     "found": 14,
+     "total": 19
+    },
+    "service": {
+     "found": 0,
+     "total": 21
+    }
+   },
+   "sample": [
+    {
+     "a": "e:spring-petclinic-visits-service/src/main/java/org/springframework/samples/petclinic/visits/web/VisitResource.java:GET /pets/visits",
+     "b": "f:spring-petclinic-visits-service/src/main/java/org/springframework/samples/petclinic/visits/web/VisitResource.java:VisitResource.read",
+     "edge": "handles",
+     "from": "spring-petclinic-visits-service/src/main/java/org/springframework/samples/petclinic/visits/web/VisitResource.java:73 GET /pets/visits",
+     "kind": "route",
+     "note": "",
+     "to": "spring-petclinic-visits-service/src/main/java/org/springframework/samples/petclinic/visits/web/VisitResource.java:67 VisitResource.read",
+     "verdict": null
+    },
+    {
+     "a": "c:spring-petclinic-vets-service/src/main/resources/db/hsqldb/schema.sql:vet_specialties",
+     "b": "c:spring-petclinic-vets-service/src/main/resources/db/hsqldb/schema.sql:vets",
+     "edge": "ref",
+     "from": "spring-petclinic-vets-service/src/main/resources/db/hsqldb/schema.sql:18 vet_specialties",
+     "kind": "data",
+     "note": "",
+     "to": "spring-petclinic-vets-service/src/main/resources/db/hsqldb/schema.sql:5 vets",
+     "verdict": null
+    },
+    {
+     "a": "c:spring-petclinic-customers-service/src/main/resources/db/hsqldb/schema.sql:pets",
+     "b": "c:spring-petclinic-customers-service/src/main/resources/db/hsqldb/schema.sql:owners",
+     "edge": "ref",
+     "from": "spring-petclinic-customers-service/src/main/resources/db/hsqldb/schema.sql:21 pets",
+     "kind": "data",
+     "note": "",
+     "to": "spring-petclinic-customers-service/src/main/resources/db/hsqldb/schema.sql:11 owners",
+     "verdict": null
+    },
+    {
+     "a": "c:spring-petclinic-customers-service/src/main/resources/db/mysql/schema.sql:pets",
+     "b": "c:spring-petclinic-customers-service/src/main/resources/db/mysql/schema.sql:types",
+     "edge": "ref",
+     "from": "spring-petclinic-customers-service/src/main/resources/db/mysql/schema.sql:21 pets",
+     "kind": "data",
+     "note": "",
+     "to": "spring-petclinic-customers-service/src/main/resources/db/mysql/schema.sql:5 types",
+     "verdict": null
+    },
+    {
+     "a": "c:spring-petclinic-vets-service/src/main/resources/db/mysql/schema.sql:vet_specialties",
+     "b": "c:spring-petclinic-vets-service/src/main/resources/db/mysql/schema.sql:vets",
+     "edge": "ref",
+     "from": "spring-petclinic-vets-service/src/main/resources/db/mysql/schema.sql:18 vet_specialties",
+     "kind": "data",
+     "note": "",
+     "to": "spring-petclinic-vets-service/src/main/resources/db/mysql/schema.sql:5 vets",
+     "verdict": null
+    },
+    {
+     "a": "c:spring-petclinic-customers-service/src/main/resources/db/hsqldb/schema.sql:pets",
+     "b": "c:spring-petclinic-customers-service/src/main/resources/db/hsqldb/schema.sql:types",
+     "edge": "ref",
+     "from": "spring-petclinic-customers-service/src/main/resources/db/hsqldb/schema.sql:21 pets",
+     "kind": "data",
+     "note": "",
+     "to": "spring-petclinic-customers-service/src/main/resources/db/hsqldb/schema.sql:5 types",
+     "verdict": null
+    }
+   ],
+   "seconds": 0.0,
+   "stack": "Spring Boot / Spring Cloud (Java): gateway, config/discovery server, WebClient/RestClient entre servicios, JPA; frontend JS vanilla (Vue) estatico",
+   "total": 83,
+   "unmatched": 17
+  },
+  "wild-workouts": {
+   "commit": "8ecfcdf05b1462c4757bd2dcac9086c78e9f7791",
+   "flows": 46,
+   "flows_by_kind": {
+    "data": [
+     2,
+     2
+    ],
+    "env": [
+     2,
+     33
+    ],
+    "route": [
+     0,
+     11
+    ]
+   },
+   "fn": {
+    "data · origen y destino sin aristas de flujo": {
+     "examples": [
+      "internal/users/firestore.go:24 → internal/users/firestore.go:12 (collection users (Firestore))",
+      "internal/trainings/adapters/trainings_firestore_repository.go:44 → internal/trainings/adapters/trainings_firestore_repository.go:17 (collection trainings (Firestore))",
+      "internal/trainer/adapters/hour_firestore_repository.go:89 → internal/trainer/adapters/dates_firestore_repository.go:16 (collection trainer-hours (Firestore))",
+      "internal/trainer/adapters/dates_firestore_repository.go:42 → internal/trainer/adapters/dates_firestore_repository.go:16 (collection trainer-hours (Firestore))"
+     ],
+     "n": 4
+    },
+    "env · destino sin aristas de flujo": {
+     "examples": [
+      "internal/common/client/grpc.go:19 → .env:10 (env TRAINER_GRPC_ADDR)",
+      "internal/common/client/grpc.go:42 → .env:11 (env USERS_GRPC_ADDR)",
+      "internal/common/client/grpc.go:65 → .env:12 (env GRPC_NO_TLS)",
+      "internal/common/server/http.go:22 → .env:3 (env PORT)"
+     ],
+     "n": 18
+    },
+    "http · llamada no detectada": {
+     "examples": [
+      "web/src/repositories/clients/trainer/src/api/DefaultApi.js:80 → internal/trainer/ports/http.go:25 (GET /api/trainer/calendar)",
+      "web/src/repositories/clients/trainer/src/api/DefaultApi.js:120 → internal/trainer/ports/http.go:63 (PUT /api/trainer/calendar/make-hour-available)",
+      "web/src/repositories/clients/trainer/src/api/DefaultApi.js:160 → internal/trainer/ports/http.go:90 (PUT /api/trainer/calendar/make-hour-unavailable)",
+      "web/src/repositories/clients/users/src/api/DefaultApi.js:66 → internal/users/http.go:16 (GET /api/users/current)"
+     ],
+     "n": 22
+    },
+    "route · handler distinto": {
+     "examples": [
+      "internal/trainer/ports/openapi_api.gen.go:244 → internal/trainer/ports/http.go:25 (GET /api/trainer/calendar)",
+      "internal/trainer/ports/openapi_api.gen.go:247 → internal/trainer/ports/http.go:63 (PUT /api/trainer/calendar/make-hour-available)",
+      "internal/trainer/ports/openapi_api.gen.go:250 → internal/trainer/ports/http.go:90 (PUT /api/trainer/calendar/make-hour-unavailable)",
+      "internal/users/openapi_api.gen.go:166 → internal/users/http.go:16 (GET /api/users/current)"
+     ],
+     "n": 11
+    },
+    "rpc · destino sin aristas de flujo": {
+     "examples": [
+      "internal/trainer/main.go:40 → internal/trainer/ports/grpc.go:17 (register TrainerService server)",
+      "internal/users/main.go:39 → internal/users/grpc.go:14 (register UsersService server)"
+     ],
+     "n": 2
+    },
+    "rpc · origen sin aristas de flujo": {
+     "examples": [
+      "internal/trainings/adapters/users_grpc.go:18 → internal/users/grpc.go:27 (UsersService.UpdateTrainingBalance)",
+      "internal/users/fixtures.go:151 → internal/users/grpc.go:18 (UsersService.GetTrainingBalance)"
+     ],
+     "n": 2
+    },
+    "rpc · origen y destino sin aristas de flujo": {
+     "examples": [
+      "internal/trainings/adapters/trainer_grpc.go:22 → internal/trainer/ports/grpc.go:35 (TrainerService.ScheduleTraining)",
+      "internal/trainings/adapters/trainer_grpc.go:30 → internal/trainer/ports/grpc.go:45 (TrainerService.CancelTraining)"
+     ],
+     "n": 2
+    },
+    "service · destino sin aristas de flujo": {
+     "examples": [
+      "docker-compose.yml:32 → docker-compose.yml:113 (trainer-http depends_on firestore)"
+     ],
+     "n": 1
+    },
+    "service · origen y destino sin aristas de flujo": {
+     "examples": [
+      "docker-compose.yml:52 → docker-compose.yml:113 (trainer-grpc depends_on firestore)",
+      "docker-compose.yml:71 → docker-compose.yml:113 (trainings-http depends_on firestore)",
+      "docker-compose.yml:91 → docker-compose.yml:113 (users-http depends_on firestore)",
+      ".env:10 → docker-compose.yml:34 (TRAINER_GRPC_ADDR=trainer-grpc:3000 -> compose service trainer-grpc)"
+     ],
+     "n": 5
+    }
+   },
+   "found": 4,
+   "matched": 4,
+   "recall": {
+    "data": {
+     "found": 2,
+     "total": 6
+    },
+    "env": {
+     "found": 2,
+     "total": 20
+    },
+    "http": {
+     "found": 0,
+     "total": 22
+    },
+    "route": {
+     "found": 0,
+     "total": 11
+    },
+    "rpc": {
+     "found": 0,
+     "total": 6
+    },
+    "service": {
+     "found": 0,
+     "total": 6
+    }
+   },
+   "sample": [
+    {
+     "a": "f:internal/trainer/service/application.go:NewApplication",
+     "b": "v:GCP_PROJECT",
+     "edge": "env",
+     "from": "internal/trainer/service/application.go:17 NewApplication",
+     "kind": "env",
+     "note": "",
+     "to": "internal/common/server/http.go:73 GCP_PROJECT",
+     "verdict": null
+    },
+    {
+     "a": "e:internal/trainings/ports/openapi_api.gen.go:PUT /trainings/:trainingUUID/approve-reschedule",
+     "b": "f:internal/trainings/ports/openapi_api.gen.go:ServerInterfaceWrapper.ApproveRescheduleTraining",
+     "edge": "handles",
+     "from": "internal/trainings/ports/openapi_api.gen.go:375 PUT /trainings/:trainingUUID/approve-reschedule",
+     "kind": "route",
+     "note": "",
+     "to": "internal/trainings/ports/openapi_api.gen.go:143 ServerInterfaceWrapper.ApproveRescheduleTraining",
+     "verdict": null
+    },
+    {
+     "a": "e:internal/trainings/ports/openapi_api.gen.go:PUT /trainings/:trainingUUID/reject-reschedule",
+     "b": "f:internal/trainings/ports/openapi_api.gen.go:ServerInterfaceWrapper.RejectRescheduleTraining",
+     "edge": "handles",
+     "from": "internal/trainings/ports/openapi_api.gen.go:378 PUT /trainings/:trainingUUID/reject-reschedule",
+     "kind": "route",
+     "note": "",
+     "to": "internal/trainings/ports/openapi_api.gen.go:169 ServerInterfaceWrapper.RejectRescheduleTraining",
+     "verdict": null
+    },
+    {
+     "a": "f:internal/trainer/service/component_test.go:startService",
+     "b": "v:TRAINER_GRPC_ADDR",
+     "edge": "env",
+     "from": "internal/trainer/service/component_test.go:73 startService",
+     "kind": "env",
+     "note": "",
+     "to": "tools/c4/Taskfile.yml:12 TRAINER_GRPC_ADDR",
+     "verdict": null
+    },
+    {
+     "a": "f:internal/trainings/adapters/trainings_firestore_repository_test.go:newFirebaseRepository",
+     "b": "v:GCP_PROJECT",
+     "edge": "env",
+     "from": "internal/trainings/adapters/trainings_firestore_repository_test.go:400 newFirebaseRepository",
+     "kind": "env",
+     "note": "",
+     "to": "internal/common/server/http.go:73 GCP_PROJECT",
+     "verdict": null
+    },
+    {
+     "a": "f:internal/trainer/adapters/hour_mysql_repository.go:NewMySQLConnection",
+     "b": "v:MYSQL_PASSWORD",
+     "edge": "env",
+     "from": "internal/trainer/adapters/hour_mysql_repository.go:182 NewMySQLConnection",
+     "kind": "env",
+     "note": "",
+     "to": "internal/trainer/adapters/hour_mysql_repository.go:188 MYSQL_PASSWORD",
+     "verdict": null
+    }
+   ],
+   "seconds": 0.0,
+   "stack": "Go (chi, gRPC, Firestore, MySQL) + Vue 2 con cliente OpenAPI generado; docker-compose",
+   "total": 71,
+   "unmatched": 42
+  }
+ }
+}

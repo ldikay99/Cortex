@@ -1119,3 +1119,8 @@ def test_new_formats_are_deterministic(tmp_path):
     assert list(first.nodes.items()) == list(second.nodes.items())
     assert list(first.edges.items()) == list(second.edges.items())
     assert all(m['end'] >= m['line'] for m in first.nodes.values())
+
+
+def test_razor_constructor_like_lines_do_not_break_analysis(tmp_path):
+    g = build(tmp_path, {'Pages/Item.razor': '@code {\n    Item(int x) {\n    }\n    void Save() { }\n}\n', 'site.cfg': 'a=1\n'})
+    assert node(g, 'f:Pages/Item.razor:Save')

@@ -594,7 +594,7 @@ def test_function_local_import_aliases_are_scoped(tmp_path):
     assert ('m:pkg/app.py', 'm:pkg/testing.py') in edges(g, 'import')
 
 
-def test_nested_functions_attribute_calls_to_the_enclosing_symbol(tmp_path):
+def test_nested_functions_are_nodes_that_keep_the_enclosing_types(tmp_path):
     g, _ = build(tmp_path, {'mod.py': '''
         class Scaffold:
             def check(self, name):
@@ -613,8 +613,10 @@ def test_nested_functions_attribute_calls_to_the_enclosing_symbol(tmp_path):
             return wrapper
     '''})
     calls = edges(g, 'call')
-    assert ('f:mod.py:setupmethod', 'f:mod.py:Scaffold.check') in calls
-    assert ('f:mod.py:Scaffold.register', 'f:mod.py:Scaffold.check') in calls
+    assert ('f:mod.py:setupmethod.wrapper', 'f:mod.py:Scaffold.check') in calls
+    assert ('f:mod.py:Scaffold.register.later', 'f:mod.py:Scaffold.check') in calls
+    assert ('f:mod.py:setupmethod', 'f:mod.py:setupmethod.wrapper') in edges(g, 'contains')
+    assert ('f:mod.py:Scaffold.register', 'f:mod.py:Scaffold.check') not in calls
 
 
 def test_local_types_follow_the_latest_assignment_and_stay_conservative(tmp_path):
@@ -672,3 +674,44 @@ def test_local_types_follow_the_latest_assignment_and_stay_conservative(tmp_path
     assert not any(a == 'f:mod.py:unknown' and b.endswith('.ping') for a, b in calls)
     assert ('f:mod.py:direct', 'f:tools.py:dumps') in calls
     assert not any(a == 'f:mod.py:shadow' for a, _ in calls)
+
+
+def test_absolute_from_imports_of_submodules_also_link_the_package(tmp_path):
+    g, _ = build(tmp_path, {
+        'hc/__init__.py': '',
+        'hc/lib/__init__.py': '',
+        'hc/lib/emails.py': 'def send():\n    pass\n',
+        'hc/lib/sms.py': 'from . import emails\n',
+        'hc/views.py': 'from hc.lib import emails\n\n\ndef go():\n    emails.send()\n',
+    })
+    imports = edges(g, 'import')
+    assert ('m:hc/views.py', 'm:hc/lib/emails.py') in imports
+    assert ('m:hc/views.py', 'm:hc/lib/__init__.py') in imports
+    assert ('m:hc/lib/sms.py', 'm:hc/lib/__init__.py') not in imports
+
+
+def test_annotations_resolve_in_the_module_scope_and_classmethods_build_instances(tmp_path):
+    g, _ = build(tmp_path, {'pkg/__init__.py': '', 'pkg/box.py': '''
+        class Box:
+            def top(self):
+                return 1
+    ''', 'pkg/table.py': '''
+        from typing import Optional
+        from . import box
+
+
+        class Table:
+            def __init__(self, box: Optional[box.Box] = None):
+                self.box = box
+
+            def render(self):
+                return self.box.top()
+
+            @classmethod
+            def grid(cls):
+                table = cls()
+                return table.render()
+    '''})
+    calls = edges(g, 'call')
+    assert ('f:pkg/table.py:Table.render', 'f:pkg/box.py:Box.top') in calls
+    assert ('f:pkg/table.py:Table.grid', 'f:pkg/table.py:Table.render') in calls

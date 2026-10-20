@@ -200,3 +200,24 @@ def test_config_defaults_for_name_tests_and_git(repo, data_dir, monkeypatch):
     assert store.load_history('desde-config')['versions'][0]['options']['tests'] is True
     pipeline.analyze_source(str(repo), 'otro', include_tests=False)
     assert seen['skip_tests'] is True
+
+
+def test_imported_folder_is_copied_and_survives_its_origin(tmp_path, data_dir):
+    import shutil
+    from cortex_graph.errors import NotFound
+    notes = tmp_path / 'notas'
+    notes.mkdir()
+    (notes / 'viaje.md').write_text('# Viaje\n\nQuiero ir a Kioto con [[Ana]].\n', encoding='utf-8')
+    graph = pipeline.analyze_source(str(notes), 'cerebro', copy=True)
+    assert store.load_history('cerebro')['origin'] == {'type': 'import', 'path': str(notes)}
+    assert os.path.isfile(os.path.join(store.source_dir('cerebro'), 'viaje.md'))
+    shutil.rmtree(notes)
+    again = pipeline.rebuild('cerebro')
+    assert {n['key'] for n in again['nodes']} == {n['key'] for n in graph['nodes']}
+    local = tmp_path / 'local'
+    local.mkdir()
+    (local / 'a.md').write_text('# A\n', encoding='utf-8')
+    pipeline.analyze_source(str(local), 'suelto')
+    shutil.rmtree(local)
+    with pytest.raises(NotFound):
+        pipeline.rebuild('suelto')

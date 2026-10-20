@@ -324,6 +324,24 @@ def test_nuget_central_versions_and_namespaces(tmp_path):
         'p:nuget:Humanizer'}
 
 
+def test_nuget_framework_namespaces_do_not_match_longer_packages(tmp_path):
+    files = {
+        'App/App.csproj': """
+            <Project Sdk="Microsoft.NET.Sdk">
+              <ItemGroup>
+                <PackageReference Include="System.Data.OleDb" Version="9.0.9" />
+                <PackageReference Include="System.Linq.Async" Version="6.0.1" />
+              </ItemGroup>
+            </Project>
+        """,
+        'App/Main.cs': 'namespace App;\n',
+    }
+    rel = 'App/Main.cs'
+    externals = [(rel, s, 'csharp') for s in ('System', 'System.Linq', 'System.Data', 'System.Data.OleDb')]
+    g, _, _ = run(tmp_path, files, externals)
+    assert {b for a, b in depends(g) if a == f'm:{rel}'} == {'p:nuget:System.Data.OleDb'}
+
+
 def test_composer_namespaces_and_internal_autoload(tmp_path):
     files = {
         'composer.json': """

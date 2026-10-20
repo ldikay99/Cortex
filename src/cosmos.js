@@ -11,10 +11,14 @@ const MORE = 2.6;
 const MAX_GROWTH = 900;
 const NEST_RADIUS = 5.5;
 const SILK = [0.72, 0.92, 1.0];
-export const BRIDGE_TINT = { http: [1.0, 0.68, 0.3], rpc: [0.26, 0.86, 0.76], event: [0.74, 0.5, 1.0], data: [0.5, 0.68, 1.0] };
+export const BRIDGE_TINT = { http: [1.0, 0.68, 0.3], rpc: [0.26, 0.86, 0.76], event: [0.74, 0.5, 1.0], data: [0.5, 0.68, 1.0], step: [0.62, 0.9, 0.82], uses: [0.7, 0.78, 0.95] };
 const FLOW_KINDS = new Set(['http', 'rpc', 'event']);
 const CROSS_KINDS = new Set(['import', 'call', 'contains', 'inherits', 'ref', 'loads']);
-const TIER = { module: 0, doc: 0, endpoint: 0, topic: 0, class: 1, package: 1 };
+const TIER = { module: 0, doc: 0, endpoint: 0, topic: 0, person: 0, component: 0, flow: 0, class: 1, package: 1, conversation: 1, concept: 1, event: 1, memory: 2, section: 2 };
+const MEMORY_TINT = {
+  identity: [1.0, 0.8, 0.6], preference: [0.9, 0.7, 0.85], goal: [0.6, 0.9, 0.75], decision: [0.95, 0.85, 0.55], event: [0.6, 0.85, 0.95],
+  relationship: [1.0, 0.7, 0.66], skill: [0.7, 0.8, 1.0], habit: [0.75, 0.9, 0.6], project: [0.65, 0.78, 0.95], fact: [0.82, 0.84, 0.9], instruction: [0.85, 0.75, 1.0],
+};
 const HTTP_VERB = /^(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS|ANY|ALL|WS|WEBSOCKET)\b/i;
 export const isHttp = (n) => HTTP_VERB.test(n.route || n.name || '');
 
@@ -282,12 +286,21 @@ export function createCosmos(scene) {
     package: { size: 0.13, alpha: 0.34, white: 0.45, shape: SHAPE.ring, grow: 0.4, fixed: [0.66, 0.72, 0.86], mix: 0.35 },
     variable: { size: 0.036, alpha: 0.6, white: 0, grow: 0.3, fixed: [1.0, 0.74, 0.4], mix: 0 },
     topic: { size: 0.075, alpha: 0.72, white: 0, grow: 0.6, fixed: [0.8, 0.64, 1.0], mix: 0 },
+    person: { size: 0.12, alpha: 0.82, white: 0.1, shape: SHAPE.ring, grow: 0.6, fixed: [1.0, 0.78, 0.56], mix: 0.15 },
+    concept: { size: 0.06, alpha: 0.5, white: 0.2, shape: SHAPE.diamond, grow: 0.4, fixed: [0.72, 0.76, 0.82], mix: 0.3 },
+    conversation: { size: 0.075, alpha: 0.6, white: 0.25, shape: SHAPE.ring, grow: 0, mix: 0.4 },
+    memory: { size: 0.04, alpha: 0.9, white: 0.15, grow: 0.3, fixed: [0.82, 0.84, 0.9], mix: 0.1 },
+    section: { size: 0.04, alpha: 0.4, white: 0.35, grow: 0.2 },
+    event: { size: 0.085, alpha: 0.75, white: 0.1, shape: SHAPE.diamond, grow: 0.4, fixed: [0.6, 0.86, 0.95], mix: 0.2 },
+    component: { size: 0.16, alpha: 0.55, white: 0.3, shape: SHAPE.ring, grow: 0.5, fixed: [0.74, 0.82, 0.96], mix: 0.45 },
+    flow: { size: 0.12, alpha: 0.7, white: 0.2, shape: SHAPE.diamond, grow: 0.4, fixed: [0.62, 0.9, 0.82], mix: 0.3 },
   };
   const projectNode = new Map();
   const alias = new Map();
   const callers = new Map();
   const tested = new Map();
   let endpointCount = 0;
+  let memoryCount = 0;
   const lod = { bridges: 1, on: false, frac: [1, 1, 1], total: [0, 0, 0], kept: [0, 0, 0], seen: [0, 0, 0], hist: [new Uint32Array(65), new Uint32Array(65), new Uint32Array(65)], skipped: 0 };
 
   function planCapacity(stats) {
@@ -355,18 +368,20 @@ export function createCosmos(scene) {
     const look = KIND_LOOK[n.kind] || KIND_LOOK.function;
     const R = regions[region];
     const mark = n.status === 'new' ? [0.55, 1.0, 0.72] : n.status === 'changed' ? [1.0, 0.74, 0.32] : null;
-    const own = n.kind === 'endpoint' ? BRIDGE_TINT[isHttp(n) ? 'http' : 'rpc'] : look.fixed;
+    const own = n.kind === 'endpoint' ? BRIDGE_TINT[isHttp(n) ? 'http' : 'rpc'] : n.kind === 'memory' ? MEMORY_TINT[n.category] || look.fixed : look.fixed;
     const base = own ? own.map((x, q) => x * (1 - (look.mix || 0)) + R.color[q] * (look.mix || 0)) : R.color;
     const color = mark || base.map((x) => x * (1 - look.white) + look.white);
-    const size = (look.size + Math.min(0.12, Math.log2(1 + (n.deg || 0)) * 0.012 * (look.grow ?? 1))) * (mark ? 1.5 : 1);
+    const volume = n.kind === 'conversation' ? Math.min(0.1, Math.log2(1 + (n.count || 0)) * 0.01) : 0;
+    const size = (look.size + volume + Math.min(0.12, Math.log2(1 + (n.deg || 0)) * 0.012 * (look.grow ?? 1))) * (mark ? 1.5 : 1);
     const p = n.kind === 'package' ? satellite(n, region, tmp) : tmp.set(n.pos[0], n.pos[1], n.pos[2]);
-    const alpha = look.alpha * (n.test ? 0.7 : 1);
+    const alpha = look.alpha * (n.test ? 0.7 : 1) * (n.kind === 'memory' && n.valid_to ? 0.4 : 1);
     const id = graph.addNode(p.x, p.y, p.z, { region, color: tint(color, 0.9 + rng() * 0.2), size, alpha, animate: true, shape: look.shape || 0 });
     if (id < 0) return -1;
     regionNodes[region].push(id);
     projectNode.set(n.id, id);
     meta[id] = { ...n, region };
     if (n.kind === 'endpoint') endpointCount++;
+    if (n.kind === 'memory') memoryCount++;
     return id;
   }
 
@@ -375,12 +390,35 @@ export function createCosmos(scene) {
     if (a === undefined || b === undefined || a === b) return -1;
     if (e.kind === 'http' || e.kind === 'rpc') callers.set(b, (callers.get(b) || 0) + 1);
     if (e.kind === 'tests') tested.set(b, (tested.get(b) || 0) + 1);
-    const cross = graph.region[a] !== graph.region[b];
+    const ra = graph.region[a], rb = graph.region[b];
+    const cross = ra !== rb;
     const kind = cross && CROSS_KINDS.has(e.kind) ? EDGE.cross : EDGE[e.kind] ?? EDGE.call;
     const tintOf = BRIDGE_TINT[e.kind] || null;
     const flow = FLOW_KINDS.has(e.kind);
     const strength = flow ? EDGE_BASE_OF(kind) * lod.bridges : null;
-    return graph.addEdge(a, b, { kind, animate: true, tint: tintOf, arc: tintOf ? (cross ? 0.12 : 0.04) : 0, flow, strength });
+    const via = cross && ra >= 0 && rb >= 0 ? tunnel(ra, rb) : null;
+    return graph.addEdge(a, b, { kind, animate: true, tint: tintOf, arc: tintOf && !via ? (cross ? 0.12 : 0.04) : 0, flow, strength, via });
+  }
+
+  const tunnels = new Map();
+  function tunnel(ra, rb) {
+    const key = ra < rb ? `${ra},${rb}` : `${rb},${ra}`;
+    if (tunnels.has(key)) return tunnels.get(key);
+    const A = centers[ra], B = centers[rb], RA = regions[ra], RB = regions[rb];
+    const d = A.distanceTo(B);
+    const side = new THREE.Vector3(gauss(rng), gauss(rng), gauss(rng)).cross(B.clone().sub(A)).normalize();
+    const c = A.clone().add(B).multiplyScalar(0.5).addScaledVector(side, d * 0.14);
+    const via = [c.x, c.y, c.z, Math.min(1.2, d * 0.03)];
+    tunnels.set(key, via);
+    const out = [0, 0, 0];
+    for (let k = 0, n = Math.min(260, Math.floor(d * 7)); k < n; k++) {
+      const t = 0.12 + rng() * 0.76;
+      bez(A.x, A.y, A.z, c.x, c.y, c.z, B.x, B.y, B.z, t, out);
+      const sp = 0.15 + Math.abs(gauss(rng)) * 0.45;
+      dust.push(out[0] + gauss(rng) * sp, out[1] + gauss(rng) * sp, out[2] + gauss(rng) * sp, RA.color.map((x, q) => x * (1 - t) + RB.color[q] * t), 0.025 + Math.pow(rng(), 4) * 0.05, 0.18 + rng() * 0.25);
+    }
+    dust.flush();
+    return via;
   }
 
   function endpoints() {
@@ -550,6 +588,9 @@ export function createCosmos(scene) {
     lod,
     get endpointCount() {
       return endpointCount;
+    },
+    get memoryCount() {
+      return memoryCount;
     },
     callersOf: (id) => callers.get(id) || 0,
     testsOf: (id) => tested.get(id) || 0,

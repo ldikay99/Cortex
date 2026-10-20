@@ -697,7 +697,7 @@ RUST_CRATES = {
         pub fn spin_all() {}
     """,
     'b/src/util.rs': """
-        pub fn go(q: u8) {
+        pub fn go<T>(q: T) {
             q.frobnicate();
         }
     """,
@@ -780,6 +780,20 @@ GO_PACKAGES = {
 
         type formBinding struct{}
     """,
+    'config/config.go': """
+        package config
+
+        type Options struct{}
+    """,
+    'config/opts.go': """
+        package config
+
+        var Opts = 1
+
+        const (
+          Mode = "debug"
+        )
+    """,
     'context.go': """
         package web
 
@@ -787,8 +801,11 @@ GO_PACKAGES = {
           "net/http"
 
           "example.com/web/binding"
+          "example.com/web/config"
           "example.com/web/render"
         )
+
+        var mode = config.Mode
 
         type Context struct {
           b binding.Binding
@@ -805,9 +822,11 @@ GO_PACKAGES = {
 def test_go_package_imports_and_type_uses(tmp_path):
     found = imports(analyze(str(write_repo(tmp_path / 'go', GO_PACKAGES))))
     assert ('context.go', 'binding/binding.go') in found
-    assert ('context.go', 'render/render.go') in found
     assert ('context.go', 'render/json.go') in found
+    assert ('context.go', 'render/render.go') not in found
     assert ('context.go', 'binding/form.go') not in found
+    assert ('context.go', 'config/opts.go') in found
+    assert ('context.go', 'config/config.go') not in found
 
 
 CSHARP_TYPES = {
@@ -1579,3 +1598,84 @@ def test_go_build_constraints():
     assert go_enabled('a/b_test.go', b'//go:build !go1.20\n\npackage a\n') == ('!go1.20', False)
     assert go_enabled('a/file_windows.go', b'package a\n') == ('', False)
     assert go_enabled('a/file_linux_amd64.go', b'package a\n') == ('', True)
+
+
+RUBY_CALLS = {
+    'lib/shop/cart.rb': """
+        module Shop
+          class Cart
+            attr_accessor :total
+            attr_reader :items
+
+            def initialize
+              @items = []
+              self.total = 0
+            end
+
+            def add(item, qty = 1)
+              price = qty
+              refresh
+              price
+              item.weigh
+              @store.persist(item)
+              Shop::Receipt.new(self)
+            end
+
+            def refresh
+              [1].each { |entry| entry }
+            end
+          end
+        end
+    """,
+    'lib/shop/receipt.rb': """
+        module Shop
+          class Receipt
+            def initialize(cart)
+              @cart = cart
+            end
+
+            def persist(item)
+            end
+          end
+        end
+    """,
+}
+
+
+def test_ruby_bare_calls_accessors_and_constructors(tmp_path):
+    graph = analyze(str(write_repo(tmp_path / 'rb', RUBY_CALLS)))
+    found = triples(graph)
+    assert {('Cart.total', 'method'), ('Cart.total=', 'method'), ('Cart.items', 'method')} <= kinds(graph)
+    assert {('Cart.add', 'call', 'Cart.refresh'), ('Cart.add', 'call', 'Receipt'),
+            ('Cart.initialize', 'call', 'Cart.total=')} <= found
+    assert ('Cart.add', 'call', 'Cart.price') not in found
+    assert ('Cart.add', 'call', 'Receipt.persist') not in found
+    assert not any(a == 'Cart.refresh' and k == 'call' for a, k, _ in found)
+
+
+def test_go_package_without_resolved_uses_keeps_its_representative(tmp_path):
+    files = {
+        'go.mod': 'module example.com/app\n',
+        'util/util.go': 'package util\n\nfunc Helper() {}\n',
+        'util/extra.go': 'package util\n\nfunc Extra() {}\n',
+        'main.go': 'package main\n\nimport "example.com/app/util"\n\nfunc main() {\n\tutil.Generated()\n}\n',
+    }
+    found = imports(analyze(str(write_repo(tmp_path / 'gorep', files))))
+    assert ('main.go', 'util/util.go') in found
+    assert ('main.go', 'util/extra.go') not in found
+
+
+def test_go_method_values_and_field_reads_link_their_files(tmp_path):
+    files = {
+        'go.mod': 'module example.com/app\n',
+        'model/user.go': 'package model\n\ntype User struct {\n\tID   int\n\tName string\n}\n',
+        'model/store.go': 'package model\n\ntype Store struct{}\n\nfunc (s *Store) Save(u *User) {}\n',
+        'api/api.go': ('package api\n\nimport "example.com/app/model"\n\n'
+                       'func Register(s *model.Store, u *model.User, mux map[string]func(*model.User)) int {\n'
+                       '\tmux["save"] = s.Save\n\treturn u.ID\n}\n'),
+    }
+    graph = analyze(str(write_repo(tmp_path / 'gosel', files)))
+    found = triples(graph)
+    assert ('Register', 'ref', 'Store.Save') in found
+    assert ('Register', 'ref', 'User') in found
+    assert ('Register', 'call', 'Store.Save') not in found

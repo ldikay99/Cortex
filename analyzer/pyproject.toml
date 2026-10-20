@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "cortex-graph"
-version = "1.1.0"
+version = "1.2.0"
 description = "Córtex: analiza un repositorio en cualquier lenguaje de forma determinista (sin IA) y lo convierte en un grafo de conocimiento con comunidades, versiones, CLI, API HTTP y servidor MCP."
 readme = { text = "Córtex convierte un repositorio en un grafo de conocimiento determinista: módulos, clases, funciones y documentos unidos por imports, llamadas, herencia y referencias, agrupados en comunidades.", content-type = "text/plain" }
 authors = [{ name = "Jonathan C (ldikay99)" }]
@@ -74,6 +74,10 @@ Changelog = "https://github.com/ldikay99/Cortex/releases"
 
 [project.optional-dependencies]
 dev = ["pytest==9.1.1", "pyflakes==3.4.0"]
+ai = ["anthropic==1.15.0"]
+docs = ["pypdf==6.21.1"]
+semantic = ["model2vec==0.10.0"]
+all = ["anthropic==1.15.0", "pypdf==6.21.1", "model2vec==0.10.0"]
 
 [project.scripts]
 cortex = "cortex_graph.cli:main"

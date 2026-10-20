@@ -978,7 +978,7 @@ class Deps:
             key = ids.get('.'.join(segs[:k]).lower())
             if key:
                 return key
-        longer = sorted((c for c in ids if c.startswith(low + '.')), key=lambda c: (len(c), c))
+        longer = [] if segs[0] == 'System' else sorted((c for c in ids if c.startswith(low + '.')), key=lambda c: (len(c), c))
         if longer:
             return ids[longer[0]]
         if inside(spec, '.', self.cs_ns, self.cs_all) or segs[0] in NUGET_SKIP:

@@ -172,3 +172,43 @@ def test_cli_integrations(repo, tmp_path):
 
     res = run(['watch', str(repo), '--name', 'demo', '--once', '--tests'], data, tmp_path)
     assert res.returncode == 0, res.stderr
+
+
+def test_cli_memory_commands(tmp_path):
+    data = tmp_path / 'store'
+    home = tmp_path / 'home'
+    env = {'HOME': str(home), 'USERPROFILE': str(home), 'ANTHROPIC_API_KEY': '', 'ANTHROPIC_AUTH_TOKEN': '',
+           'ANTHROPIC_CONFIG_DIR': str(home / 'none')}
+    res = run(['remember', 'Vivo en Sevilla', '--cuando', '2023-01-05'], data, tmp_path, env)
+    assert res.returncode == 0, res.stderr
+    assert res.stdout.startswith('guardado: Vivo en Sevilla')
+    saved = json.loads(run(['remember', 'Vivo en Madrid', '--categoria', 'identidad', '--sobre', 'Madrid', '--json'], data, tmp_path, env).stdout)
+    assert saved['status'] in ('new', 'updated') and saved['memory']['category'] == 'identity' and saved['project'] == 'memoria'
+    assert 'ya lo sabía' in run(['remember', 'vivo en madrid'], data, tmp_path, env).stdout
+    res = run(['recall', '¿dónde vivo?'], data, tmp_path, env)
+    assert res.returncode == 0 and '# Memoria · memoria' in res.stdout and 'Vivo en Madrid' in res.stdout and 'tokens)' in res.stderr
+    recalled = json.loads(run(['recall', 'where do I live', '--budget', '300', '--json'], data, tmp_path, env).stdout)
+    assert recalled['items'][0]['id'] == saved['id'] and recalled['tokens'] <= 300
+    hinted = json.loads(run(['recall', 'mi ciudad', '--pistas', 'Madrid', 'vivo', '--json'], data, tmp_path, env).stdout)
+    assert hinted['hints'] == ['Madrid', 'vivo'] and hinted['items'][0]['id'] == saved['id']
+    assert '## Quién es' in run(['profile'], data, tmp_path, env).stdout
+    assert 'sections' in json.loads(run(['profile', '--json'], data, tmp_path, env).stdout)
+    res = run(['timeline', '--desde', '2023-01-01', '--sobre', 'madrid'], data, tmp_path, env)
+    assert res.returncode == 0 and 'Vive en Madrid' in res.stdout and 'Sevilla' not in res.stdout
+    res = run(['forget', saved['id']], data, tmp_path, env)
+    assert res.returncode == 0 and f"olvidado: r:{saved['id']}" in res.stdout
+    res = run(['forget', 'algo que nunca dije'], data, tmp_path, env)
+    assert res.returncode == 3 and 'no encontré' in res.stderr
+    res = run(['remember', 'x', '--categoria', 'planeta'], data, tmp_path, env)
+    assert res.returncode == 2
+    notes = tmp_path / 'notas'
+    notes.mkdir()
+    (notes / 'diario.md').write_text('# Diario\n\nHoy hablé con Ana sobre el viaje a Kioto.\n', encoding='utf-8')
+    res = run(['import', str(notes), '--name', 'diario'], data, tmp_path, env)
+    assert res.returncode == 0, res.stderr
+    assert 'nada sale de tu equipo' in res.stderr and 'diario v1:' in res.stdout and 'recuerdos vigentes' in res.stdout
+    res = run(['import', str(notes), '--name', 'diario', '--batch'], data, tmp_path, env)
+    assert res.returncode == 1 and '--ai' in res.stderr
+    res = run(['import', str(notes), '--name', 'diario', '--ai'], data, tmp_path, env)
+    assert res.returncode == 1 and 'envía tus conversaciones a la nube' in res.stderr and 'no se puede usar la extracción con IA' in res.stderr
+    assert 'Traceback' not in res.stderr

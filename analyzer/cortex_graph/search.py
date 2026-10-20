@@ -42,6 +42,7 @@ evento:event manejador:handler escucha:listener suscripcion:subscription tema:to
 carpeta:folder,directory directorio:directory ventana:window pantalla:screen menu:menu editor:editor texto:text dibujo:drawing
 lienzo:canvas forma:shape linea:line punto:point flecha:arrow zoom:zoom capa:layer grupo:group seleccion:selection
 historial:history version:version cambio:change estado:state almacen:store tienda:shop,store compra:purchase,checkout
+recuerdo:memory conversacion:conversation,chat seccion:section persona:person,people charla:conversation,chat
 venta:sale suscriptor:subscriber plan:plan factura:invoice reporte:report informe:report grafica:chart tablero:dashboard
 '''.split())
 SPANISH_ROOTS = dict(line.split(':') for line in '''
@@ -135,8 +136,13 @@ def name_forms(n):
 
 def node_fields(n):
     path = n['file']
-    tags = ' '.join(x for x in (n.get('route'), n.get('table')) if x)
-    return {'name': n['name'], 'tags': tags, 'sig': n.get('sig') or '', 'doc': n.get('doc') or '', 'path': path}
+    tags = ' '.join(x for x in (n.get('route'), n.get('table'), n.get('tags'), n.get('category'), n.get('attribute'), n.get('value'),
+                                n.get('email'), n.get('source') if n.get('kind') == 'conversation' else None) if isinstance(x, str) and x)
+    for extra in ('aliases', 'tags'):
+        if isinstance(n.get(extra), list):
+            tags = ' '.join([tags] + [a for a in n[extra] if isinstance(a, str)]).strip()
+    doc = ' '.join(x for x in (n.get('doc'), n.get('summary')) if isinstance(x, str) and x)
+    return {'name': n['name'], 'tags': tags, 'sig': n.get('sig') or '', 'doc': doc, 'path': path}
 
 
 class Index:
